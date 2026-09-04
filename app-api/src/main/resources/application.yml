@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: moduplaylist-api
+
+    profiles:
+      active: dev
+
+server:
+  port: 8080

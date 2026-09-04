@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: moduplaylist-realtime
+
+    profiles:
+      active: dev
+
+server:
+  port: 8081
