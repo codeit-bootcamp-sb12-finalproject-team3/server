@@ -8,5 +8,12 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.kafka:spring-kafka'
 
+    // JSON 직렬화/역직렬화
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    // AWS SDK v2 (S3)
+    implementation platform("software.amazon.awssdk:bom:2.35.10")
+    implementation "software.amazon.awssdk:s3"
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
