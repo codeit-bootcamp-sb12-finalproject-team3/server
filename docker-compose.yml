@@ -16,9 +16,9 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
 
-      # 실제 schema.sql / data.sql 위치에 맞게 수정
-      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ./data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
+    # DDL/DML 작성 완료 후 활성화
+    # - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    # - ./data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
 
     healthcheck:
       test:
