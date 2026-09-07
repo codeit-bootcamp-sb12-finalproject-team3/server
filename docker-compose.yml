@@ -1,0 +1,110 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: mopl-mysql
+
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-moduplaylist}
+      MYSQL_USER: ${DB_USERNAME:-mopl}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-mopl}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      TZ: Asia/Seoul
+
+    ports:
+      - "${DB_PORT:-3306}:3306"
+
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+      # 실제 schema.sql / data.sql 위치에 맞게 수정
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-p${DB_ROOT_PASSWORD:-root}"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+    networks:
+      - mopl-network
+
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: mopl-redis
+
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+
+    volumes:
+      - redis-data:/data
+
+    command: redis-server --appendonly yes
+
+    networks:
+      - mopl-network
+
+
+  kafka:
+    image: apache/kafka:latest
+    hostname: kafka
+    container_name: mopl-kafka
+
+    ports:
+      - "${KAFKA_PORT:-9092}:9092"
+
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: >
+        CONTROLLER:PLAINTEXT,
+        PLAINTEXT:PLAINTEXT,
+        PLAINTEXT_HOST:PLAINTEXT
+
+      KAFKA_LISTENERS: >
+        PLAINTEXT://kafka:29092,
+        CONTROLLER://kafka:29093,
+        PLAINTEXT_HOST://0.0.0.0:9092
+
+      KAFKA_ADVERTISED_LISTENERS: >
+        PLAINTEXT://kafka:29092,
+        PLAINTEXT_HOST://localhost:${KAFKA_PORT:-9092}
+
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+
+    networks:
+      - mopl-network
+
+
+networks:
+  mopl-network:
+    driver: bridge
+
+
+volumes:
+  mysql-data:
+  redis-data:
+
+# 사용법:
+#   docker-compose up -d
