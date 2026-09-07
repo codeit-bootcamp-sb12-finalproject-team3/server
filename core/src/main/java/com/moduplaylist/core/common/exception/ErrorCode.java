@@ -14,9 +14,12 @@ public enum ErrorCode {
 
     // User
     USER_NOT_FOUND("존재하지 않는 사용자입니다."),
-    USER_ALREADY_EXISTS("이미 가입된 사용자입니다.");
+    USER_ALREADY_EXISTS("이미 가입된 사용자입니다."),
 
-    // 이후 실제 기능 개발하며 추가
+    // Preference
+    PREFERENCE_NOT_FOUND( "초기 선호 정보가 없습니다.");
+
+
 
     private final String message;
 }
