@@ -17,8 +17,8 @@ services:
       - mysql-data:/var/lib/mysql
 
     # DDL/DML 작성 완료 후 활성화
-    # - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-    # - ./data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
 
     healthcheck:
       test:
