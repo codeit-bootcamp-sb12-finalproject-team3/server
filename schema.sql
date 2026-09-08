@@ -727,7 +727,7 @@ CREATE TABLE watch_parties (
                                description         TEXT NULL,
                                scheduled_at        DATETIME(6) NOT NULL,
                                status              ENUM('SCHEDULED', 'LIVE', 'ENDED') NOT NULL
-                        DEFAULT 'SCHEDULED',
+                                                                        DEFAULT 'SCHEDULED',
                                max_participants    INT UNSIGNED NOT NULL,
 
                                start_episode       INT NULL,
@@ -786,7 +786,7 @@ CREATE TABLE watch_party_participants (
                                           user_id             BINARY(16) NOT NULL,
                                           watch_party_id      BINARY(16) NOT NULL,
                                           status              ENUM('JOINED', 'LEFT', 'KICKED') NOT NULL
-                        DEFAULT 'JOINED',
+                                                                                   DEFAULT 'JOINED',
                                           joined_at           DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
                                           left_at             DATETIME(6) NULL
 );
@@ -972,7 +972,7 @@ CREATE TABLE notifications (
                                title               VARCHAR(100) NOT NULL,
                                content             VARCHAR(500) NOT NULL,
                                level               ENUM('INFO', 'WARNING', 'ERROR') NOT NULL
-                        DEFAULT 'INFO',
+                                                                        DEFAULT 'INFO',
                                created_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 );
 
