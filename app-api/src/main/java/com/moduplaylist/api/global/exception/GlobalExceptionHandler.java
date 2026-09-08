@@ -14,6 +14,20 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(
+            org.springframework.security.access.AccessDeniedException e) {
+        return handleBaseException(new BaseException(ErrorCode.ACCESS_DENIED));
+    }
+
+    @ExceptionHandler({org.springframework.http.converter.HttpMessageNotReadableException.class,
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
+            jakarta.validation.ConstraintViolationException.class,
+            org.springframework.web.method.annotation.HandlerMethodValidationException.class})
+    public ResponseEntity<ErrorResponse> handleInvalidInput(Exception e) {
+        return handleBaseException(new BaseException(ErrorCode.INVALID_REQUEST));
+    }
+
     // 서비스에서 발생한 비즈니스 예외를 공통 API 오류 응답으로 변환한다.
 
     @ExceptionHandler(BaseException.class)
