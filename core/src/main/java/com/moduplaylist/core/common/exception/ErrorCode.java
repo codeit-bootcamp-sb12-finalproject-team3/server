@@ -22,7 +22,8 @@ public enum ErrorCode {
 
     // Follow
     SELF_FOLLOW_NOT_ALLOWED("자기 자신을 팔로우할 수 없습니다."),
-    FOLLOW_ALREADY_EXISTS("이미 팔로우 중입니다.");
+    FOLLOW_ALREADY_EXISTS("이미 팔로우 중입니다."),
+    FOLLOW_NOT_FOUND("존재하지 않는 팔로우 관계입니다.");
 
     private final String message;
 }

@@ -33,5 +33,17 @@ public class FollowController {
                 .body(followService.create(followerId, request.getFolloweeId()));
     }
 
+    @DeleteMapping("/{followId}")
+    public ResponseEntity<Void>  delete(@PathVariable UUID followeeId) {
+        // TODO Security 구현 후
+        // @AuthenticationPrincipal CustomUserDetails userDetails 로 변경
+        // UUID followerId = userDetails.getUserId();
+
+        UUID followerId = UUID.fromString(
+                "01a07a547f707e0d9a8015abccab6c92");
+
+        followService.delete(followerId, followeeId);
+        return ResponseEntity.noContent().build();
+    }
 
 }

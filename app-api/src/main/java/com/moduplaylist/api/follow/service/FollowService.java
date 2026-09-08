@@ -6,5 +6,6 @@ import com.moduplaylist.api.follow.dto.FollowRequest;
 import java.util.UUID;
 
 public interface FollowService {
-    FollowDto create(UUID followeeId, UUID followerId);
+    FollowDto create(UUID followerId, UUID followeeId);
+    void delete(UUID followerId, UUID followeeId);
 }

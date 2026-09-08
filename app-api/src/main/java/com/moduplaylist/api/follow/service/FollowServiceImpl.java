@@ -5,12 +5,14 @@ import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
 import com.moduplaylist.core.follow.entity.Follow;
 import com.moduplaylist.core.follow.exception.FollowAlreadyExistsException;
+import com.moduplaylist.core.follow.exception.FollowNotFoundException;
 import com.moduplaylist.core.follow.exception.SelfFollowNotAllowedException;
 import com.moduplaylist.core.follow.repository.FollowRepository;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -21,6 +23,8 @@ public class FollowServiceImpl implements FollowService{
     private final FollowRepository followRepository;
     private final UserRepository userRepository;
 
+    @Transactional
+    @Override
     public FollowDto create(UUID followerId, UUID followeeId) {
         if (followerId == null) throw new BaseException(ErrorCode.UNAUTHORIZED);
         if (followeeId == null) throw new BaseException(ErrorCode.INVALID_REQUEST);
@@ -49,4 +53,16 @@ public class FollowServiceImpl implements FollowService{
         return FollowDto.from(followRepository.save(follow));
     }
 
+    @Transactional
+    @Override
+    public void delete(UUID followerId, UUID followeeId) {
+        if (followerId == null) throw new BaseException(ErrorCode.UNAUTHORIZED);
+        if (followeeId == null) throw new BaseException(ErrorCode.INVALID_REQUEST);
+
+        Follow follow = followRepository.findByFollower_IdAndFollowee_Id(followerId, followeeId)
+                .orElseThrow(() -> new FollowNotFoundException(followerId, followeeId));
+
+        followRepository.delete(follow);
+
+    }
 }
