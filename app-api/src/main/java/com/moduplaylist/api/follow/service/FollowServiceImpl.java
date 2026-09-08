@@ -11,6 +11,7 @@ import com.moduplaylist.core.follow.repository.FollowRepository;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,7 +51,12 @@ public class FollowServiceImpl implements FollowService{
         }
 
         Follow follow = new Follow(follower, followee);
-        return FollowDto.from(followRepository.save(follow));
+        try {
+            Follow savedFollow = followRepository.saveAndFlush(follow);
+            return FollowDto.from(savedFollow);
+        } catch (DataIntegrityViolationException e) {
+            throw new FollowAlreadyExistsException(followerId, followeeId, e);
+        }
     }
 
     @Transactional
