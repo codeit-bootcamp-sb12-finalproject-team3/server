@@ -31,8 +31,6 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.REVIEW_ACCESS_DENIED, HttpStatus.FORBIDDEN);
 
         STATUS_MAP.put(ErrorCode.INVALID_REQUEST, HttpStatus.BAD_REQUEST);
-        STATUS_MAP.put(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN);
-        STATUS_MAP.put(ErrorCode.AUTHENTICATION_REQUIRED, HttpStatus.UNAUTHORIZED);
         STATUS_MAP.put(ErrorCode.VALIDATION_ERROR, HttpStatus.BAD_REQUEST);
 
         // Preference

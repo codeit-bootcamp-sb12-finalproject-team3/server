@@ -9,8 +9,6 @@ public enum ErrorCode {
 
     // Common
     INVALID_REQUEST("잘못된 요청입니다."),
-    ACCESS_DENIED("요청한 작업을 수행할 권한이 없습니다."),
-    AUTHENTICATION_REQUIRED("유효한 사용자 인증이 필요합니다."),
     VALIDATION_ERROR("요청 데이터 유효성 검사에 실패했습니다."),
     INTERNAL_SERVER_ERROR("서버 내부 오류가 발생했습니다."),
 
