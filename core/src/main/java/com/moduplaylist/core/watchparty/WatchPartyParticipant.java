@@ -54,11 +54,13 @@ public class WatchPartyParticipant {
     }
 
     public void leave() {
+        if (this.status != ParticipantStatus.JOINED) return;
         this.status = ParticipantStatus.LEFT;
         this.leftAt = Instant.now();
     }
 
     public void kick() {
+        if (this.status != ParticipantStatus.JOINED) return;
         this.status = ParticipantStatus.KICKED;
         this.leftAt = Instant.now();
     }
