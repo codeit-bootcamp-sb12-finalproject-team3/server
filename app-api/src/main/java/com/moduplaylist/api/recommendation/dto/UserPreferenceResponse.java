@@ -11,7 +11,5 @@ import java.util.UUID;
 @Builder
 public class UserPreferenceResponse {
 
-    private UUID id;
-
     private List<UUID> contentIds;
 }
