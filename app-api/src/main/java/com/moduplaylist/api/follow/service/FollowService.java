@@ -1,12 +1,11 @@
 package com.moduplaylist.api.follow.service;
 
-import com.moduplaylist.core.follow.repository.FollowRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import com.moduplaylist.api.follow.dto.FollowDto;
+import com.moduplaylist.api.follow.dto.FollowRequest;
 
-@Service
-@RequiredArgsConstructor
-public class FollowService {
+import java.util.UUID;
 
-    private final FollowRepository followRepository;
+public interface FollowService {
+    FollowDto create(UUID followerId, UUID followeeId);
+    void delete(UUID followerId, UUID followeeId);
 }
