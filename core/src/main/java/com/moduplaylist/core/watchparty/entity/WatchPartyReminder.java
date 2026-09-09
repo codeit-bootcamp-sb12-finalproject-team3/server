@@ -1,4 +1,4 @@
-package com.moduplaylist.core.watchparty;
+package com.moduplaylist.core.watchparty.entity;
 
 import com.github.f4b6a3.uuid.UuidCreator;
 import com.moduplaylist.core.user.User;

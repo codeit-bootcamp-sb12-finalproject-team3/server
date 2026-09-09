@@ -1,6 +1,6 @@
 package com.moduplaylist.core.watchparty.repository;
 
-import com.moduplaylist.core.watchparty.WatchPartyParticipant;
+import com.moduplaylist.core.watchparty.entity.WatchPartyParticipant;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.UUID;

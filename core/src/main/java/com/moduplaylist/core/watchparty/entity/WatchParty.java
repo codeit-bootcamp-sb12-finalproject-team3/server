@@ -1,4 +1,4 @@
-package com.moduplaylist.core.watchparty;
+package com.moduplaylist.core.watchparty.entity;
 
 import com.moduplaylist.core.common.BaseEntity;
 import com.moduplaylist.core.user.User;
