@@ -1,7 +1,7 @@
 package com.moduplaylist.core.watchparty.entity;
 
 import com.moduplaylist.core.common.BaseEntity;
-import com.moduplaylist.core.user.User;
+import com.moduplaylist.core.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
