@@ -1,13 +1,11 @@
-package com.moduplaylist.core.follow;
+package com.moduplaylist.core.follow.entity;
 
 import com.github.f4b6a3.uuid.UuidCreator;
-import com.moduplaylist.core.user.User;
+import com.moduplaylist.core.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -27,7 +25,7 @@ public class Follow{
     private User follower;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "follower_id", nullable = false, updatable = false)
+    @JoinColumn(name = "followee_id", nullable = false, updatable = false)
     private User followee;
 
     public Follow(User follower, User followee) {
