@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -51,6 +52,22 @@ public class GlobalExceptionHandler {
                 .details(details)
                 .status(HttpStatus.BAD_REQUEST.value())
                 .build();
+
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    // JSON 형식이 잘못되었거나 필수 요청 본문이 누락된 경우 400 응답으로 처리한다.
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleMessageNotReadable(
+        HttpMessageNotReadableException e
+    ) {
+        ErrorResponse response = ErrorResponse.builder()
+            .timestamp(Instant.now())
+            .code(ErrorCode.INVALID_REQUEST.name())
+            .message(ErrorCode.INVALID_REQUEST.getMessage())
+            .details(Map.of())
+            .status(HttpStatus.BAD_REQUEST.value())
+            .build();
 
         return ResponseEntity.badRequest().body(response);
     }
