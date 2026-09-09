@@ -5,11 +5,12 @@ import com.moduplaylist.core.content.entity.Tag;
 import com.moduplaylist.core.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.LastModifiedDate;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Getter
@@ -33,25 +34,39 @@ public class UserPlaylistTagPreference {
     @Column(name = "score", nullable = false)
     private double score;
 
+    @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    private Instant scoreUpdatedAt;
 
-    @Builder
-    public UserPlaylistTagPreference(
+    private UserPlaylistTagPreference(
             User user,
             Tag tag,
-            double score
+            double score,
+            Instant scoreUpdatedAt
     ) {
         this.id = UuidCreator.getTimeOrderedEpoch();
-        this.user = user;
-        this.tag = tag;
+        this.user = Objects.requireNonNull(user);
+        this.tag = Objects.requireNonNull(tag);
         this.score = score;
-        this.updatedAt = LocalDateTime.now();
+        this.scoreUpdatedAt = Objects.requireNonNull(scoreUpdatedAt);
+    }
+
+    public static UserPlaylistTagPreference create(
+            User user,
+            Tag tag,
+            double initialScore,
+            Instant scoreUpdatedAt
+    ) {
+        return new UserPlaylistTagPreference(
+                user,
+                tag,
+                initialScore,
+                scoreUpdatedAt
+        );
     }
 
     public void updateScore(double score) {
         this.score = score;
-        this.updatedAt = LocalDateTime.now();
     }
 
 }

@@ -5,11 +5,11 @@ import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Getter
@@ -31,13 +31,16 @@ public class UserPreferenceContent {
     private Content content;
 
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
-    @Builder
-    public UserPreferenceContent(User user, Content content) {
+    private UserPreferenceContent(User user, Content content) {
         this.id = UuidCreator.getTimeOrderedEpoch();
-        this.user = user;
-        this.content = content;
-        this.createdAt = LocalDateTime.now();
+        this.user = Objects.requireNonNull(user);
+        this.content = Objects.requireNonNull(content);
+        this.createdAt = Instant.now();
+    }
+
+    public static UserPreferenceContent create(User user, Content content) {
+        return new UserPreferenceContent(user, content);
     }
 }
