@@ -33,7 +33,7 @@ public class WatchPartyParticipant {
     @Column(nullable = false, length = 20)
     private ParticipantStatus status;
 
-    @Column(name = "joined_at", nullable = false, updatable = false)
+    @Column(name = "joined_at", nullable = false)   //updatable = false 삭제
     private Instant joinedAt;
 
     @Column(name = "left_at")
@@ -63,5 +63,13 @@ public class WatchPartyParticipant {
         if (this.status != ParticipantStatus.JOINED) return;
         this.status = ParticipantStatus.KICKED;
         this.leftAt = Instant.now();
+    }
+
+    //재입장 (최신 갱신 기준)
+    public void rejoin() {
+        if (this.status != ParticipantStatus.LEFT) return;
+        this.status = ParticipantStatus.JOINED;
+        this.joinedAt = Instant.now();
+        this.leftAt = null;
     }
 }
