@@ -42,7 +42,11 @@ public class Content extends BaseEntity {
 	private Integer episodeCount;
 
 	@Convert(converter = ContentTypeConverter.class)
-	@Column(nullable = false, columnDefinition = "enum('movie','tvSeries','tvSeason','sport')")
+	@Column(
+		nullable = false,
+		updatable = false,
+		columnDefinition = "enum('movie','tvSeries','tvSeason','sport')"
+	)
 	private ContentType type;
 
 	@Column(name = "sport_type", length = 50)
@@ -119,31 +123,6 @@ public class Content extends BaseEntity {
 		}
 		if (description != null) this.description = description;
 		if (thumbnailUrl != null) this.thumbnailUrl = thumbnailUrl;
-	}
-
-	public void updateType(
-		ContentType type,
-		Content parentContent,
-		Integer seasonNumber,
-		Integer seasonCount,
-		Integer episodeCount,
-		String sportType
-	) {
-		validateTypeStructure(
-			type,
-			parentContent,
-			seasonNumber,
-			seasonCount,
-			episodeCount,
-			sportType
-		);
-
-		this.type = type;
-		this.parentContent = parentContent;
-		this.seasonNumber = seasonNumber;
-		this.seasonCount = seasonCount;
-		this.episodeCount = episodeCount;
-		this.sportType = sportType;
 	}
 
 	public void updateReviewStatistics(BigDecimal averageRating, long reviewCount) {
