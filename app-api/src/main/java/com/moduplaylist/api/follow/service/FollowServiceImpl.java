@@ -71,4 +71,39 @@ public class FollowServiceImpl implements FollowService{
         followRepository.delete(follow);
 
     }
+
+    @Transactional(readOnly = true)
+    @Override
+    public long getFollowerCount(UUID targetUserId) {
+        if (targetUserId == null) throw new BaseException(ErrorCode.INVALID_REQUEST);
+
+        validateTargetUser(targetUserId);
+
+        return followRepository.countByFollowee_Id(targetUserId);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public FollowDto getFollow(UUID followerId, UUID followeeId) {
+        if (followerId == null) throw new BaseException(ErrorCode.UNAUTHORIZED);
+        if (followeeId == null) throw new BaseException(ErrorCode.INVALID_REQUEST);
+
+        validateTargetUser(followeeId);
+
+        Follow follow = followRepository.findByFollower_IdAndFollowee_Id(followerId, followeeId)
+                .orElseThrow(() -> new FollowNotFoundException(followerId, followeeId));
+
+        return FollowDto.from(follow);
+
+    }
+
+    private void validateTargetUser(UUID targetUserId) {
+        userRepository.findById(targetUserId)
+                .orElseThrow(() -> {
+                    BaseException exception =
+                            new BaseException(ErrorCode.USER_NOT_FOUND);
+                    exception.addDetail("userId", targetUserId);
+                    return exception;
+                });
+    }
 }

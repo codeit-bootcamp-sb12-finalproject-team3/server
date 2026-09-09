@@ -46,4 +46,19 @@ public class FollowController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/followed-by-me")
+    public ResponseEntity<FollowDto> getFollow(@RequestParam UUID followeeId) {
+        // TODO Security 구현 후
+        // @AuthenticationPrincipal CustomUserDetails userDetails 로 변경
+        // UUID followerId = userDetails.getUserId();
+        UUID followerId = UUID.fromString(
+                "01a07a54-7f70-7e0d-9a80-15abccab6c92");
+
+        return ResponseEntity.ok(followService.getFollow(followerId, followeeId));
+    }
+
+    @GetMapping("/count")
+    public ResponseEntity<Long> getFollowerCount(@RequestParam UUID followeeId) {
+        return ResponseEntity.ok(followService.getFollowerCount(followeeId));
+    }
 }
