@@ -47,7 +47,7 @@ public class WatchPartyParticipantService {
                 throw new IllegalStateException("이미 참가 중입니다.");
             }
             if (participant.getStatus() == ParticipantStatus.KICKED) {
-                throw new IllegalStateException("강퇴된 방에는 다시 참가할 수 없습니다.");
+                throw new SecurityException("강퇴된 방에는 다시 참가할 수 없습니다.");
             }
 
             validateCapacity(party);
@@ -70,5 +70,36 @@ public class WatchPartyParticipantService {
         if (currentCount >= party.getMaxParticipants()) {
             throw new IllegalStateException("정원이 가득 찼습니다.");
         }
+    }
+
+    public void leaveWatchParty(UUID partyId, UUID userId) {
+        WatchPartyParticipant participant = watchPartyParticipantRepository
+                .findByUser_IdAndWatchParty_Id(userId, partyId)
+                .orElseThrow(() -> new IllegalStateException("참가 중인 방이 아닙니다."));
+
+        if (participant.getStatus() != ParticipantStatus.JOINED) {
+            throw new IllegalStateException("현재 참가 중이 아닙니다.");
+        }
+
+        participant.leave();
+    }
+
+    public void kickParticipant(UUID partyId, UUID hostId, UUID targetUserId) {
+        WatchParty party = watchPartyRepository.findById(partyId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 방입니다: " + partyId));
+
+        if (!party.getHost().getId().equals(hostId)) {
+            throw new SecurityException("방장만 참가자를 강퇴할 수 있습니다.");
+        }
+
+        WatchPartyParticipant participant = watchPartyParticipantRepository
+                .findByUser_IdAndWatchParty_Id(targetUserId, partyId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 참가자를 찾을 수 없습니다.")); //사용자 자체를 모름
+
+        if (participant.getStatus() != ParticipantStatus.JOINED) {
+            throw new IllegalStateException("현재 참가 중인 사용자가 아닙니다."); //사용자가 어떠한 사유로 인해 방에 없음(강퇴 등)
+        }
+
+        participant.kick();
     }
 }
