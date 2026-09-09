@@ -15,14 +15,14 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
-  private final UserRepository userrepository;
+  private final UserRepository userRepository;
   private final PasswordEncoder passwordEncoder;
 
 
   @Override
   @Transactional
   public UserResponse create(UserCreateRequest request) {
-    if (userrepository.existsByEmail(request.getEmail())) {
+    if (userRepository.existsByEmail(request.getEmail())) {
       throw new UserAlreadyExistsException();
     }
 
@@ -34,7 +34,7 @@ public class UserServiceImpl implements UserService {
         request.getName()
     );
 
-    User savedUser = userrepository.save(user);
+    User savedUser = userRepository.save(user);
 
     return UserResponse.from(savedUser);
   }

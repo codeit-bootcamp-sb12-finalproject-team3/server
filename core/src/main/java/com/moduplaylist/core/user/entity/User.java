@@ -35,7 +35,7 @@ public class User extends BaseEntity {
   @Column(name = "locked", nullable = false)
   private boolean locked;
 
-  public User(String email, String password, String name) {
+  private User(String email, String password, String name) {
     this.email = email;
     this.password = password;
     this.name = name;
