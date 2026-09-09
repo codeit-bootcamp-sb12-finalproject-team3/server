@@ -14,15 +14,7 @@ import java.util.UUID;
 
 @Getter
 @Entity
-@Table(
-        name = "user_playlist_tag_preferences",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uq_user_playlist_tag_preferences",
-                        columnNames = {"user_id", "tag_id"}
-                )
-        }
-)
+@Table(name = "user_playlist_tag_preferences")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class UserPlaylistTagPreference {
 
