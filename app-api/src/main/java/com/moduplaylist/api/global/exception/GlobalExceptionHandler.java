@@ -8,6 +8,7 @@ import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -70,6 +71,16 @@ public class GlobalExceptionHandler {
             .build();
 
         return ResponseEntity.badRequest().body(response);
+    }
+
+    // 관리자 권한 등 접근 권한이 부족한 경우 403 응답으로 처리한다.
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(
+        AccessDeniedException e
+    ) {
+        return handleBaseException(
+            new BaseException(ErrorCode.FORBIDDEN, e)
+        );
     }
 
     // 처리되지 않은 예외가 클라이언트에 그대로 노출되지 않도록 500 응답으로 처리한다.

@@ -11,6 +11,7 @@ import com.moduplaylist.core.watchparty.repository.WatchPartyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.moduplaylist.core.watchparty.exception.WatchPartyNotFoundException;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -27,7 +28,7 @@ public class WatchPartyParticipantService {
     public void joinWatchParty(UUID partyId, UUID userId) {
 
         WatchParty party = watchPartyRepository.findById(partyId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 방입니다: " + partyId));
+                .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
 
         if (party.getStatus() == WatchPartyStatus.ENDED) {
             throw new IllegalStateException("이미 종료된 방에는 참가할 수 없습니다.");
@@ -85,8 +86,8 @@ public class WatchPartyParticipantService {
     }
 
     public void kickParticipant(UUID partyId, UUID hostId, UUID targetUserId) {
-        WatchParty party = watchPartyRepository.findById(partyId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 방입니다: " + partyId));
+        WatchParty party = watchPartyRepository.findByIdForUpdate(partyId)
+                .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
 
         if (!party.getHost().getId().equals(hostId)) {
             throw new SecurityException("방장만 참가자를 강퇴할 수 있습니다.");
