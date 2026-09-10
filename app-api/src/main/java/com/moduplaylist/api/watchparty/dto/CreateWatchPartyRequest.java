@@ -15,8 +15,6 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Getter
-@Setter
-@NoArgsConstructor
 @AllArgsConstructor
 public class CreateWatchPartyRequest {
 
