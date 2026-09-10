@@ -17,8 +17,12 @@ public enum ErrorCode {
     USER_ALREADY_EXISTS("이미 가입된 사용자입니다."),
     UNAUTHORIZED("인증이 필요합니다."),
 
+    // Content
+    CONTENT_NOT_FOUND("존재하지 않는 콘텐츠입니다."),
+
     // Preference
-    PREFERENCE_NOT_FOUND( "초기 선호 정보가 없습니다."),
+    PREFERENCE_NOT_FOUND("초기 선호 정보가 없습니다."),
+    PREFERENCE_ALREADY_EXISTS("이미 초기 선호 정보가 등록되어 있습니다."),
 
     // Follow
     SELF_FOLLOW_NOT_ALLOWED("자기 자신을 팔로우할 수 없습니다."),
