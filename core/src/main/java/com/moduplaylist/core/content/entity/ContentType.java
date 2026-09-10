@@ -13,6 +13,10 @@ public enum ContentType {
 
 	private final String value;
 
+	public boolean isReviewable() {
+		return this == MOVIE || this == TV_SEASON || this == SPORT;
+	}
+
 	public static ContentType fromValue(String value) {
 		for (ContentType type : values()) {
 			if (type.value.equals(value)) {

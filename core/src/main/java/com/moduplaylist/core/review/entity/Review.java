@@ -71,6 +71,9 @@ public class Review extends BaseEntity {
 				"리뷰 작성자와 대상 콘텐츠는 필수입니다."
 			);
 		}
+		if (!content.isReviewable()) {
+			throw new IllegalArgumentException("TV 시리즈에는 리뷰를 작성할 수 없습니다.");
+		}
 
 		validateReviewText(reviewText);
 		validateRating(rating);
