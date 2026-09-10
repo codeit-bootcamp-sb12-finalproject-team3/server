@@ -67,7 +67,6 @@ public class SecurityConfig {
         new JwtAuthenticationFilter(
             jwtTokenProvider,
             userDetailsService,
-            authenticationEntryPoint,
             jwtRegistry
         );
 

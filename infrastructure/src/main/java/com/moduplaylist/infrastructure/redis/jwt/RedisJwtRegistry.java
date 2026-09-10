@@ -15,7 +15,6 @@ import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
-import software.amazon.awssdk.annotations.NotNull;
 
 @Component
 @RequiredArgsConstructor
@@ -34,6 +33,7 @@ public class RedisJwtRegistry implements JwtRegistry {
       String refreshTokenId,
       Instant refreshExpiresAt
   ) {
+    Assert.notNull(userId, "사용자 ID가 필요합니다.");
     Assert.hasText(accessTokenId, "Access Token ID가 필요합니다.");
     Assert.hasText(refreshTokenId, "Refresh Token ID가 필요합니다.");
 
@@ -49,6 +49,8 @@ public class RedisJwtRegistry implements JwtRegistry {
 
   @Override
   public boolean isAccessTokenActive(UUID userId, String accessTokenId) {
+    Assert.notNull(userId, "사용자 ID가 필요합니다.");
+
     if (accessTokenId == null || accessTokenId.isBlank()) {
       return false;
     }
@@ -68,6 +70,8 @@ public class RedisJwtRegistry implements JwtRegistry {
       String newRefreshTokenId,
       Instant refreshExpiresAt
   ) {
+    Assert.notNull(userId, "사용자 ID가 필요합니다.");
+    
     if (expectedRefreshTokenId == null || expectedRefreshTokenId.isBlank()) {
       return false;
     }
@@ -93,6 +97,8 @@ public class RedisJwtRegistry implements JwtRegistry {
 
   @Override
   public boolean invalidate(UUID userId, String tokenId) {
+    Assert.notNull(userId, "사용자 ID가 필요합니다.");
+
     if (tokenId == null || tokenId.isBlank()) {
       return false;
     }
@@ -110,6 +116,7 @@ public class RedisJwtRegistry implements JwtRegistry {
 
   @Override
   public void invalidateByUserId(UUID userId) {
+    Assert.notNull(userId, "사용자 ID가 필요합니다.");
     redisTemplate.delete(KEY_PREFIX + userId);
   }
 
@@ -144,9 +151,7 @@ public class RedisJwtRegistry implements JwtRegistry {
 
       @Override
       @SuppressWarnings("unchecked")
-      public <K, V> Boolean execute(
-          @NotNull RedisOperations<K, V> operations
-      ) {
+      public <K, V> Boolean execute(RedisOperations<K, V> operations) {
         RedisOperations<String, Object> redisOperations =
             (RedisOperations<String, Object>) (RedisOperations<?, ?>) operations;
 

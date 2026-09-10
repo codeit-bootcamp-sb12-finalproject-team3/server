@@ -1,7 +1,6 @@
 package com.moduplaylist.api.global.security.jwt;
 
 import com.moduplaylist.api.global.security.CustomUserDetailsService;
-import com.moduplaylist.api.global.security.handler.CustomAuthenticationEntryPoint;
 import com.moduplaylist.core.user.repository.JwtRegistry;
 import com.nimbusds.jwt.JWTClaimsSet;
 import jakarta.servlet.FilterChain;
@@ -28,7 +27,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
   private final JwtTokenProvider jwtTokenProvider;
   private final CustomUserDetailsService userDetailsService;
-  private final CustomAuthenticationEntryPoint authenticationEntryPoint;
   private final JwtRegistry jwtRegistry;
 
   private final AccountStatusUserDetailsChecker userDetailsChecker =
@@ -90,8 +88,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     } catch (AuthenticationException e) {
       SecurityContextHolder.clearContext();
-      authenticationEntryPoint.commence(request, response, e);
-      return;
     }
 
     filterChain.doFilter(request, response);
