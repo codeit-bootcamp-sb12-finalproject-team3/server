@@ -21,6 +21,7 @@ import org.hibernate.annotations.OnDeleteAction;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Review extends BaseEntity {
+	private static final BigDecimal MIN_RATING = new BigDecimal("0.5");
 	private static final BigDecimal MAX_RATING = new BigDecimal("5.0");
 	private static final BigDecimal RATING_STEP = new BigDecimal("0.5");
 
@@ -70,6 +71,9 @@ public class Review extends BaseEntity {
 				"리뷰 작성자와 대상 콘텐츠는 필수입니다."
 			);
 		}
+		if (!content.isReviewable()) {
+			throw new IllegalArgumentException("TV 시리즈에는 리뷰를 작성할 수 없습니다.");
+		}
 
 		validateReviewText(reviewText);
 		validateRating(rating);
@@ -99,9 +103,9 @@ public class Review extends BaseEntity {
 	}
 
 	private static void validateRating(BigDecimal rating) {
-		if (rating == null || rating.signum() < 0 || rating.compareTo(MAX_RATING) > 0
-			|| rating.remainder(RATING_STEP).signum() != 0) {
-			throw new IllegalArgumentException("평점은 0부터 5까지 0.5점 단위로 지정해야 합니다.");
+		if (rating == null || rating.compareTo(MIN_RATING) < 0 || rating.compareTo(MAX_RATING) > 0
+			|| rating.remainder(RATING_STEP).compareTo(BigDecimal.ZERO) != 0) {
+			throw new IllegalArgumentException("평점은 0.5부터 5까지 0.5점 단위로 지정해야 합니다.");
 		}
 	}
 }
