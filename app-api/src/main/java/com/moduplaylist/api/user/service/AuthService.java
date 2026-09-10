@@ -6,4 +6,6 @@ public interface AuthService {
 
   TokenRefreshResult refresh(String refreshToken);
 
+  void logout(String refreshToken);
+
 }

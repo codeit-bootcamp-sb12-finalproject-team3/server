@@ -60,4 +60,24 @@ public class AuthController {
         .body(new JwtDto(result.getUserDto(), result.getAccessToken()));
   }
 
+  @PostMapping("/logout")
+  public ResponseEntity<Void> logout(
+      @CookieValue(name = "REFRESH_TOKEN", required = false) String refreshToken
+  ) {
+    authService.logout(refreshToken);
+
+    ResponseCookie refreshCookie =
+        ResponseCookie.from("REFRESH_TOKEN", "")
+            .httpOnly(true)
+            .secure(cookieSecure)
+            .sameSite("Lax")
+            .path("/api/auth")
+            .maxAge(0)
+            .build();
+
+    return ResponseEntity.noContent()
+        .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+        .header(HttpHeaders.CACHE_CONTROL, "no-store")
+        .build();
+  }
 }

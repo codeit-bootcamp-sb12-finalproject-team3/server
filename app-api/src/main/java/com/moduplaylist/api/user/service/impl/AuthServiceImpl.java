@@ -75,4 +75,24 @@ public class AuthServiceImpl implements AuthService {
     }
   }
 
+  @Override
+  public void logout(String refreshToken) {
+    if (refreshToken == null || refreshToken.isBlank()) {
+      return;
+    }
+
+    JWTClaimsSet claims;
+
+    try {
+      claims = jwtTokenProvider.validateRefreshToken(refreshToken);
+    } catch (AuthenticationException e) {
+      // 유효하지 않은 토큰은 Redis 삭제에 사용하지 않는다.
+      return;
+    }
+
+    UUID userId = UUID.fromString(claims.getSubject());
+
+    // 이전 로그인에서 보낸 로그아웃 요청이 새 로그인을 삭제하지 않도록 한다.
+    jwtRegistry.invalidate(userId, claims.getJWTID());
+  }
 }
