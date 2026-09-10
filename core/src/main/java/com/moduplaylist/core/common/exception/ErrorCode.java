@@ -17,6 +17,12 @@ public enum ErrorCode {
     USER_ALREADY_EXISTS("이미 가입된 사용자입니다."),
     UNAUTHORIZED("인증이 필요합니다."),
 
+    // Auth
+    INVALID_CREDENTIALS("이메일 또는 비밀번호가 올바르지 않습니다."),
+    USER_LOCKED("잠긴 계정입니다."),
+    FORBIDDEN("요청 권한이 없습니다."),
+    INVALID_CSRF_TOKEN("CSRF 토큰이 없거나 올바르지 않습니다."),
+
     // Preference
     PREFERENCE_NOT_FOUND( "초기 선호 정보가 없습니다."),
 
