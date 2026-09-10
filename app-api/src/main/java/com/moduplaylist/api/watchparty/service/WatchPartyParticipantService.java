@@ -85,7 +85,7 @@ public class WatchPartyParticipantService {
     }
 
     public void kickParticipant(UUID partyId, UUID hostId, UUID targetUserId) {
-        WatchParty party = watchPartyRepository.findById(partyId)
+        WatchParty party = watchPartyRepository.findByIdForUpdate(partyId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 방입니다: " + partyId));
 
         if (!party.getHost().getId().equals(hostId)) {
