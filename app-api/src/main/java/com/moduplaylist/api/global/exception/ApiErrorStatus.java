@@ -24,6 +24,12 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
         STATUS_MAP.put(ErrorCode.USER_ALREADY_EXISTS, HttpStatus.CONFLICT);
 
+        // Auth
+        STATUS_MAP.put(ErrorCode.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
+        STATUS_MAP.put(ErrorCode.USER_LOCKED, HttpStatus.UNAUTHORIZED);
+        STATUS_MAP.put(ErrorCode.FORBIDDEN, HttpStatus.FORBIDDEN);
+        STATUS_MAP.put(ErrorCode.INVALID_CSRF_TOKEN, HttpStatus.FORBIDDEN);
+
         STATUS_MAP.put(ErrorCode.INVALID_REQUEST, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.VALIDATION_ERROR, HttpStatus.BAD_REQUEST);
 
