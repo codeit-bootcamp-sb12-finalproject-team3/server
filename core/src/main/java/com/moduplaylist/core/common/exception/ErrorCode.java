@@ -17,13 +17,26 @@ public enum ErrorCode {
     USER_ALREADY_EXISTS("이미 가입된 사용자입니다."),
     UNAUTHORIZED("인증이 필요합니다."),
 
+    // Content
+    CONTENT_NOT_FOUND("존재하지 않는 콘텐츠입니다."),
+  
+    // Auth
+    INVALID_CREDENTIALS("이메일 또는 비밀번호가 올바르지 않습니다."),
+    USER_LOCKED("잠긴 계정입니다."),
+    FORBIDDEN("요청 권한이 없습니다."),
+    INVALID_CSRF_TOKEN("CSRF 토큰이 없거나 올바르지 않습니다."),
+
     // Preference
-    PREFERENCE_NOT_FOUND( "초기 선호 정보가 없습니다."),
+    PREFERENCE_NOT_FOUND("초기 선호 정보가 없습니다."),
+    PREFERENCE_ALREADY_EXISTS("이미 초기 선호 정보가 등록되어 있습니다."),
 
     // Follow
     SELF_FOLLOW_NOT_ALLOWED("자기 자신을 팔로우할 수 없습니다."),
     FOLLOW_ALREADY_EXISTS("이미 팔로우 중입니다."),
-    FOLLOW_NOT_FOUND("존재하지 않는 팔로우 관계입니다.");
+    FOLLOW_NOT_FOUND("존재하지 않는 팔로우 관계입니다."),
+
+    // WatchParty
+    WATCHPARTY_NOT_FOUND("존재하지 않는 방입니다.");
 
     private final String message;
 }

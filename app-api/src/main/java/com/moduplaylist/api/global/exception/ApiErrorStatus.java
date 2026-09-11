@@ -20,9 +20,18 @@ public final class ApiErrorStatus {
 
     static {
         STATUS_MAP.put(ErrorCode.UNAUTHORIZED, HttpStatus.UNAUTHORIZED);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_NOT_FOUND, HttpStatus.NOT_FOUND);
 
         STATUS_MAP.put(ErrorCode.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
         STATUS_MAP.put(ErrorCode.USER_ALREADY_EXISTS, HttpStatus.CONFLICT);
+
+        STATUS_MAP.put(ErrorCode.CONTENT_NOT_FOUND, HttpStatus.NOT_FOUND);
+
+        // Auth
+        STATUS_MAP.put(ErrorCode.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
+        STATUS_MAP.put(ErrorCode.USER_LOCKED, HttpStatus.UNAUTHORIZED);
+        STATUS_MAP.put(ErrorCode.FORBIDDEN, HttpStatus.FORBIDDEN);
+        STATUS_MAP.put(ErrorCode.INVALID_CSRF_TOKEN, HttpStatus.FORBIDDEN);
 
         STATUS_MAP.put(ErrorCode.INVALID_REQUEST, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.VALIDATION_ERROR, HttpStatus.BAD_REQUEST);
@@ -33,6 +42,7 @@ public final class ApiErrorStatus {
 
         // Preference
         STATUS_MAP.put(ErrorCode.PREFERENCE_NOT_FOUND, HttpStatus.NOT_FOUND);
+        STATUS_MAP.put(ErrorCode.PREFERENCE_ALREADY_EXISTS, HttpStatus.CONFLICT);
 
         STATUS_MAP.put(
                 ErrorCode.INTERNAL_SERVER_ERROR,

@@ -5,6 +5,7 @@ import com.moduplaylist.core.watchparty.repository.WatchPartyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.moduplaylist.core.watchparty.exception.WatchPartyNotFoundException;
 
 import java.util.UUID;
 
@@ -17,7 +18,7 @@ public class WatchPartyStatusService {
 
     public void startWatchParty(UUID partyId, UUID hostId) {
         WatchParty party = watchPartyRepository.findById(partyId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 방입니다: " + partyId));
+                .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
 
         if (!party.getHost().getId().equals(hostId)) {
             throw new SecurityException("방장만 방을 시작할 수 있습니다.");
@@ -28,7 +29,7 @@ public class WatchPartyStatusService {
 
     public void endWatchParty(UUID partyId, UUID hostId) {
         WatchParty party = watchPartyRepository.findById(partyId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 방입니다: " + partyId));
+                .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
 
         if (!party.getHost().getId().equals(hostId)) {
             throw new SecurityException("방장만 방을 종료할 수 있습니다.");
