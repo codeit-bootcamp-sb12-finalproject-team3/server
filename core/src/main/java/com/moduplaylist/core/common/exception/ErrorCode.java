@@ -37,6 +37,7 @@ public enum ErrorCode {
 
     // WatchParty
     WATCHPARTY_NOT_FOUND("존재하지 않는 방입니다."),
+    WATCHPARTY_INVALID_EPISODE_RANGE("영화/스포츠 콘텐츠에는 회차 범위를 지정할 수 없습니다."),
     WATCHPARTY_ALREADY_ENDED("이미 종료된 방에는 참가할 수 없습니다."),
     WATCHPARTY_HOST_CANNOT_JOIN("방장은 참가 신청 대상이 아닙니다."),
     WATCHPARTY_ALREADY_JOINED("이미 참가 중입니다."),
