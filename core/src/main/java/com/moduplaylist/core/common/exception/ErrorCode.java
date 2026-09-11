@@ -36,7 +36,8 @@ public enum ErrorCode {
     FOLLOW_NOT_FOUND("존재하지 않는 팔로우 관계입니다."),
 
     // WatchParty
-    WATCHPARTY_NOT_FOUND("존재하지 않는 방입니다.");
+    WATCHPARTY_NOT_FOUND("존재하지 않는 방입니다."),
+    WATCHPARTY_ALREADY_ENDED("이미 종료된 방에는 참가할 수 없습니다.");
 
     private final String message;
 }

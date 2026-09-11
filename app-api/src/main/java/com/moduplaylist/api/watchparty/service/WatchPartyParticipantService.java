@@ -6,12 +6,13 @@ import com.moduplaylist.core.watchparty.entity.ParticipantStatus;
 import com.moduplaylist.core.watchparty.entity.WatchParty;
 import com.moduplaylist.core.watchparty.entity.WatchPartyParticipant;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
+import com.moduplaylist.core.watchparty.exception.WatchPartyAlreadyEndedException;
+import com.moduplaylist.core.watchparty.exception.WatchPartyNotFoundException;
 import com.moduplaylist.core.watchparty.repository.WatchPartyParticipantRepository;
 import com.moduplaylist.core.watchparty.repository.WatchPartyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.moduplaylist.core.watchparty.exception.WatchPartyNotFoundException;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -31,7 +32,7 @@ public class WatchPartyParticipantService {
                 .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
 
         if (party.getStatus() == WatchPartyStatus.ENDED) {
-            throw new IllegalStateException("이미 종료된 방에는 참가할 수 없습니다.");
+            throw new WatchPartyAlreadyEndedException(partyId);
         }
 
         if (party.getHost().getId().equals(userId)) {
