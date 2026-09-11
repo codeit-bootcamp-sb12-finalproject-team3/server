@@ -44,15 +44,15 @@ public class ContentTag {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "source", nullable = false, length = 20)
-    private ContentTagSource source;
+    private TagSource source;
 
-    private ContentTag(Content content, Tag tag, ContentTagSource source) {
+    private ContentTag(Content content, Tag tag, TagSource source) {
         this.content = Objects.requireNonNull(content);
         this.tag = Objects.requireNonNull(tag);
         this.source = Objects.requireNonNull(source);
     }
 
-    public static ContentTag create(Content content, Tag tag, ContentTagSource source) {
+    public static ContentTag create(Content content, Tag tag, TagSource source) {
         return new ContentTag(content, tag, source);
     }
 

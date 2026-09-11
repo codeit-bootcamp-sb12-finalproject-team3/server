@@ -45,7 +45,7 @@ public class Playlist extends BaseEntity {
     validate();
   }
 
-  private static Playlist create(User owner, String title, String description) {
+  public static Playlist create(User owner, String title, String description) {
     return new Playlist(owner, title, description);
   }
 

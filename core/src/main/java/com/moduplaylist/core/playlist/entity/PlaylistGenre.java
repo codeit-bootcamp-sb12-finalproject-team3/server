@@ -1,12 +1,16 @@
 package com.moduplaylist.core.playlist.entity;
 
-import com.moduplaylist.core.common.BaseEntity;
+import com.github.f4b6a3.uuid.UuidCreator;
 import com.moduplaylist.core.content.entity.Genre;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,7 +19,11 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "playlist_genres")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class PlaylistGenre extends BaseEntity {
+public class PlaylistGenre {
+
+  @Id
+  @Column(name = "id", updatable = false, nullable = false)
+  private UUID id;
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "playlist_id", nullable = false)
@@ -28,20 +36,16 @@ public class PlaylistGenre extends BaseEntity {
   private PlaylistGenre(Playlist playlist, Genre genre) {
     this.playlist = playlist;
     this.genre = genre;
-    validate();
   }
 
   public static PlaylistGenre create(Playlist playlist, Genre genre) {
     return new PlaylistGenre(playlist, genre);
   }
 
-  private void validate() {
-    if (playlist == null) {
-      throw new IllegalArgumentException("플레이리스트는 필수입니다.");
-    }
-
-    if (genre == null) {
-      throw new IllegalArgumentException("장르는 필수입니다.");
+  @PrePersist
+  protected void init() {
+    if (this.id == null) {
+      this.id = UuidCreator.getTimeOrderedEpoch();
     }
   }
 }
