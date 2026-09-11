@@ -8,8 +8,6 @@ import com.moduplaylist.api.user.dto.UserResponse;
 import com.moduplaylist.api.user.dto.UserRoleUpdateRequest;
 import com.moduplaylist.api.user.dto.UserLockUpdateRequest;
 import com.moduplaylist.api.user.service.UserService;
-import com.moduplaylist.api.recommendation.service.RecommendationService;
-import com.moduplaylist.api.recommendation.dto.UserPreferenceResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;

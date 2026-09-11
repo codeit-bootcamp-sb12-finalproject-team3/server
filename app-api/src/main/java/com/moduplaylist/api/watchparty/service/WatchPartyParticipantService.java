@@ -27,7 +27,7 @@ public class WatchPartyParticipantService {
 
     public void joinWatchParty(UUID partyId, UUID userId) {
 
-        WatchParty party = watchPartyRepository.findById(partyId)
+        WatchParty party = watchPartyRepository.findByIdForUpdate(partyId)
                 .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
 
         if (party.getStatus() == WatchPartyStatus.ENDED) {
