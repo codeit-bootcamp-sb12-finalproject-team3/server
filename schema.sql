@@ -355,6 +355,40 @@ CREATE INDEX idx_user_content_tag_preferences_tag
 
 
 -- =================================================================
+-- 사용자 콘텐츠 장르 선호도
+CREATE TABLE user_content_genre_preferences (
+                                                id                  BINARY(16) NOT NULL,
+                                                user_id             BINARY(16) NOT NULL,
+                                                genre_id            BINARY(16) NOT NULL,
+                                                score               DOUBLE NOT NULL DEFAULT 0,
+                                                updated_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+);
+
+ALTER TABLE user_content_genre_preferences
+    ADD CONSTRAINT pk_user_content_genre_preferences
+        PRIMARY KEY (id);
+
+ALTER TABLE user_content_genre_preferences
+    ADD CONSTRAINT uq_user_content_genre_preferences
+        UNIQUE (user_id, genre_id);
+
+ALTER TABLE user_content_genre_preferences
+    ADD CONSTRAINT fk_user_content_genre_preferences_user
+        FOREIGN KEY (user_id)
+            REFERENCES users (id)
+            ON DELETE CASCADE;
+
+ALTER TABLE user_content_genre_preferences
+    ADD CONSTRAINT fk_user_content_genre_preferences_genre
+        FOREIGN KEY (genre_id)
+            REFERENCES genres (id)
+            ON DELETE RESTRICT;
+
+CREATE INDEX idx_user_content_genre_preferences_genre
+    ON user_content_genre_preferences (genre_id);
+
+
+-- =================================================================
 -- 출연진
 
 CREATE TABLE content_casts (
@@ -648,6 +682,40 @@ ALTER TABLE playlist_tags
 CREATE INDEX idx_playlist_tags_tag
     ON playlist_tags (tag_id);
 
+
+-- =================================================================
+-- 플레이리스트 장르
+
+CREATE TABLE playlist_genres (
+                                 id                  BINARY(16) NOT NULL,
+                                 playlist_id         BINARY(16) NOT NULL,
+                                 genre_id            BINARY(16) NOT NULL
+);
+
+ALTER TABLE playlist_genres
+    ADD CONSTRAINT pk_playlist_genres
+        PRIMARY KEY (id);
+
+ALTER TABLE playlist_genres
+    ADD CONSTRAINT uq_playlist_genres
+        UNIQUE (playlist_id, genre_id);
+
+ALTER TABLE playlist_genres
+    ADD CONSTRAINT fk_playlist_genres_playlist
+        FOREIGN KEY (playlist_id)
+            REFERENCES playlists (id)
+            ON DELETE CASCADE;
+
+ALTER TABLE playlist_genres
+    ADD CONSTRAINT fk_playlist_genres_genre
+        FOREIGN KEY (genre_id)
+            REFERENCES genres (id)
+            ON DELETE RESTRICT;
+
+CREATE INDEX idx_playlist_genres_genre
+    ON playlist_genres (genre_id);
+
+
 -- =================================================================
 -- 사용자 플레이리스트 태그 선호도
 
@@ -681,6 +749,41 @@ ALTER TABLE user_playlist_tag_preferences
 
 CREATE INDEX idx_user_playlist_tag_preferences_tag
     ON user_playlist_tag_preferences (tag_id);
+
+
+-- =================================================================
+-- 사용자 플레이리스트 장르 선호도
+
+CREATE TABLE user_playlist_genre_preferences (
+                                                 id                  BINARY(16) NOT NULL,
+                                                 user_id             BINARY(16) NOT NULL,
+                                                 genre_id            BINARY(16) NOT NULL,
+                                                 score               DOUBLE NOT NULL DEFAULT 0,
+                                                 updated_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+);
+
+ALTER TABLE user_playlist_genre_preferences
+    ADD CONSTRAINT pk_user_playlist_genre_preferences
+        PRIMARY KEY (id);
+
+ALTER TABLE user_playlist_genre_preferences
+    ADD CONSTRAINT uq_user_playlist_genre_preferences
+        UNIQUE (user_id, genre_id);
+
+ALTER TABLE user_playlist_genre_preferences
+    ADD CONSTRAINT fk_user_playlist_genre_preferences_user
+        FOREIGN KEY (user_id)
+            REFERENCES users (id)
+            ON DELETE CASCADE;
+
+ALTER TABLE user_playlist_genre_preferences
+    ADD CONSTRAINT fk_user_playlist_genre_preferences_genre
+        FOREIGN KEY (genre_id)
+            REFERENCES genres (id)
+            ON DELETE RESTRICT;
+
+CREATE INDEX idx_user_playlist_genre_preferences_genre
+    ON user_playlist_genre_preferences (genre_id);
 
 
 -- =================================================================
