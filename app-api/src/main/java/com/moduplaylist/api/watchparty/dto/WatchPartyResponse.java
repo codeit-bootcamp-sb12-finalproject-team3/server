@@ -1,5 +1,6 @@
 package com.moduplaylist.api.watchparty.dto;
 
+import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -11,7 +12,7 @@ public class WatchPartyResponse {
     private String title;
     private String description;
     private Instant scheduledAt;
-    private String status;              // SCHEDULED / LIVE / ENDED
+    private WatchPartyStatus status;
     private Integer maxParticipants;
     private Integer currentParticipantCount; // 저장값 아님 - JOINED 상태 count로 계산
     private Integer startEpisode;
@@ -21,7 +22,7 @@ public class WatchPartyResponse {
 
     public WatchPartyResponse(UUID id, HostSummary host, ContentSummary content,
                               String title, String description, Instant scheduledAt,
-                              String status, Integer maxParticipants, Integer currentParticipantCount,
+                              WatchPartyStatus status, Integer maxParticipants, Integer currentParticipantCount,
                               Integer startEpisode, Integer endEpisode,
                               Instant createdAt, Instant endedAt) {
         this.id = id;

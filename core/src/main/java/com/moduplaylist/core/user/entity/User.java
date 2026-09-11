@@ -46,4 +46,12 @@ public class User extends BaseEntity {
   public static User create(String email, String encodedPassword, String name) {
     return new User(email, encodedPassword, name);
   }
+
+  public void updateRole(UserRole role) {
+    this.role = role;
+  }
+
+  public void updateLocked(boolean locked) {
+    this.locked = locked;
+  }
 }

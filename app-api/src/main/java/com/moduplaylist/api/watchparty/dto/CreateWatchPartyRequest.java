@@ -1,22 +1,13 @@
 package com.moduplaylist.api.watchparty.dto;
 
-import jakarta.validation.constraints.Future;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.PositiveOrZero;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 import java.time.Instant;
 import java.util.UUID;
 
 @Getter
-@Setter
-@NoArgsConstructor
 @AllArgsConstructor
 public class CreateWatchPartyRequest {
 
@@ -42,4 +33,11 @@ public class CreateWatchPartyRequest {
 
     @PositiveOrZero
     private Integer endEpisode;
+
+    @AssertTrue(message = "startEpisode/endEpisode는 둘 다 없거나, endEpisode가 startEpisode 이상이어야 합니다.")
+    public boolean isEpisodeRangeValid() {
+        if (startEpisode == null && endEpisode == null) return true;
+        if (startEpisode == null || endEpisode == null) return false;
+        return endEpisode >= startEpisode;
+    }
 }
