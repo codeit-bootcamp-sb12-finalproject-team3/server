@@ -20,7 +20,6 @@ public final class ApiErrorStatus {
 
     static {
         STATUS_MAP.put(ErrorCode.UNAUTHORIZED, HttpStatus.UNAUTHORIZED);
-        STATUS_MAP.put(ErrorCode.WATCHPARTY_NOT_FOUND, HttpStatus.NOT_FOUND);
 
         STATUS_MAP.put(ErrorCode.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
         STATUS_MAP.put(ErrorCode.USER_ALREADY_EXISTS, HttpStatus.CONFLICT);
@@ -48,6 +47,18 @@ public final class ApiErrorStatus {
                 ErrorCode.INTERNAL_SERVER_ERROR,
                 HttpStatus.INTERNAL_SERVER_ERROR
         );
+
+        // WatchParty
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_NOT_FOUND, HttpStatus.NOT_FOUND);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_ALREADY_ENDED, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_HOST_CANNOT_JOIN, HttpStatus.BAD_REQUEST);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_ALREADY_JOINED, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_KICKED_CANNOT_REJOIN, HttpStatus.FORBIDDEN);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_CAPACITY_FULL, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_PARTICIPANT_NOT_FOUND, HttpStatus.NOT_FOUND);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_NOT_JOINED, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_NOT_A_PARTICIPANT, HttpStatus.NOT_FOUND);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_PARTICIPANT_NOT_JOINED, HttpStatus.CONFLICT);
     }
 
     private ApiErrorStatus() {
