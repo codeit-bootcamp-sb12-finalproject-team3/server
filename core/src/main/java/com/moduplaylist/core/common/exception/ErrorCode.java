@@ -36,7 +36,8 @@ public enum ErrorCode {
     FOLLOW_NOT_FOUND("존재하지 않는 팔로우 관계입니다."),
 
     // WatchParty
-    WATCHPARTY_NOT_FOUND("존재하지 않는 방입니다.");
+    WATCHPARTY_NOT_FOUND("존재하지 않는 방입니다."),
+    WATCHPARTY_INVALID_EPISODE_RANGE("영화/스포츠 콘텐츠에는 회차 범위를 지정할 수 없습니다.");
 
     private final String message;
 }
