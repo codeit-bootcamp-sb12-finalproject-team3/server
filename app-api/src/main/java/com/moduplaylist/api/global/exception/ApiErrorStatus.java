@@ -42,6 +42,7 @@ public final class ApiErrorStatus {
         // Preference
         STATUS_MAP.put(ErrorCode.PREFERENCE_NOT_FOUND, HttpStatus.NOT_FOUND);
         STATUS_MAP.put(ErrorCode.PREFERENCE_ALREADY_EXISTS, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.PREFERENCE_CONTENT_NOT_SELECTABLE, HttpStatus.BAD_REQUEST);
 
         STATUS_MAP.put(
                 ErrorCode.INTERNAL_SERVER_ERROR,
@@ -50,6 +51,7 @@ public final class ApiErrorStatus {
 
         // WatchParty
         STATUS_MAP.put(ErrorCode.WATCHPARTY_NOT_FOUND, HttpStatus.NOT_FOUND);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_INVALID_EPISODE_RANGE, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_ALREADY_ENDED, HttpStatus.CONFLICT);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_HOST_CANNOT_JOIN, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_ALREADY_JOINED, HttpStatus.CONFLICT);
