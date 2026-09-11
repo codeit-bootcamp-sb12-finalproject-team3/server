@@ -4,6 +4,7 @@ import com.moduplaylist.api.user.dto.UserResponse;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
@@ -16,6 +17,10 @@ public class CustomUserDetails implements UserDetails {
 
   private final UserResponse userResponse;
   private final String password;
+
+  public UUID getUserId() {
+    return userResponse.getId();
+  }
 
   @Override
   public Collection<? extends GrantedAuthority> getAuthorities() {

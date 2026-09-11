@@ -59,7 +59,7 @@ public class UserController {
   public ResponseEntity<UserPreferenceResponse> getUserPreferenceContents(
           @AuthenticationPrincipal CustomUserDetails userDetails
   ) {
-    UUID userId = userDetails.getUserResponse().getId();
+    UUID userId = userDetails.getUserId();
     return ResponseEntity.ok(userPreferenceService.findUserPreference(userId));
   }
   
@@ -68,7 +68,7 @@ public class UserController {
           @AuthenticationPrincipal CustomUserDetails userDetails,
           @Valid @RequestBody UserPreferenceCreateRequest request
   ) {
-    UUID userId = userDetails.getUserResponse().getId();
+    UUID userId = userDetails.getUserId();
     UserPreferenceResponse response =
             userPreferenceService.createUserPreference(userId, request);
 
