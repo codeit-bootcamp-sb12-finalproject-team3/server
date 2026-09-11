@@ -11,7 +11,19 @@ import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
 @Entity
-@Table(name = "episodes")
+@Table(
+	name = "episodes",
+	uniqueConstraints = {
+		@UniqueConstraint(
+			name = "uq_episodes_external_id",
+			columnNames = "external_id"
+		),
+		@UniqueConstraint(
+			name = "uq_episodes_season_number",
+			columnNames = {"season_id", "episode_number"}
+		)
+	}
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Episode extends BaseEntity {

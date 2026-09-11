@@ -17,7 +17,35 @@ import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "contents")
+@Table(
+	name = "contents",
+	indexes = {
+		@Index(name = "idx_contents_created", columnList = "created_at DESC, id DESC"),
+		@Index(name = "idx_contents_rating", columnList = "average_rating DESC, id DESC"),
+		@Index(
+			name = "idx_contents_type_created",
+			columnList = "type, created_at DESC, id DESC"
+		),
+		@Index(
+			name = "idx_contents_type_rating",
+			columnList = "type, average_rating DESC, id DESC"
+		),
+		@Index(
+			name = "idx_contents_sport_created",
+			columnList = "sport_type, created_at DESC, id DESC"
+		)
+	},
+	uniqueConstraints = {
+		@UniqueConstraint(
+			name = "uq_contents_external",
+			columnNames = {"external_source", "type", "external_id"}
+		),
+		@UniqueConstraint(
+			name = "uq_contents_parent_season",
+			columnNames = {"parent_content_id", "season_number"}
+		)
+	}
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Content extends BaseEntity {
