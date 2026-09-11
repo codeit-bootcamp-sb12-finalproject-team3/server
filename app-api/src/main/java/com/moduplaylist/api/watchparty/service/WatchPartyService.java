@@ -1,5 +1,7 @@
 package com.moduplaylist.api.watchparty.service;
 
+import com.moduplaylist.api.global.dto.CursorPageResponse;
+import com.moduplaylist.api.global.dto.SortDirection;
 import com.moduplaylist.api.watchparty.dto.CreateWatchPartyRequest;
 import com.moduplaylist.api.watchparty.dto.WatchPartyResponse;
 import com.moduplaylist.core.content.entity.Content;
@@ -10,12 +12,18 @@ import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.exception.UserNotFoundException;
 import com.moduplaylist.core.user.repository.UserRepository;
 import com.moduplaylist.core.watchparty.entity.WatchParty;
+import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import com.moduplaylist.core.watchparty.exception.WatchPartyInvalidEpisodeRangeException;
+import com.moduplaylist.core.watchparty.exception.WatchPartyNotFoundException;
+import com.moduplaylist.core.watchparty.repository.WatchPartyQueryRepository;
 import com.moduplaylist.core.watchparty.repository.WatchPartyRepository;
+import com.moduplaylist.core.watchparty.repository.WatchPartySearch;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -26,6 +34,7 @@ public class WatchPartyService {
     private final WatchPartyRepository watchPartyRepository;
     private final UserRepository userRepository;
     private final ContentRepository contentRepository;
+    private final WatchPartyQueryRepository watchPartyQueryRepository;
 
     public WatchPartyResponse createWatchParty(UUID hostId, CreateWatchPartyRequest request) {
 
@@ -61,6 +70,62 @@ public class WatchPartyService {
             throw new WatchPartyInvalidEpisodeRangeException(content.getId());
         }
     }
+
+    @Transactional(readOnly = true)
+    public WatchPartyResponse getWatchParty(UUID partyId) {
+        WatchParty watchParty = watchPartyRepository.findById(partyId)
+                .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
+        return toResponse(watchParty);
+    }
+
+    @Transactional(readOnly = true)
+    public CursorPageResponse<WatchPartyResponse> getWatchParties(
+            WatchPartyStatus statusEqual, UUID contentIdEqual,
+            String cursor, UUID idAfter, int limit, SortDirection sortDirection) {
+
+        boolean ascending = sortDirection == SortDirection.ASCENDING;
+        Instant cursorScheduledAt = (cursor != null) ? Instant.parse(cursor) : null;
+
+        WatchPartySearch search = WatchPartySearch.builder()
+                .statusEqual(statusEqual)
+                .contentIdEqual(contentIdEqual)
+                .cursorScheduledAt(cursorScheduledAt)
+                .cursorId(idAfter)
+                .ascending(ascending)
+                .limit(limit)
+                .build();
+
+        WatchPartyQueryRepository.SearchResult result = watchPartyQueryRepository.search(search);
+
+        List<WatchPartyResponse> data = result.getWatchParties().stream()
+                .map(this::toResponse)
+                .toList();
+
+        String nextCursor = null;
+        UUID nextIdAfter = null;
+        if (!result.getWatchParties().isEmpty()) {
+            WatchParty last = result.getWatchParties().get(result.getWatchParties().size() - 1);
+            nextCursor = last.getScheduledAt().toString();
+            nextIdAfter = last.getId();
+        }
+
+        return CursorPageResponse.<WatchPartyResponse>builder()
+                .data(data)
+                .nextCursor(nextCursor)
+                .nextIdAfter(nextIdAfter)
+                .hasNext(result.isHasNext())
+                .totalCount(result.getTotalCount())
+                .sortBy("scheduledAt")
+                .sortDirection(sortDirection)
+                .build();
+    }
+
+    private WatchPartyResponse toResponse(WatchParty watchParty) {
+        Content content = contentRepository.findById(watchParty.getContentId())
+                .orElseThrow(() -> new ContentNotFoundException(watchParty.getContentId()));
+        return toResponse(watchParty, watchParty.getHost(), content);
+    }
+
 
     private WatchPartyResponse toResponse(WatchParty watchParty, User host, Content content) {
         WatchPartyResponse.HostSummary hostSummary = new WatchPartyResponse.HostSummary(
