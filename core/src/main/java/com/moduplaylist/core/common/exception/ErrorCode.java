@@ -35,6 +35,10 @@ public enum ErrorCode {
     FOLLOW_ALREADY_EXISTS("이미 팔로우 중입니다."),
     FOLLOW_NOT_FOUND("존재하지 않는 팔로우 관계입니다."),
 
+    // Notification
+    NOTIFICATION_NOT_FOUND("존재하지 않는 알림입니다."),
+    NOTIFICATION_ACCESS_DENIED("해당 알림에 접근할 수 없습니다."),
+
     // WatchParty
     WATCHPARTY_NOT_FOUND("존재하지 않는 방입니다."),
     WATCHPARTY_ALREADY_ENDED("이미 종료된 방에는 참가할 수 없습니다."),
