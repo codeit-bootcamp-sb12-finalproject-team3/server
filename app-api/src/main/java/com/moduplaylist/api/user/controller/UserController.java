@@ -54,7 +54,7 @@ public class UserController {
 
     return ResponseEntity.ok(response);
   }
-  
+
   @GetMapping("/me/preferences")
   public ResponseEntity<UserPreferenceResponse> getUserPreferenceContents(
           @AuthenticationPrincipal CustomUserDetails userDetails
@@ -62,7 +62,7 @@ public class UserController {
     UUID userId = userDetails.getUserId();
     return ResponseEntity.ok(userPreferenceService.findUserPreference(userId));
   }
-  
+
   @PostMapping("/me/preferences")
   public ResponseEntity<UserPreferenceResponse> createUserPreferenceContents(
           @AuthenticationPrincipal CustomUserDetails userDetails,

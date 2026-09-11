@@ -10,6 +10,7 @@ import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.recommendation.entity.UserPreferenceContent;
 import com.moduplaylist.core.recommendation.exception.PreferenceAlreadyExistsException;
+import com.moduplaylist.core.recommendation.exception.PreferenceContentNotSelectableException;
 import com.moduplaylist.core.recommendation.exception.PreferenceNotFoundException;
 import com.moduplaylist.core.recommendation.repository.UserPreferenceContentRepository;
 import com.moduplaylist.core.user.entity.User;
@@ -57,6 +58,13 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
                 throw new ContentNotFoundException(contentId);
             }
         }
+        //tv시리즈는 선호 콘텐츠에 추가되면 안된다?는 정책이 확인돼서 추가함.. 프론트 구현시 tvSeries는 선텍 못하도록 막아야할듯
+        contents.stream()
+                .filter(content -> !content.isReviewable())
+                .findFirst()
+                .ifPresent(content -> {
+                    throw new PreferenceContentNotSelectableException(content.getId());
+                });
 
         List<UserPreferenceContent> preferences = contentIds.stream()
                 .map(contentById::get)
