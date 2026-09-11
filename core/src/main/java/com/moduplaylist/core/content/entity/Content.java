@@ -24,6 +24,8 @@ public class Content extends BaseEntity {
 	private static final BigDecimal MAX_RATING = new BigDecimal("5.00");
 	private static final BigDecimal MIN_REVIEW_RATING = new BigDecimal("0.50");
 	private static final int RATING_SCALE = 2;
+	private static final int MAX_THUMBNAIL_URL_LENGTH = 500;
+	private static final int MAX_EXTERNAL_SOURCE_LENGTH = 30;
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "parent_content_id")
@@ -131,9 +133,10 @@ public class Content extends BaseEntity {
 	}
 
 	public void replaceThumbnailUrl(String thumbnailUrl) {
-		if (thumbnailUrl == null || thumbnailUrl.isBlank() || thumbnailUrl.length() > 500) {
+		if (thumbnailUrl == null) {
 			throw new IllegalArgumentException("썸네일 URL은 필수이며 500자 이하여야 합니다.");
 		}
+		validateOptionalThumbnailUrl(thumbnailUrl);
 		this.thumbnailUrl = thumbnailUrl;
 	}
 
@@ -209,6 +212,7 @@ public class Content extends BaseEntity {
 
 	private void validate() {
 		validateTitle(title);
+		validateOptionalThumbnailUrl(thumbnailUrl);
 		validateTypeStructure(
 			type,
 			parentContent,
@@ -220,6 +224,10 @@ public class Content extends BaseEntity {
 		);
 		if ((externalSource == null) != (externalId == null)) {
 			throw new IllegalArgumentException("외부 데이터 출처와 외부 ID는 함께 지정해야 합니다.");
+		}
+		if (externalSource != null
+			&& (externalSource.isBlank() || externalSource.length() > MAX_EXTERNAL_SOURCE_LENGTH)) {
+			throw new IllegalArgumentException("외부 데이터 출처는 30자 이하의 문자열이어야 합니다.");
 		}
 	}
 
@@ -271,6 +279,13 @@ public class Content extends BaseEntity {
 	private void validateTitle(String title) {
 		if (title == null || title.isBlank() || title.length() > 255) {
 			throw new IllegalArgumentException("콘텐츠 제목은 필수이며 255자 이하여야 합니다.");
+		}
+	}
+
+	private static void validateOptionalThumbnailUrl(String thumbnailUrl) {
+		if (thumbnailUrl != null
+			&& (thumbnailUrl.isBlank() || thumbnailUrl.length() > MAX_THUMBNAIL_URL_LENGTH)) {
+			throw new IllegalArgumentException("썸네일 URL은 500자 이하이거나 null이어야 합니다.");
 		}
 	}
 }
