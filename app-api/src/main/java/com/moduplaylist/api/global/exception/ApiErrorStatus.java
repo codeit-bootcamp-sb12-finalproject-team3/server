@@ -42,6 +42,7 @@ public final class ApiErrorStatus {
         // Preference
         STATUS_MAP.put(ErrorCode.PREFERENCE_NOT_FOUND, HttpStatus.NOT_FOUND);
         STATUS_MAP.put(ErrorCode.PREFERENCE_ALREADY_EXISTS, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.PREFERENCE_CONTENT_NOT_SELECTABLE, HttpStatus.BAD_REQUEST);
 
         STATUS_MAP.put(
                 ErrorCode.INTERNAL_SERVER_ERROR,
