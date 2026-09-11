@@ -4,6 +4,8 @@ import com.moduplaylist.api.user.dto.UserResponse;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
+
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
@@ -32,6 +34,10 @@ public class CustomUserDetails implements UserDetails {
   @Override
   public boolean isAccountNonLocked() {
     return !userResponse.isLocked();
+  }
+
+  public UUID getUserId() {
+    return userResponse.getId();
   }
 
   @Override
