@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
@@ -38,6 +39,7 @@ public class CustomUserDetails implements UserDetails {
   public boolean isAccountNonLocked() {
     return !userResponse.isLocked();
   }
+
 
   @Override
   public boolean equals(Object obj) {
