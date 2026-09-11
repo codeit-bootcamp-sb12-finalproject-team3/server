@@ -78,7 +78,7 @@ public class WatchPartyParticipantService {
     public void leaveWatchParty(UUID partyId, UUID userId) {
         WatchPartyParticipant participant = watchPartyParticipantRepository
                 .findByUser_IdAndWatchParty_Id(userId, partyId)
-                .orElseThrow(() -> new WatchPartyParticipantNotFoundException(partyId, userId));
+                .orElseThrow(() -> new WatchPartyNotAParticipantException(partyId, userId));
 
         if (participant.getStatus() != ParticipantStatus.JOINED) {
             throw new WatchPartyNotJoinedException(partyId, userId);
@@ -100,7 +100,7 @@ public class WatchPartyParticipantService {
                 .orElseThrow(() -> new WatchPartyParticipantNotFoundException(partyId, targetUserId));
 
         if (participant.getStatus() != ParticipantStatus.JOINED) {
-            throw new WatchPartyNotJoinedException(partyId, targetUserId);
+            throw new WatchPartyParticipantNotJoinedException(partyId, targetUserId);
         }
 
         participant.kick();
