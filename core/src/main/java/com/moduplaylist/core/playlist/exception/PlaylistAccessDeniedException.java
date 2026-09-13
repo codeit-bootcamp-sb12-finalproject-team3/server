@@ -4,10 +4,11 @@ import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
 import java.util.UUID;
 
-public class PlaylistNotFoundException extends BaseException {
+public class PlaylistAccessDeniedException extends BaseException {
 
-  public PlaylistNotFoundException(UUID playlistId) {
-    super(ErrorCode.PLAYLIST_NOT_FOUND);
+  public PlaylistAccessDeniedException(UUID playlistId) {
+    super(ErrorCode.PLAYLIST_ACCESS_DENIED);
     addDetail("playlistId", playlistId);
   }
+
 }

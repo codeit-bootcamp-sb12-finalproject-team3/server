@@ -49,6 +49,19 @@ public class Playlist extends BaseEntity {
     return new Playlist(owner, title, description);
   }
 
+  public void update(String title, String description) {
+    if (title != null) {
+      if (title.isBlank() || title.length() > 100) {
+        throw new IllegalArgumentException("플레이리스트 제목은 필수이며 100자 이하여야 합니다.");
+      }
+      this.title = title;
+    }
+
+    if (description != null) {
+      this.description = description;
+    }
+  }
+
   private void validate() {
     if (owner == null) {
       throw new IllegalArgumentException("플레이리스트 소유자는 필수입니다.");
