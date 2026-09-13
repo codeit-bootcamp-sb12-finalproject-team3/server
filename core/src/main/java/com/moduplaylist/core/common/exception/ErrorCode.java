@@ -29,6 +29,7 @@ public enum ErrorCode {
     // Preference
     PREFERENCE_NOT_FOUND("초기 선호 정보가 없습니다."),
     PREFERENCE_ALREADY_EXISTS("이미 초기 선호 정보가 등록되어 있습니다."),
+    PREFERENCE_CONTENT_NOT_SELECTABLE("초기 선호로 선택할 수 없는 콘텐츠입니다."),
 
     // Follow
     SELF_FOLLOW_NOT_ALLOWED("자기 자신을 팔로우할 수 없습니다."),
@@ -41,6 +42,7 @@ public enum ErrorCode {
 
     // WatchParty
     WATCHPARTY_NOT_FOUND("존재하지 않는 방입니다."),
+    WATCHPARTY_INVALID_EPISODE_RANGE("영화/스포츠 콘텐츠에는 회차 범위를 지정할 수 없습니다."),
     WATCHPARTY_ALREADY_ENDED("이미 종료된 방에는 참가할 수 없습니다."),
     WATCHPARTY_HOST_CANNOT_JOIN("방장은 참가 신청 대상이 아닙니다."),
     WATCHPARTY_ALREADY_JOINED("이미 참가 중입니다."),

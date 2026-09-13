@@ -19,6 +19,10 @@ public class CustomUserDetails implements UserDetails {
   private final UserResponse userResponse;
   private final String password;
 
+  public UUID getUserId() {
+    return userResponse.getId();
+  }
+
   @Override
   public Collection<? extends GrantedAuthority> getAuthorities() {
     return List.of(
@@ -36,9 +40,6 @@ public class CustomUserDetails implements UserDetails {
     return !userResponse.isLocked();
   }
 
-  public UUID getUserId() {
-    return userResponse.getId();
-  }
 
   @Override
   public boolean equals(Object obj) {
