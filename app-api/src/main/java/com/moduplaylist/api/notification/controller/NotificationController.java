@@ -21,28 +21,23 @@ public class NotificationController {
 
     @DeleteMapping("/{notificationId}")
     public ResponseEntity<Void> delete (
-//            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID notificationId
     ) {
-//        UUID receiverId = userDetails.getUserId();
-        UUID receiverId =
-                UUID.fromString("01a07a54-7f70-7923-92e6-c3d55f004399");
+        UUID receiverId = userDetails.getUserId();
         notificationService.delete(receiverId, notificationId);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping
     public ResponseEntity<CursorPageResponse<NotificationDto>> findNotifications(
-//            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @AuthenticationPrincipal CustomUserDetails userDetails,
             @ModelAttribute NotificationRequest request
             ) {
-        UUID receiverId =
-                UUID.fromString("01a07a54-7f70-7923-92e6-c3d55f004399");
 
         return ResponseEntity.ok(
                 notificationService.getNotifications(
-//                        userDetails.getUserId(),
-                        receiverId,
+                        userDetails.getUserId(),
                         request
 
                 )
