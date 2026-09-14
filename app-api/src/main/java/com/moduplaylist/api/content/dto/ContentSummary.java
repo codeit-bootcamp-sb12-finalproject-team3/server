@@ -19,7 +19,7 @@ public class ContentSummary {
   private String description;
   private String thumbnailUrl;
   private List<String> tags;
-  private BigDecimal averageRaging;
+  private BigDecimal averageRating;
   private long reviewCount;
 
   public static ContentSummary from(Content content) {
@@ -30,7 +30,7 @@ public class ContentSummary {
         .description(content.getDescription())
         .thumbnailUrl(content.getThumbnailUrl())
         .tags(Collections.emptyList())
-        .averageRaging(content.getAverageRating())
+        .averageRating(content.getAverageRating())
         .reviewCount(content.getReviewCount())
         .build();
   }

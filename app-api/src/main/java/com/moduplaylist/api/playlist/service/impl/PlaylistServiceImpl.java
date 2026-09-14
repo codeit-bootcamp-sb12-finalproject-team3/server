@@ -104,7 +104,9 @@ public class PlaylistServiceImpl implements PlaylistService {
     );
 
     List<ContentSummary> contents =
-        playlistContentRepository.findAllByPlaylist_Id(playlist.getId()).stream()
+        playlistContentRepository
+            .findAllByPlaylist_IdOrderByCreatedAtAscIdAsc(playlist.getId())
+            .stream()
             .map(PlaylistContent::getContent)
             .map(ContentSummary::from)
             .toList();
