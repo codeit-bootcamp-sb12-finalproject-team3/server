@@ -14,6 +14,16 @@ spring:
     job:
       enabled: false
 
+  ai:
+    model:
+      chat: none
+      embedding: openai
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      embedding:
+        options:
+          model: text-embedding-3-small
+
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -31,3 +41,16 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: com.moduplaylist.infrastructure.kafka.event
+
+mopl:
+  embedding:
+    enabled: ${EMBEDDING_ENABLED:true}
+    model: text-embedding-3-small
+    dimensions: 1536
+  opensearch:
+    enabled: ${OPENSEARCH_ENABLED:true}
+    uris: ${OPENSEARCH_URIS:http://localhost:9200}
+    username: ${OPENSEARCH_USERNAME:}
+    password: ${OPENSEARCH_PASSWORD:}
+    user-preference-index: user-preference-index
+    content-index: content-index
