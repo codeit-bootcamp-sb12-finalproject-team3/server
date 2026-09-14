@@ -1,5 +1,6 @@
 package com.moduplaylist.core.content.entity;
 
+import com.moduplaylist.core.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -17,7 +18,6 @@ import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.Instant;
 import java.util.Objects;
-import java.util.UUID;
 
 @Getter
 @Entity
@@ -40,13 +40,14 @@ import java.util.UUID;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ContentLike extends ContentUuidEntity {
 
-	@Column(
+	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@JoinColumn(
 		name = "user_id",
 		nullable = false,
-		updatable = false,
-		columnDefinition = "BINARY(16)"
+		updatable = false
 	)
-	private UUID userId;
+	@OnDelete(action = OnDeleteAction.CASCADE)
+	private User user;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(
@@ -65,8 +66,8 @@ public class ContentLike extends ContentUuidEntity {
 	)
 	private Instant createdAt;
 
-	private ContentLike(UUID userId, Content content) {
-		this.userId = Objects.requireNonNull(userId, "userId는 필수입니다.");
+	private ContentLike(User user, Content content) {
+		this.user = Objects.requireNonNull(user, "user는 필수입니다.");
 		this.content = Objects.requireNonNull(content, "content는 필수입니다.");
 		if (!content.isReviewable()) {
 			throw new IllegalArgumentException(
@@ -75,7 +76,7 @@ public class ContentLike extends ContentUuidEntity {
 		}
 	}
 
-	public static ContentLike create(UUID userId, Content content) {
-		return new ContentLike(userId, content);
+	public static ContentLike create(User user, Content content) {
+		return new ContentLike(user, content);
 	}
 }
