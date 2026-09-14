@@ -37,8 +37,8 @@ logging:
     console: "%d{HH:mm:ss.SSS} [%X{requestId}] [%X{requestMethod} %X{requestUri}] %-5level %logger{36} - %msg%n"
 
 aws:
-  access-key: ${AWS_ACCESS_KEY:dummy}
-  secret-key: ${AWS_SECRET_KEY:dummy}
+  access-key: ${AWS_ACCESS_KEY}
+  secret-key: ${AWS_SECRET_KEY}
   s3:
     region: ${AWS_REGION:ap-northeast-2}
     bucket: ${AWS_S3_BUCKET:}
