@@ -1,5 +1,6 @@
 package com.moduplaylist.core.content.entity;
 
+import com.moduplaylist.core.content.exception.ContentNotLikeableException;
 import com.moduplaylist.core.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -69,10 +70,8 @@ public class ContentLike extends ContentUuidEntity {
 	private ContentLike(User user, Content content) {
 		this.user = Objects.requireNonNull(user, "user는 필수입니다.");
 		this.content = Objects.requireNonNull(content, "content는 필수입니다.");
-		if (!content.isReviewable()) {
-			throw new IllegalArgumentException(
-				"TV 시리즈 컨테이너에는 좋아요를 추가할 수 없습니다."
-			);
+		if (!content.isLikeable()) {
+			throw new ContentNotLikeableException(content.getId());
 		}
 	}
 

@@ -25,6 +25,18 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.USER_ALREADY_EXISTS, HttpStatus.CONFLICT);
 
         STATUS_MAP.put(ErrorCode.CONTENT_NOT_FOUND, HttpStatus.NOT_FOUND);
+        STATUS_MAP.put(ErrorCode.GENRE_NOT_FOUND, HttpStatus.NOT_FOUND);
+        STATUS_MAP.put(ErrorCode.CONTENT_NOT_LIKEABLE, HttpStatus.BAD_REQUEST);
+        STATUS_MAP.put(ErrorCode.CONTENT_SEASON_ALREADY_EXISTS, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.CONTENT_DELETION_BLOCKED, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.CONTENT_SEARCH_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE);
+        STATUS_MAP.put(ErrorCode.CONTENT_STORAGE_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE);
+
+        // Review
+        STATUS_MAP.put(ErrorCode.REVIEW_NOT_FOUND, HttpStatus.NOT_FOUND);
+        STATUS_MAP.put(ErrorCode.REVIEW_ALREADY_EXISTS, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.REVIEW_ACCESS_DENIED, HttpStatus.FORBIDDEN);
+        STATUS_MAP.put(ErrorCode.CONTENT_NOT_REVIEWABLE, HttpStatus.BAD_REQUEST);
 
         // Auth
         STATUS_MAP.put(ErrorCode.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);

@@ -19,7 +19,19 @@ public enum ErrorCode {
 
     // Content
     CONTENT_NOT_FOUND("존재하지 않는 콘텐츠입니다."),
-  
+    GENRE_NOT_FOUND("존재하지 않는 장르입니다."),
+    CONTENT_NOT_LIKEABLE("좋아요 대상이 아닌 콘텐츠입니다."),
+    CONTENT_SEASON_ALREADY_EXISTS("동일한 TV 시리즈에 해당 시즌이 이미 존재합니다."),
+    CONTENT_DELETION_BLOCKED("연결된 Watch Party가 있어 콘텐츠를 삭제할 수 없습니다."),
+    CONTENT_SEARCH_UNAVAILABLE("콘텐츠 검색 서비스를 사용할 수 없습니다."),
+    CONTENT_STORAGE_UNAVAILABLE("콘텐츠 파일 저장소를 사용할 수 없습니다."),
+
+    // Review
+    REVIEW_NOT_FOUND("존재하지 않는 리뷰입니다."),
+    REVIEW_ALREADY_EXISTS("해당 콘텐츠에 이미 리뷰를 작성했습니다."),
+    REVIEW_ACCESS_DENIED("해당 리뷰를 수정하거나 삭제할 권한이 없습니다."),
+    CONTENT_NOT_REVIEWABLE("리뷰를 작성할 수 없는 콘텐츠입니다."),
+
     // Auth
     INVALID_CREDENTIALS("이메일 또는 비밀번호가 올바르지 않습니다."),
     USER_LOCKED("잠긴 계정입니다."),
