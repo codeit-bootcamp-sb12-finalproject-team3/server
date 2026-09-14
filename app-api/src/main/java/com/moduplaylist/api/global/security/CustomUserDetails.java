@@ -40,7 +40,6 @@ public class CustomUserDetails implements UserDetails {
     return !userResponse.isLocked();
   }
 
-
   @Override
   public boolean equals(Object obj) {
     if (this == obj) {
@@ -63,5 +62,4 @@ public class CustomUserDetails implements UserDetails {
   public int hashCode() {
     return Objects.hashCode(userResponse.getId());
   }
-
 }
