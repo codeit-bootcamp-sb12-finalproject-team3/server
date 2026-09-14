@@ -8,6 +8,7 @@ import com.moduplaylist.core.watchparty.entity.WatchParty;
 import com.moduplaylist.core.watchparty.entity.WatchPartyParticipant;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import com.moduplaylist.core.watchparty.exception.*;
+import com.moduplaylist.core.watchparty.repository.WatchPartyKickedRegistry;
 import com.moduplaylist.core.watchparty.repository.WatchPartyParticipantRepository;
 import com.moduplaylist.core.watchparty.repository.WatchPartyRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,8 +26,13 @@ public class WatchPartyParticipantService {
     private final WatchPartyRepository watchPartyRepository;
     private final UserRepository userRepository;
     private final WatchPartyParticipantRepository watchPartyParticipantRepository;
+    private final WatchPartyKickedRegistry watchPartyKickedRegistry;
 
     public void joinWatchParty(UUID partyId, UUID userId) {
+
+        if (watchPartyKickedRegistry.isKicked(partyId, userId)) {
+            throw new WatchPartyKickedCannotRejoinException(partyId, userId);
+        }
 
         WatchParty party = watchPartyRepository.findByIdForUpdate(partyId)
                 .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
@@ -104,5 +110,6 @@ public class WatchPartyParticipantService {
         }
 
         participant.kick();
+        watchPartyKickedRegistry.kick(partyId, targetUserId);
     }
 }
