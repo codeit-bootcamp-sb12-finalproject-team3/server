@@ -12,6 +12,6 @@ import lombok.Setter;
 public class NotificationRequest {
     private String cursor;
     private String idAfter;
-    private int limit;
+    private int limit = 20;
     private String sortDirection;
 }

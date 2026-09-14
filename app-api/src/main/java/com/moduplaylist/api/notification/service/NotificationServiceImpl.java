@@ -36,11 +36,6 @@ public class NotificationServiceImpl implements NotificationService {
             UUID receiverId,
             NotificationRequest request
     ) {
-        System.out.println("receiverId = " + receiverId);
-        System.out.println("cursor = " + request.getCursor());
-        System.out.println("idAfter = " + request.getIdAfter());
-        System.out.println("limit = " + request.getLimit());
-        System.out.println("sortDirection = " + request.getSortDirection());
 
         validateReceiver(receiverId);
         validateRequest(request);
