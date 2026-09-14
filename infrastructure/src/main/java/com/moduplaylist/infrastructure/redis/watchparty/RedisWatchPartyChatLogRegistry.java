@@ -15,6 +15,7 @@ import org.springframework.util.Assert;
 @RequiredArgsConstructor
 public class RedisWatchPartyChatLogRegistry implements WatchPartyChatLogRegistry {
 
+    private static final long MAX_LOG_SIZE = 500;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
 
@@ -26,11 +27,14 @@ public class RedisWatchPartyChatLogRegistry implements WatchPartyChatLogRegistry
         String key = WatchPartyRedisKey.chatLog(partyId);
         ListOperations<String, Object> listOps = redisTemplate.opsForList();
         listOps.rightPush(key, message);
+        listOps.trim(key, -MAX_LOG_SIZE, -1);
+
     }
 
     @Override
     public List<WatchPartyChatMessage> findRecent(UUID partyId, long count) {
         Assert.notNull(partyId, "partyId가 필요합니다.");
+        Assert.isTrue(count > 0, "count는 1 이상이어야 합니다.");
 
         String key = WatchPartyRedisKey.chatLog(partyId);
         ListOperations<String, Object> listOps = redisTemplate.opsForList();
