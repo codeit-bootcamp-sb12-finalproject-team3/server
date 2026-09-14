@@ -2,6 +2,7 @@ package com.moduplaylist.core.review.entity;
 
 import com.moduplaylist.core.common.BaseEntity;
 import com.moduplaylist.core.content.entity.Content;
+import com.moduplaylist.core.review.exception.ContentNotReviewableException;
 import com.moduplaylist.core.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -72,7 +73,7 @@ public class Review extends BaseEntity {
 			);
 		}
 		if (!content.isReviewable()) {
-			throw new IllegalArgumentException("TV 시리즈에는 리뷰를 작성할 수 없습니다.");
+			throw new ContentNotReviewableException(content.getId());
 		}
 
 		validateReviewText(reviewText);
