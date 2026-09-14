@@ -26,7 +26,7 @@ public class Playlist extends BaseEntity {
   @Column(name = "title", nullable = false, length = 100)
   private String title;
 
-  @Column(name = "description", columnDefinition = "TEXT")
+  @Column(name = "description", nullable = false, columnDefinition = "TEXT")
   private String description;
 
   @Column(
