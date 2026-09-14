@@ -11,10 +11,12 @@ import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.exception.UserNotFoundException;
 import com.moduplaylist.core.user.repository.UserRepository;
+import com.moduplaylist.core.watchparty.entity.ParticipantStatus;
 import com.moduplaylist.core.watchparty.entity.WatchParty;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import com.moduplaylist.core.watchparty.exception.WatchPartyInvalidEpisodeRangeException;
 import com.moduplaylist.core.watchparty.exception.WatchPartyNotFoundException;
+import com.moduplaylist.core.watchparty.repository.WatchPartyParticipantRepository;
 import com.moduplaylist.core.watchparty.repository.WatchPartyQueryRepository;
 import com.moduplaylist.core.watchparty.repository.WatchPartyRepository;
 import com.moduplaylist.core.watchparty.repository.WatchPartySearch;
@@ -35,6 +37,7 @@ public class WatchPartyService {
     private final UserRepository userRepository;
     private final ContentRepository contentRepository;
     private final WatchPartyQueryRepository watchPartyQueryRepository;
+    private final WatchPartyParticipantRepository watchPartyParticipantRepository;
 
     public WatchPartyResponse createWatchParty(UUID hostId, CreateWatchPartyRequest request) {
 
@@ -59,7 +62,7 @@ public class WatchPartyService {
 
         WatchParty saved = watchPartyRepository.save(watchParty);
 
-        return toResponse(saved, host, content);
+        return toResponse(saved, host, content, 0);
     }
 
     private void validateEpisodeRange(Content content, Integer startEpisode, Integer endEpisode) {
@@ -123,11 +126,13 @@ public class WatchPartyService {
     private WatchPartyResponse toResponse(WatchParty watchParty) {
         Content content = contentRepository.findById(watchParty.getContentId())
                 .orElseThrow(() -> new ContentNotFoundException(watchParty.getContentId()));
-        return toResponse(watchParty, watchParty.getHost(), content);
+        int currentParticipants = (int) watchPartyParticipantRepository
+                .countByWatchParty_IdAndStatus(watchParty.getId(), ParticipantStatus.JOINED);
+        return toResponse(watchParty, watchParty.getHost(), content, currentParticipants);
     }
 
 
-    private WatchPartyResponse toResponse(WatchParty watchParty, User host, Content content) {
+    private WatchPartyResponse toResponse(WatchParty watchParty, User host, Content content, int currentParticipants) {
         WatchPartyResponse.HostSummary hostSummary = new WatchPartyResponse.HostSummary(
                 host.getId(), host.getName(), host.getProfileImageUrl());
 
@@ -143,7 +148,7 @@ public class WatchPartyService {
                 watchParty.getScheduledAt(),
                 watchParty.getStatus(),
                 watchParty.getMaxParticipants(),
-                0, // 생성 시점 참가자 수 - host는 미포함이라 항상 0
+                currentParticipants,
                 watchParty.getStartEpisode(),
                 watchParty.getEndEpisode(),
                 watchParty.getCreatedAt(),
