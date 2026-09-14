@@ -28,4 +28,9 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
     List<Content> findAllByParentContent_IdOrderBySeasonNumberAsc(UUID parentContentId);
 
     boolean existsByParentContent_IdAndSeasonNumber(UUID parentContentId, Integer seasonNumber);
+
+    boolean existsByParentContent_IdAndSeasonNumberAndIdNot(
+            UUID parentContentId,
+            Integer seasonNumber,
+            UUID contentId);
 }
