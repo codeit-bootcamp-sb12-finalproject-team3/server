@@ -2,12 +2,15 @@ package com.moduplaylist.api.recommendation.service.impl;
 
 import com.moduplaylist.api.recommendation.dto.UserPreferenceCreateRequest;
 import com.moduplaylist.api.recommendation.dto.UserPreferenceResponse;
-import com.moduplaylist.api.recommendation.service.RecommendationService;
+import com.moduplaylist.api.recommendation.service.UserContentGenrePreferenceService;
+import com.moduplaylist.api.recommendation.service.UserContentTagPreferenceService;
+import com.moduplaylist.api.recommendation.service.UserPreferenceService;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.recommendation.entity.UserPreferenceContent;
 import com.moduplaylist.core.recommendation.exception.PreferenceAlreadyExistsException;
+import com.moduplaylist.core.recommendation.exception.PreferenceContentNotSelectableException;
 import com.moduplaylist.core.recommendation.exception.PreferenceNotFoundException;
 import com.moduplaylist.core.recommendation.repository.UserPreferenceContentRepository;
 import com.moduplaylist.core.user.entity.User;
@@ -25,11 +28,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class RecommendationServiceImpl implements RecommendationService {
+public class UserPreferenceServiceImpl implements UserPreferenceService {
 
     private final UserPreferenceContentRepository userPreferenceContentRepository;
     private final UserRepository userRepository;
     private final ContentRepository contentRepository;
+    private final UserContentTagPreferenceService userContentTagPreferenceService;
+    private final UserContentGenrePreferenceService userContentGenrePreferenceService;
 
     @Override
     @Transactional
@@ -53,12 +58,21 @@ public class RecommendationServiceImpl implements RecommendationService {
                 throw new ContentNotFoundException(contentId);
             }
         }
+        //tv시리즈는 선호 콘텐츠에 추가되면 안된다?는 정책이 확인돼서 추가함.. 프론트 구현시 tvSeries는 선텍 못하도록 막아야할듯
+        contents.stream()
+                .filter(content -> !content.isReviewable())
+                .findFirst()
+                .ifPresent(content -> {
+                    throw new PreferenceContentNotSelectableException(content.getId());
+                });
 
         List<UserPreferenceContent> preferences = contentIds.stream()
                 .map(contentById::get)
                 .map(content -> UserPreferenceContent.create(user, content))
                 .toList();
         userPreferenceContentRepository.saveAll(preferences);
+        userContentTagPreferenceService.createFromInitialPreferences(user, contentIds);
+        userContentGenrePreferenceService.createFromInitialPreferences(user, contentIds);
 
         return UserPreferenceResponse.builder()
                 .contentIds(contentIds)
