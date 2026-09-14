@@ -1,5 +1,7 @@
 package com.moduplaylist.core.content.entity;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -11,6 +13,7 @@ public enum ContentType {
 	TV_SEASON("tvSeason"),
 	SPORT("sport");
 
+	@JsonValue
 	private final String value;
 
 	public boolean isReviewable() {
@@ -21,6 +24,7 @@ public enum ContentType {
 		return isReviewable();
 	}
 
+	@JsonCreator
 	public static ContentType fromValue(String value) {
 		for (ContentType type : values()) {
 			if (type.value.equals(value)) {
