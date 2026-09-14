@@ -16,6 +16,13 @@ public interface UserContentTagPreferenceRepository
     List<UserContentTagPreference> findAllByUser_Id(UUID userId);
 
     @Query("""
+            select distinct preference.user.id
+            from UserContentTagPreference preference
+            where preference.score > 0
+            """)
+    List<UUID> findDistinctUserIdsWithPositiveScore();
+
+    @Query("""
             select preference
             from UserContentTagPreference preference
             join fetch preference.tag

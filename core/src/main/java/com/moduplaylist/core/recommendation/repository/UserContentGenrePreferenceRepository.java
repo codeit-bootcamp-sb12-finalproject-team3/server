@@ -16,6 +16,13 @@ public interface UserContentGenrePreferenceRepository
     List<UserContentGenrePreference> findAllByUser_Id(UUID userId);
 
     @Query("""
+            select distinct preference.user.id
+            from UserContentGenrePreference preference
+            where preference.score > 0
+            """)
+    List<UUID> findDistinctUserIdsWithPositiveScore();
+
+    @Query("""
             select preference
             from UserContentGenrePreference preference
             join fetch preference.genre

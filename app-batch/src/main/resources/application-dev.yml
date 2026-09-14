@@ -13,6 +13,7 @@ spring:
   batch:
     job:
       enabled: false
+      #name: contentEmbeddingJob
 
   ai:
     model:
@@ -42,7 +43,23 @@ spring:
       properties:
         spring.json.trusted.packages: com.moduplaylist.infrastructure.kafka.event
 
+aws:
+  access-key: ${AWS_ACCESS_KEY}
+  secret-key: ${AWS_SECRET_KEY}
+  s3:
+   region: ${AWS_REGION:ap-northeast-2}
+   bucket: ${AWS_S3_BUCKET:}
+
 mopl:
+  batch:
+    embedding:
+      scheduler:
+        enabled: ${EMBEDDING_SCHEDULER_ENABLED:false}
+        content-cron: ${CONTENT_EMBEDDING_CRON:0 0 2 * * *} #실제 배치 실행 시간
+        #content-cron: "0 * * * * *" #테스트
+        user-profile-cron: ${USER_PROFILE_EMBEDDING_CRON:0 0 3 * * *} #실제 배치 실행 시간
+        #user-profile-cron: "0 * * * * *" #테스트
+        zone: ${EMBEDDING_SCHEDULER_ZONE:Asia/Seoul}
   embedding:
     enabled: ${EMBEDDING_ENABLED:true}
     model: text-embedding-3-small
