@@ -94,10 +94,14 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
             ContentSearch request,
             Map<String, Object> parameters,
             String contentAlias) {
-        StringBuilder filter = new StringBuilder(" where ")
-                .append(contentAlias)
-                .append(".type <> :excludedType");
-        parameters.put("excludedType", ContentType.TV_SERIES);
+        StringBuilder filter = new StringBuilder(" where ").append(contentAlias);
+        if (request.getType() == null) {
+            filter.append(".type <> :excludedType");
+            parameters.put("excludedType", ContentType.TV_SERIES);
+        } else {
+            filter.append(".type = :contentType");
+            parameters.put("contentType", request.getType());
+        }
 
         if (request.getSportType() != null && !request.getSportType().isBlank()) {
             filter.append(" and ")

@@ -1,16 +1,18 @@
 package com.moduplaylist.core.content.repository;
 
+import com.moduplaylist.core.content.entity.ContentType;
+import com.moduplaylist.core.content.exception.InvalidContentSearchException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 import lombok.Getter;
 
 @Getter
 public class ContentSearch {
 
+    private final ContentType type;
     private final String sportType;
     private final UUID likedByUserId;
     private final List<UUID> matchedContentIds;
@@ -22,6 +24,7 @@ public class ContentSearch {
     private final int limit;
 
     public ContentSearch(
+            ContentType type,
             String sportType,
             UUID likedByUserId,
             Collection<UUID> matchedContentIds,
@@ -39,9 +42,14 @@ public class ContentSearch {
                 cursorRating,
                 cursorId);
         if (limit < 1 || limit > 100) {
-            throw new IllegalArgumentException("limit은 1부터 100 사이여야 합니다.");
+            throw new InvalidContentSearchException();
+        }
+        if (sportType != null && !sportType.isBlank()
+                && type != null && type != ContentType.SPORT) {
+            throw new InvalidContentSearchException();
         }
 
+        this.type = type;
         this.sportType = sportType;
         this.likedByUserId = likedByUserId;
         this.matchedContentIds = matchedContentIds == null
@@ -72,41 +80,38 @@ public class ContentSearch {
             UUID cursorId) {
         if (likedByUserId != null) {
             if (sort != null) {
-                throw new IllegalArgumentException(
-                        "좋아요 콘텐츠 조회에는 일반 정렬 기준을 지정할 수 없습니다.");
+                throw new InvalidContentSearchException();
             }
-            requirePair(cursorLikedAt, cursorId, "좋아요 등록 시각과 콘텐츠 ID");
+            requirePair(cursorLikedAt, cursorId);
             if (cursorCreatedAt != null || cursorRating != null) {
-                throw new IllegalArgumentException(
-                        "좋아요 콘텐츠 조회에는 일반 목록 커서를 지정할 수 없습니다.");
+                throw new InvalidContentSearchException();
             }
             return;
         }
 
-        Objects.requireNonNull(sort, "일반 콘텐츠 조회의 정렬 기준은 필수입니다.");
+        if (sort == null) {
+            throw new InvalidContentSearchException();
+        }
         if (cursorLikedAt != null) {
-            throw new IllegalArgumentException(
-                    "일반 콘텐츠 조회에는 좋아요 목록 커서를 지정할 수 없습니다.");
+            throw new InvalidContentSearchException();
         }
         if (sort == Sort.LATEST) {
-            requirePair(cursorCreatedAt, cursorId, "콘텐츠 등록 시각과 콘텐츠 ID");
+            requirePair(cursorCreatedAt, cursorId);
             if (cursorRating != null) {
-                throw new IllegalArgumentException(
-                        "최신순 조회에는 평점 커서를 지정할 수 없습니다.");
+                throw new InvalidContentSearchException();
             }
             return;
         }
 
-        requirePair(cursorRating, cursorId, "평점과 콘텐츠 ID");
+        requirePair(cursorRating, cursorId);
         if (cursorCreatedAt != null) {
-            throw new IllegalArgumentException(
-                    "평점순 조회에는 콘텐츠 등록 시각 커서를 지정할 수 없습니다.");
+            throw new InvalidContentSearchException();
         }
     }
 
-    private static void requirePair(Object value, UUID cursorId, String fields) {
+    private static void requirePair(Object value, UUID cursorId) {
         if ((value == null) != (cursorId == null)) {
-            throw new IllegalArgumentException(fields + "는 함께 지정해야 합니다.");
+            throw new InvalidContentSearchException();
         }
     }
 

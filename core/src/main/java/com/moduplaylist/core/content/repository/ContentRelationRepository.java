@@ -108,7 +108,7 @@ public class ContentRelationRepository {
                     (SELECT COUNT(*) FROM playlist_subscriptions ps WHERE ps.playlist_id=p.id) AS subscribers,
                     p.created_at
                 FROM playlists p JOIN playlist_contents pc ON pc.playlist_id=p.id
-                WHERE pc.content_id=:id ORDER BY subscribers DESC,p.created_at ASC,p.id ASC
+                WHERE pc.content_id=:id ORDER BY subscribers DESC,p.created_at DESC,p.id ASC
                 """).setParameter("id", bytes(id)).setMaxResults(PREVIEW_FETCH_LIMIT).getResultList();
         return values.stream().map(this::toPlaylist).toList();
     }
