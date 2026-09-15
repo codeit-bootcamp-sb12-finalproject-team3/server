@@ -1,6 +1,7 @@
 package com.moduplaylist.api.watchparty.service;
 
 import com.moduplaylist.core.watchparty.entity.WatchParty;
+import com.moduplaylist.core.watchparty.exception.WatchPartyHostOnlyException;
 import com.moduplaylist.core.watchparty.repository.WatchPartyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,7 +22,7 @@ public class WatchPartyStatusService {
                 .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
 
         if (!party.getHost().getId().equals(hostId)) {
-            throw new SecurityException("방장만 방을 시작할 수 있습니다.");
+            throw new WatchPartyHostOnlyException(partyId, hostId);
         }
 
         party.start();
@@ -32,7 +33,7 @@ public class WatchPartyStatusService {
                 .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
 
         if (!party.getHost().getId().equals(hostId)) {
-            throw new SecurityException("방장만 방을 종료할 수 있습니다.");
+            throw new WatchPartyHostOnlyException(partyId, hostId);
         }
 
         party.end();

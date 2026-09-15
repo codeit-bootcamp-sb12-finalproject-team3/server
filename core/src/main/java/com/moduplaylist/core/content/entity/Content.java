@@ -213,6 +213,10 @@ public class Content extends BaseEntity {
 		return type != null && type.isReviewable();
 	}
 
+	public boolean isLikeable() {
+		return type != null && type.isLikeable();
+	}
+
 	public void updateReviewStatistics(BigDecimal averageRating, long reviewCount) {
 		if (!isReviewable()) {
 			throw new IllegalStateException("TV 시리즈는 리뷰와 평점 집계 대상이 아닙니다.");

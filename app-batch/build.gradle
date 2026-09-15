@@ -7,9 +7,12 @@ dependencies {
     implementation project(':infrastructure')
 
     implementation 'org.springframework.boot:spring-boot-starter-batch'
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
 
     runtimeOnly 'com.mysql:mysql-connector-j'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.batch:spring-batch-test'
+    // Spring AI - OpenAI
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
