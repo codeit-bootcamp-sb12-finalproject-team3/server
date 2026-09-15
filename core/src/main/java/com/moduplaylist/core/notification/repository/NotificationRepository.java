@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
-    List<Notification> findByReceiverIdOrderByCreatedAtDescIdDesc(UUID receiverId, Pageable pageable);
+    Slice<Notification> findByReceiverIdOrderByCreatedAtDescIdDesc(UUID receiverId, Pageable pageable);
 
     @Query("""
         SELECT n
@@ -34,4 +34,6 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
             @Param("cursorId") UUID cursorId,
             Pageable pageable
     );
+
+    long countByReceiverId(UUID receiverId);
 }
