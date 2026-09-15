@@ -15,6 +15,9 @@ public interface UserContentTagPreferenceRepository
 
     List<UserContentTagPreference> findAllByUser_Id(UUID userId);
 
+    @Query("select distinct preference.user.id from UserContentTagPreference preference")
+    List<UUID> findDistinctUserIds();
+
     @Query("""
             select distinct preference.user.id
             from UserContentTagPreference preference

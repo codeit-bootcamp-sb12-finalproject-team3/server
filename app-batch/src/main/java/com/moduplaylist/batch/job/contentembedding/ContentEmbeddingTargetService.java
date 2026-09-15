@@ -7,6 +7,7 @@ import com.moduplaylist.infrastructure.opensearch.content.ContentVectorDocument;
 import com.moduplaylist.infrastructure.opensearch.content.ContentVectorRepository;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -23,9 +24,18 @@ public class ContentEmbeddingTargetService {
 
     public List<UUID> findTargetContentIds() {
         return contentRepository.findAll().stream()
+                .filter(content -> content.getType().isPersonalizable())
                 .sorted(Comparator.comparing(Content::getId))
                 .filter(this::requiresEmbedding)
                 .map(Content::getId)
+                .toList();
+    }
+
+    public List<UUID> findDeletedContentIds() {
+        HashSet<UUID> existingContentIds = new HashSet<>(contentRepository.findAllIds());
+        return vectorRepository.findAllIds().stream()
+                .filter(contentId -> !existingContentIds.contains(contentId))
+                .sorted()
                 .toList();
     }
 

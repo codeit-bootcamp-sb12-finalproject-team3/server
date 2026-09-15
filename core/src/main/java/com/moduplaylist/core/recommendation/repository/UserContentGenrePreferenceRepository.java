@@ -15,6 +15,9 @@ public interface UserContentGenrePreferenceRepository
 
     List<UserContentGenrePreference> findAllByUser_Id(UUID userId);
 
+    @Query("select distinct preference.user.id from UserContentGenrePreference preference")
+    List<UUID> findDistinctUserIds();
+
     @Query("""
             select distinct preference.user.id
             from UserContentGenrePreference preference

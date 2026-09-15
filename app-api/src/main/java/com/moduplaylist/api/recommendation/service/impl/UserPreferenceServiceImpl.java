@@ -6,6 +6,7 @@ import com.moduplaylist.api.recommendation.service.UserContentGenrePreferenceSer
 import com.moduplaylist.api.recommendation.service.UserContentTagPreferenceService;
 import com.moduplaylist.api.recommendation.service.UserPreferenceService;
 import com.moduplaylist.core.content.entity.Content;
+import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.recommendation.entity.UserPreferenceContent;
@@ -59,8 +60,9 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
             }
         }
         //tv시리즈는 선호 콘텐츠에 추가되면 안된다?는 정책이 확인돼서 추가함.. 프론트 구현시 tvSeries는 선텍 못하도록 막아야할듯
+        //sport도 추가
         contents.stream()
-                .filter(content -> !content.isReviewable())
+                .filter(content -> !content.getType().isPersonalizable())
                 .findFirst()
                 .ifPresent(content -> {
                     throw new PreferenceContentNotSelectableException(content.getId());

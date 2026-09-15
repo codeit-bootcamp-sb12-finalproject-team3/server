@@ -60,6 +60,16 @@ mopl:
         user-profile-cron: ${USER_PROFILE_EMBEDDING_CRON:0 0 3 * * *} #실제 배치 실행 시간
         #user-profile-cron: "0 * * * * *" #테스트
         zone: ${EMBEDDING_SCHEDULER_ZONE:Asia/Seoul}
+    recommendation:
+      activity-batch-size: ${RECOMMENDATION_ACTIVITY_BATCH_SIZE:500}
+      scheduler:
+        enabled: ${RECOMMENDATION_SCHEDULER_ENABLED:false}
+        cron: ${RECOMMENDATION_CRON:0 0 4 * * *}
+        #cron: "0 * * * * *" #테스트
+        zone: ${RECOMMENDATION_SCHEDULER_ZONE:Asia/Seoul}
+  recommendation:
+    search-limit: ${RECOMMENDATION_SEARCH_LIMIT:100}
+    cache-ttl: ${RECOMMENDATION_CACHE_TTL:48h}
   embedding:
     enabled: ${EMBEDDING_ENABLED:true}
     model: text-embedding-3-small
