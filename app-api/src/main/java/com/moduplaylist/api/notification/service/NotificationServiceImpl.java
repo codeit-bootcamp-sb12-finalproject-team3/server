@@ -2,6 +2,7 @@ package com.moduplaylist.api.notification.service;
 
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
+import com.moduplaylist.api.notification.dto.NotificationCreateCommand;
 import com.moduplaylist.api.notification.dto.NotificationDto;
 import com.moduplaylist.api.notification.dto.NotificationRequest;
 import com.moduplaylist.core.common.exception.BaseException;
@@ -10,6 +11,8 @@ import com.moduplaylist.core.notification.entity.Notification;
 import com.moduplaylist.core.notification.exception.NotificationAccessDeniedException;
 import com.moduplaylist.core.notification.exception.NotificationNotFoundException;
 import com.moduplaylist.core.notification.repository.NotificationRepository;
+import com.moduplaylist.core.user.entity.User;
+import com.moduplaylist.core.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -28,7 +31,26 @@ import java.util.UUID;
 public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final UserRepository userRepository;
     private static final String SORT_BY = "createdAt,id";
+
+    @Override
+    @Transactional
+    public void create(NotificationCreateCommand command) {
+        validateCreateCommand(command);
+
+        User receiver = userRepository.findById(command.getReceiverId())
+                .orElseThrow(() -> new BaseException(ErrorCode.USER_NOT_FOUND));
+
+        Notification notification = Notification.create(
+                receiver,
+                command.getTitle(),
+                command.getContent(),
+                command.getLevel()
+        );
+
+        notificationRepository.save(notification);
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -66,6 +88,34 @@ public class NotificationServiceImpl implements NotificationService {
         notificationRepository.delete(notification);
     }
 
+
+    private void validateCreateCommand(NotificationCreateCommand command) {
+        if (command == null) {
+            throw invalidCreateRequest("command", "알림 생성 요청이 필요합니다.");
+        }
+        if (command.getReceiverId() == null) {
+            throw invalidCreateRequest("receiverId", "receiverId가 필요합니다.");
+        }
+        if (command.getTitle() == null
+                || command.getTitle().isBlank()
+                || command.getTitle().length() > 100) {
+            throw invalidCreateRequest("title", "title은 1자 이상 100자 이하여야 합니다.");
+        }
+        if (command.getContent() == null
+                || command.getContent().isBlank()
+                || command.getContent().length() > 500) {
+            throw invalidCreateRequest("content", "content는 1자 이상 500자 이하여야 합니다.");
+        }
+        if (command.getLevel() == null) {
+            throw invalidCreateRequest("level", "level이 필요합니다.");
+        }
+    }
+
+    private BaseException invalidCreateRequest(String key, String message) {
+        BaseException exception = new BaseException(ErrorCode.INVALID_REQUEST);
+        exception.addDetail(key, message);
+        return exception;
+    }
 
     private void validateReceiver(UUID receiverId) {
         if (receiverId == null) {
