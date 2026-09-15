@@ -50,6 +50,7 @@ public final class ApiErrorStatus {
         // Playlist
         STATUS_MAP.put(ErrorCode.PLAYLIST_NOT_FOUND, HttpStatus.NOT_FOUND);
         STATUS_MAP.put(ErrorCode.PLAYLIST_ACCESS_DENIED, HttpStatus.FORBIDDEN);
+        STATUS_MAP.put(ErrorCode.INVALID_PLAYLIST_SEARCH, HttpStatus.BAD_REQUEST);
 
         STATUS_MAP.put(ErrorCode.SELF_FOLLOW_NOT_ALLOWED, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.FOLLOW_ALREADY_EXISTS, HttpStatus.CONFLICT);

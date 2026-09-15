@@ -42,6 +42,7 @@ public enum ErrorCode {
     // Playlist
     PLAYLIST_NOT_FOUND("존재하지 않는 플레이리스트입니다."),
     PLAYLIST_ACCESS_DENIED("플레이리스트 수정 또는 삭제 권한이 없습니다."),
+    INVALID_PLAYLIST_SEARCH("플레이리스트 검색 조건이 올바르지 않습니다."),
 
     // Preference
     PREFERENCE_NOT_FOUND("초기 선호 정보가 없습니다."),
