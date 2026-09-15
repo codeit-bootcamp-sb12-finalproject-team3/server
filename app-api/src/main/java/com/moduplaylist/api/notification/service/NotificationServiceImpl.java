@@ -5,6 +5,7 @@ import com.moduplaylist.api.global.dto.SortDirection;
 import com.moduplaylist.api.notification.dto.NotificationCreateCommand;
 import com.moduplaylist.api.notification.dto.NotificationDto;
 import com.moduplaylist.api.notification.dto.NotificationRequest;
+import com.moduplaylist.api.notification.event.NotificationCreatedEvent;
 import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
 import com.moduplaylist.core.notification.entity.Notification;
@@ -14,6 +15,7 @@ import com.moduplaylist.core.notification.repository.NotificationRepository;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -32,6 +34,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private static final String SORT_BY = "createdAt,id";
 
     @Override
@@ -49,7 +52,19 @@ public class NotificationServiceImpl implements NotificationService {
                 command.getLevel()
         );
 
-        notificationRepository.save(notification);
+        Notification savedNotification =
+                notificationRepository.save(notification);
+
+        eventPublisher.publishEvent(
+                new NotificationCreatedEvent(
+                        savedNotification.getId(),
+                        savedNotification.getReceiver().getId(),
+                        savedNotification.getTitle(),
+                        savedNotification.getContent(),
+                        savedNotification.getLevel(),
+                        savedNotification.getCreatedAt()
+                )
+        );
     }
 
     @Override
