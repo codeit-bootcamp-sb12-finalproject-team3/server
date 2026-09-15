@@ -7,3 +7,15 @@ spring:
 
 server:
   port: 8081
+
+security:
+  jwt:
+    secret: ${JWT_SECRET}
+    issuer: mopl
+
+realtime:
+  sse:
+    timeout-millis: ${SSE_TIMEOUT_MILLIS:1800000} # SSE 기본 30 분
+  kafka:
+    # Each realtime instance needs its own group so every node can inspect its local emitters.
+    notification-consumer-group: notification-sse-${REALTIME_INSTANCE_ID:${random.uuid}}
