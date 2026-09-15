@@ -1,6 +1,6 @@
 package com.moduplaylist.batch.job.contentrecommendation.tasklet;
 
-import com.moduplaylist.batch.job.contentrecommendation.ContentRecommendationService;
+import com.moduplaylist.infrastructure.recommendation.ContentRecommendationService;
 import com.moduplaylist.batch.job.contentrecommendation.ContentRecommendationTargetService;
 import java.util.ArrayList;
 import java.util.List;

@@ -1,4 +1,4 @@
-package com.moduplaylist.batch.job.contentrecommendation;
+package com.moduplaylist.infrastructure.recommendation;
 
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.repository.ContentLikeRepository;
@@ -8,7 +8,6 @@ import com.moduplaylist.infrastructure.opensearch.content.ContentSimilarityCandi
 import com.moduplaylist.infrastructure.opensearch.content.ContentVectorSearchRepository;
 import com.moduplaylist.infrastructure.opensearch.recommendation.UserPreferenceVectorDocument;
 import com.moduplaylist.infrastructure.opensearch.recommendation.UserPreferenceVectorRepository;
-import com.moduplaylist.infrastructure.recommendation.RecommendationProperties;
 import com.moduplaylist.infrastructure.redis.recommendation.ContentRecommendationRedisRepository;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -62,7 +61,7 @@ public class ContentRecommendationService {
                 .toList();
         Set<UUID> existingRecommendableIds = new HashSet<>(
                 contentRepository.findAllById(candidateIds).stream()
-                        .filter(Content::isReviewable)
+                        .filter(content -> content.getType().isPersonalizable())
                         .map(Content::getId)
                         .toList()
         );

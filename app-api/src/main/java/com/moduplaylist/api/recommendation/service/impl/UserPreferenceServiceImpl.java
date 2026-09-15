@@ -6,7 +6,6 @@ import com.moduplaylist.api.recommendation.service.UserContentGenrePreferenceSer
 import com.moduplaylist.api.recommendation.service.UserContentTagPreferenceService;
 import com.moduplaylist.api.recommendation.service.UserPreferenceService;
 import com.moduplaylist.core.content.entity.Content;
-import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.recommendation.entity.UserPreferenceContent;
@@ -21,6 +20,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import com.moduplaylist.infrastructure.recommendation.embedding.UserProfileEmbeddingService;
+import com.moduplaylist.infrastructure.recommendation.ContentRecommendationService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,7 +38,12 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
     private final ContentRepository contentRepository;
     private final UserContentTagPreferenceService userContentTagPreferenceService;
     private final UserContentGenrePreferenceService userContentGenrePreferenceService;
+    private final UserProfileEmbeddingService userProfileEmbeddingService;
+    private final ContentRecommendationService contentRecommendationService;
 
+    // TODO: 현재는 DB 트랜잭션 안에서 OpenSearch/Redis까지 함께 호출하고 있음. -> 트러블슈팅 소스 메모..
+    // 외부 저장소 처리 이후 DB commit 실패 시 데이터 정합성 문제가 생길 수 있으므로,
+    // 추후 DB commit 이후 임베딩/추천 갱신이 실행되도록 후처리 구조로 분리 필요.
     @Override
     @Transactional
     public UserPreferenceResponse createUserPreference(
@@ -75,6 +82,9 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
         userPreferenceContentRepository.saveAll(preferences);
         userContentTagPreferenceService.createFromInitialPreferences(user, contentIds);
         userContentGenrePreferenceService.createFromInitialPreferences(user, contentIds);
+
+        userProfileEmbeddingService.embedAndIndex(userId);
+        contentRecommendationService.generateAndCache(userId);
 
         return UserPreferenceResponse.builder()
                 .contentIds(contentIds)
