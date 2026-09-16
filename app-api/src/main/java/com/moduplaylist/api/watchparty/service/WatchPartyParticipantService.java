@@ -1,5 +1,7 @@
 package com.moduplaylist.api.watchparty.service;
 
+import com.moduplaylist.api.recommendation.service.ContentPreferenceUpdateService;
+import com.moduplaylist.core.activity.enums.ContentActivityType;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.exception.UserNotFoundException;
 import com.moduplaylist.core.user.repository.UserRepository;
@@ -27,6 +29,7 @@ public class WatchPartyParticipantService {
     private final UserRepository userRepository;
     private final WatchPartyParticipantRepository watchPartyParticipantRepository;
     private final WatchPartyKickedRegistry watchPartyKickedRegistry;
+    private final ContentPreferenceUpdateService contentPreferenceUpdateService;
 
     public void joinWatchParty(UUID partyId, UUID userId) {
 
@@ -69,6 +72,12 @@ public class WatchPartyParticipantService {
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
         watchPartyParticipantRepository.save(new WatchPartyParticipant(user, party));
+
+        contentPreferenceUpdateService.applyActivity(
+                userId,
+                party.getContentId(),
+                ContentActivityType.WATCH_PARTY_JOINED
+        );
     }
 
 

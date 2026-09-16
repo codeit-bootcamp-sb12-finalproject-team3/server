@@ -31,6 +31,10 @@ public class ContentRecommendationTasklet implements Tasklet {
         List<UUID> targetUserIds = targetService.findTargetUserIds();
         List<UUID> failedUserIds = new ArrayList<>();
 
+// TODO: 현재는 Redis TTL 갱신과 신규 콘텐츠 반영을 위해 전체 사용자 추천을 재생성한다.
+// 변경 없는 사용자까지 다시 계산하므로 사용자 수가 커질수록 OpenSearch 조회와 Redis write 비용이 증가하는 단점이 있다.
+// 다만 신규 콘텐츠/콘텐츠 임베딩 변경도 추천 결과에 영향을 주고, Redis TTL 만료 및 배치 누락을 보정할 수 있어 현재 규모에서는 전체 재생성을 유지한다.
+// 추후에는 변경 사용자만 증분 갱신하고, 전체 재생성은 저빈도 보정 배치로 분리하는 방향으로 개선할 수 있다.
         for (UUID userId : targetUserIds) {
             try {
                 List<UUID> recommendationIds = recommendationService.generateAndCache(userId);
