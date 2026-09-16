@@ -1,6 +1,7 @@
 package com.moduplaylist.api.follow.service;
 
 import com.moduplaylist.api.follow.dto.FollowDto;
+import com.moduplaylist.api.follow.event.FollowCreatedEvent;
 import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
 import com.moduplaylist.core.follow.entity.Follow;
@@ -11,6 +12,7 @@ import com.moduplaylist.core.follow.repository.FollowRepository;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,7 @@ public class FollowServiceImpl implements FollowService{
 
     private final FollowRepository followRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     @Override
@@ -53,6 +56,14 @@ public class FollowServiceImpl implements FollowService{
         Follow follow = new Follow(follower, followee);
         try {
             Follow savedFollow = followRepository.saveAndFlush(follow);
+
+            eventPublisher.publishEvent(
+                    new FollowCreatedEvent(
+                            followerId,
+                            followeeId
+                    )
+            );
+
             return FollowDto.from(savedFollow);
         } catch (DataIntegrityViolationException e) {
             throw new FollowAlreadyExistsException(followerId, followeeId, e);
