@@ -44,7 +44,9 @@ public class ContentEmbeddingTargetService {
                 .map(document -> isOutdated(content, document))
                 .orElse(true);
     }
-
+    // TODO: 태그 변경 감지 개선 필요. (필수)
+    // 현재 임베딩 대상은 Content.updatedAt 기준이라 content_tags 추가/삭제를 감지하지 못한다.
+    // 추후 임베딩 소스 변경 시각을 별도로 관리하여 태그 변경도 재임베딩 대상으로 포함한다.
     private boolean isOutdated(Content content, ContentVectorDocument document) {
         Instant sourceUpdatedAt = document.getSourceUpdatedAt();
         return sourceUpdatedAt == null
