@@ -15,13 +15,12 @@ import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageBuilder;
 
-import com.moduplaylist.core.user.repository.JwtRegistry;
 import org.springframework.security.authentication.BadCredentialsException;
 
 class StompAuthChannelInterceptorTest {
 
     private JwtAccessTokenVerifier tokenVerifier;
-    private JwtRegistry jwtRegistry;
+    private AccessTokenSessionRegistry jwtRegistry;
     private StompAuthChannelInterceptor interceptor;
 
     private static final UUID USER_ID = UUID.randomUUID();
@@ -38,7 +37,7 @@ class StompAuthChannelInterceptorTest {
     @BeforeEach
     void setUp() {
         tokenVerifier = mock(JwtAccessTokenVerifier.class);
-        jwtRegistry = mock(JwtRegistry.class);
+        jwtRegistry = mock(AccessTokenSessionRegistry.class);
         interceptor = new StompAuthChannelInterceptor(tokenVerifier, jwtRegistry);
     }
 

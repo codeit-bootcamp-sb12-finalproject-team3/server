@@ -1,6 +1,6 @@
 package com.moduplaylist.realtime.global.security;
 
-import com.moduplaylist.core.user.repository.JwtRegistry;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -20,9 +20,9 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(StompAuthChannelInterceptor.class);
     private final JwtAccessTokenVerifier tokenVerifier;
-    private final JwtRegistry jwtRegistry;
+    private final AccessTokenSessionRegistry jwtRegistry;
 
-    public StompAuthChannelInterceptor(JwtAccessTokenVerifier tokenVerifier, JwtRegistry jwtRegistry) {
+    public StompAuthChannelInterceptor(JwtAccessTokenVerifier tokenVerifier, AccessTokenSessionRegistry jwtRegistry) {
         this.tokenVerifier = tokenVerifier;
         this.jwtRegistry = jwtRegistry;
     }
