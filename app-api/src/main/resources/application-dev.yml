@@ -35,6 +35,10 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.type.mapping: notification-created:com.moduplaylist.infrastructure.kafka.event.NotificationCreatedKafkaEvent
+        #                           real-time과 연동되는 event에 대해서 밑에 예시 처럼 작성하시면 됩니다. Java FQCN type-mapping 한다고 알려주시면 돼요
+        #                          , watchparty-playback:com.moduplaylist.infrastructure.kafka.event.WatchPartyPlaybackKafkaEvent
 
     consumer:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer

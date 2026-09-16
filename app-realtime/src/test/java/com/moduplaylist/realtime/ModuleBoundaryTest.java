@@ -26,4 +26,17 @@ class ModuleBoundaryTest {
 
         rule.check(importedClasses);
     }
+
+    @Test
+    void sseDeliveryShouldNotDependOnKafkaContracts() {
+        JavaClasses importedClasses = new ClassFileImporter()
+                .importPackages("com.moduplaylist.realtime");
+
+        ArchRule rule = noClasses()
+                .that().resideInAPackage("com.moduplaylist.realtime.notification.sse..")
+                .should().dependOnClassesThat()
+                .resideInAPackage("com.moduplaylist.realtime.kafka..");
+
+        rule.check(importedClasses);
+    }
 }
