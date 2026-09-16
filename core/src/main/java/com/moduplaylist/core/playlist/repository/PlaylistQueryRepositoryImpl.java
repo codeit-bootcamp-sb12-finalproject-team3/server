@@ -111,7 +111,10 @@ public class PlaylistQueryRepositoryImpl implements PlaylistQueryRepository {
       PlaylistSearch search
   ) {
     if (search.getOwnerIdEqual() != null) {
-      jpql.append(" AND p.owner.id = :ownerId");
+      jpql.append("""
+        
+        AND p.owner.id = :ownerId
+        """);
 
       parameters.put(
           "ownerId",
@@ -121,13 +124,14 @@ public class PlaylistQueryRepositoryImpl implements PlaylistQueryRepository {
 
     if (search.getSubscriberIdEqual() != null) {
       jpql.append("""
-          AND EXISTS (
-            SELECT 1
-            FROM PlaylistSubscription ps
-            WHERE ps.playlist = p
-              AND ps.user.id = :subscriberId
-          )
-          """);
+        
+        AND EXISTS (
+          SELECT 1
+          FROM PlaylistSubscription ps
+          WHERE ps.playlist = p
+            AND ps.user.id = :subscriberId
+        )
+        """);
 
       parameters.put(
           "subscriberId",
@@ -137,13 +141,14 @@ public class PlaylistQueryRepositoryImpl implements PlaylistQueryRepository {
 
     if (search.getContentIdEqual() != null) {
       jpql.append("""
-          AND EXISTS (
-            SELECT 1
-            FROM PlaylistContent pc
-            WHERE pc.playlist = p
-              AND pc.content.id = :contentId
-          )
-          """);
+        
+        AND EXISTS (
+          SELECT 1
+          FROM PlaylistContent pc
+          WHERE pc.playlist = p
+            AND pc.content.id = :contentId
+        )
+        """);
 
       parameters.put(
           "contentId",
