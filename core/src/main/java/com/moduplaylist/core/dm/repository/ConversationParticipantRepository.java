@@ -5,6 +5,9 @@ import com.moduplaylist.core.dm.entity.ConversationParticipant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Instant;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -22,12 +25,44 @@ public interface ConversationParticipantRepository
     );
 
     @Query("""
-            SELECT cp.conversation
-            FROM ConversationParticipant cp
-            WHERE cp.user.id = :userId
-            ORDER BY cp.conversation.updatedAt DESC, cp.conversation.id DESC
+            SELECT c AS conversation,
+                   peerParticipant.user AS peer,
+                   latestMessage AS latestMessage
+            FROM ConversationParticipant currentParticipant
+            JOIN currentParticipant.conversation c
+            JOIN ConversationParticipant peerParticipant
+              ON peerParticipant.conversation = c
+             AND peerParticipant.user.id <> :userId
+            LEFT JOIN DirectMessage latestMessage
+              ON latestMessage.conversation = c
+             AND NOT EXISTS (
+                SELECT newerMessage.id
+                FROM DirectMessage newerMessage
+                WHERE newerMessage.conversation = c
+                  AND (
+                    newerMessage.createdAt > latestMessage.createdAt
+                    OR (
+                      newerMessage.createdAt = latestMessage.createdAt
+                      AND newerMessage.id > latestMessage.id
+                    )
+                  )
+             )
+            WHERE currentParticipant.user.id = :userId
+              AND (
+                :cursorUpdatedAt IS NULL
+                OR c.updatedAt < :cursorUpdatedAt
+                OR (c.updatedAt = :cursorUpdatedAt AND c.id < :cursorId)
+              )
+            ORDER BY c.updatedAt DESC, c.id DESC
             """)
-    List<Conversation> findConversationsByUserId(@Param("userId") UUID userId);
+    Slice<ConversationListItem> findConversationPage(
+            @Param("userId") UUID userId,
+            @Param("cursorUpdatedAt") Instant cursorUpdatedAt,
+            @Param("cursorId") UUID cursorId,
+            Pageable pageable
+    );
+
+    long countByUser_Id(UUID userId);
 
     @Query("""
             SELECT c
