@@ -15,6 +15,9 @@ import org.springframework.data.repository.query.Param;
 
 public interface ContentRepository extends JpaRepository<Content, UUID>, ContentQueryRepository {
 
+    @Query("select content.id from Content content")
+    List<UUID> findAllIds();
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select content from Content content where content.id = :contentId")
     Optional<Content> findByIdForUpdate(@Param("contentId") UUID contentId);

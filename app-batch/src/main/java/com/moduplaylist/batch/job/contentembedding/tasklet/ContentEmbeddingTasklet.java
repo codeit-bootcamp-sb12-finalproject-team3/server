@@ -33,6 +33,17 @@ public class ContentEmbeddingTasklet implements Tasklet {
 // 현재 전체 임베딩 대상을 List로 메모리에 적재하고 건별로 임베딩 생성/색인을 수행한다.
 // 데이터 증가 시 메모리 사용량과 OpenAI/OpenSearch I/O 횟수가 증가할 수 있으므로,
 // Paging/Chunk 기반 조회 + 임베딩 Batch 요청 + OpenSearch Bulk 색인 방식으로 개선한다.
+        List<UUID> deletedContentIds = targetService.findDeletedContentIds();
+        List<UUID> deletionFailedIds = new ArrayList<>();
+        for (UUID contentId : deletedContentIds) {
+            try {
+                embeddingService.deleteFromIndex(contentId);
+            } catch (RuntimeException exception) {
+                deletionFailedIds.add(contentId);
+                log.error("삭제된 콘텐츠 벡터 정리 실패 - contentId={}", contentId, exception);
+            }
+        }
+
         List<UUID> targetIds = targetService.findTargetContentIds();
         List<UUID> failedIds = new ArrayList<>();
 
@@ -51,15 +62,21 @@ public class ContentEmbeddingTasklet implements Tasklet {
         }
 
         log.info(
-                "콘텐츠 임베딩 배치 완료 - targets={}, succeeded={}, failed={}",
+                "콘텐츠 임베딩 배치 완료 - targets={}, succeeded={}, failed={}, "
+                        + "deletedVectors={}, deletionFailed={}",
                 targetIds.size(),
                 targetIds.size() - failedIds.size(),
-                failedIds.size()
+                failedIds.size(),
+                deletedContentIds.size(),
+                deletionFailedIds.size()
         );
 
-        if (!failedIds.isEmpty()) {
+        if (!deletionFailedIds.isEmpty() || !failedIds.isEmpty()) {
             throw new IllegalStateException(
-                    "일부 콘텐츠 임베딩 처리에 실패했습니다. failedContentIds=" + failedIds
+                    "일부 콘텐츠 임베딩 처리에 실패했습니다. failedContentIds="
+                            + failedIds
+                            + ", deletionFailedContentIds="
+                            + deletionFailedIds
             );
         }
 
