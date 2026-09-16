@@ -43,6 +43,9 @@ public enum ErrorCode {
     PLAYLIST_NOT_FOUND("존재하지 않는 플레이리스트입니다."),
     PLAYLIST_ACCESS_DENIED("플레이리스트 수정 또는 삭제 권한이 없습니다."),
     INVALID_PLAYLIST_SEARCH("플레이리스트 검색 조건이 올바르지 않습니다."),
+    SELF_PLAYLIST_SUBSCRIPTION_NOT_ALLOWED("본인의 플레이리스트는 구독할 수 없습니다."),
+    PLAYLIST_ALREADY_SUBSCRIBED("이미 구독 중인 플레이리스트입니다."),
+    PLAYLIST_SUBSCRIPTION_NOT_FOUND("존재하지 않는 플레이리스트 구독 관계입니다."),
 
     // Preference
     PREFERENCE_NOT_FOUND("초기 선호 정보가 없습니다."),
