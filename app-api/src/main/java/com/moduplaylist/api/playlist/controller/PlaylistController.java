@@ -128,6 +128,30 @@ public class PlaylistController {
     return ResponseEntity.noContent().build();
   }
 
+  @PostMapping("/{playlistId}/subscription")
+  public ResponseEntity<Void> subscribe(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @PathVariable UUID playlistId
+  ) {
+    UUID userId = userDetails.getUserId();
+
+    playlistService.subscribe(userId, playlistId);
+
+    return ResponseEntity.status(HttpStatus.CREATED).build();
+  }
+
+  @DeleteMapping("/{playlistId}/subscription")
+  public ResponseEntity<Void> unsubscribe(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @PathVariable UUID playlistId
+  ) {
+    UUID userId = userDetails.getUserId();
+
+    playlistService.unsubscribe(userId, playlistId);
+
+    return ResponseEntity.noContent().build();
+  }
+
   private PlaylistSearch.Sort parseSort(String sortBy) {
     return switch (sortBy) {
       case "createdAt" ->

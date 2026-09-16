@@ -25,4 +25,8 @@ public interface PlaylistService {
       PlaylistUpdateRequest request);
 
   void delete(UUID userId, UUID playlistId);
+
+  void subscribe(UUID userId, UUID playlistId);
+
+  void unsubscribe(UUID userId, UUID playlistId);
 }

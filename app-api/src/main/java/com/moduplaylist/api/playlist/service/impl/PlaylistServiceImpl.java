@@ -13,7 +13,10 @@ import com.moduplaylist.core.playlist.entity.Playlist;
 import com.moduplaylist.core.playlist.entity.PlaylistContent;
 import com.moduplaylist.core.playlist.entity.PlaylistSubscription;
 import com.moduplaylist.core.playlist.exception.PlaylistAccessDeniedException;
+import com.moduplaylist.core.playlist.exception.PlaylistAlreadySubscribedException;
 import com.moduplaylist.core.playlist.exception.PlaylistNotFoundException;
+import com.moduplaylist.core.playlist.exception.PlaylistSubscriptionNotFoundException;
+import com.moduplaylist.core.playlist.exception.SelfPlaylistSubscriptionNotAllowedException;
 import com.moduplaylist.core.playlist.repository.PlaylistContentQueryRepository;
 import com.moduplaylist.core.playlist.repository.PlaylistContentRepository;
 import com.moduplaylist.core.playlist.repository.PlaylistQueryRepository;
@@ -32,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -165,6 +169,46 @@ public class PlaylistServiceImpl implements PlaylistService {
     }
 
     playlistRepository.delete(playlist);
+  }
+
+  @Override
+  @Transactional
+  public void subscribe(UUID userId, UUID playlistId) {
+    User user = userRepository.findById(userId)
+        .orElseThrow(() -> new UserNotFoundException(userId));
+
+    Playlist playlist = playlistRepository.findById(playlistId)
+        .orElseThrow(() -> new PlaylistNotFoundException(playlistId));
+
+    if (playlist.getOwner().getId().equals(userId)) {
+      throw new SelfPlaylistSubscriptionNotAllowedException(userId, playlistId);
+    }
+
+    if (playlistSubscriptionRepository.existsByUser_IdAndPlaylist_Id(userId, playlistId)) {
+      throw new PlaylistAlreadySubscribedException(userId, playlistId);
+    }
+
+    PlaylistSubscription subscription = PlaylistSubscription.create(user, playlist);
+
+    try {
+      playlistSubscriptionRepository.saveAndFlush(subscription);
+    } catch (DataIntegrityViolationException e) {
+      throw new PlaylistAlreadySubscribedException(userId, playlistId, e);
+    }
+  }
+
+  @Override
+  @Transactional
+  public void unsubscribe(UUID userId, UUID playlistId) {
+    playlistRepository.findById(playlistId)
+        .orElseThrow(() -> new PlaylistNotFoundException(playlistId));
+
+    PlaylistSubscription subscription =
+        playlistSubscriptionRepository
+            .findByUser_IdAndPlaylist_Id(userId, playlistId)
+            .orElseThrow(() -> new PlaylistSubscriptionNotFoundException(userId, playlistId));
+
+    playlistSubscriptionRepository.delete(subscription);
   }
 
   private Set<UUID> findSubscribedPlaylistIds(
