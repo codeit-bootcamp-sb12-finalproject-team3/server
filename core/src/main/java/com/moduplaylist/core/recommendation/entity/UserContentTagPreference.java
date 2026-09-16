@@ -16,7 +16,13 @@ import java.util.UUID;
 
 @Getter
 @Entity
-@Table(name = "user_content_tag_preferences")
+@Table(
+        name = "user_content_tag_preferences",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_user_content_tag_preferences_user_tag",
+                columnNames = {"user_id", "tag_id"}
+        )
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
 public class UserContentTagPreference {

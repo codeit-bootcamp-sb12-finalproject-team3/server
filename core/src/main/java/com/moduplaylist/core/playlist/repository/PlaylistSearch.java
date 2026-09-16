@@ -86,7 +86,7 @@ public class PlaylistSearch {
     if (sort == Sort.CREATED_AT) {
       if (!hasCreatedAtCursor || hasPopularityCursor) {
         throw new InvalidPlaylistSearchException(
-            "최신순 정렬에는 생성일 커서와 idAfter를 함께 지정해야 합니다."
+            "createdAt 정렬에는 cursor와 idAfter를 함께 지정해야 합니다."
         );
       }
       return;
@@ -95,7 +95,7 @@ public class PlaylistSearch {
     if (sort == Sort.WEEKLY_POPULARITY_SCORE) {
       if (!hasPopularityCursor || hasCreatedAtCursor) {
         throw new InvalidPlaylistSearchException(
-            "인기순 정렬에는 주간 인기 점수 커서와 idAfter를 함께 지정해야 합니다."
+            "weeklyPopularityScore 정렬에는 cursor와 idAfter를 함께 지정해야 합니다."
         );
       }
     }

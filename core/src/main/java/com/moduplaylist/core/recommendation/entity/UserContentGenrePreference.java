@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -22,7 +23,13 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 @Getter
 @Entity
-@Table(name = "user_content_genre_preferences")
+@Table(
+        name = "user_content_genre_preferences",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_user_content_genre_preferences_user_genre",
+                columnNames = {"user_id", "genre_id"}
+        )
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
 public class UserContentGenrePreference {

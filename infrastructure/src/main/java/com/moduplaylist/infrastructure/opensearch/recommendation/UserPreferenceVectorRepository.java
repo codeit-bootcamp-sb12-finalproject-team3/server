@@ -50,4 +50,18 @@ public class UserPreferenceVectorRepository {
             );
         }
     }
+
+    public void deleteById(UUID userId) {
+        try {
+            openSearchClient.delete(request -> request
+                    .index(properties.getUserPreferenceIndex())
+                    .id(userId.toString()));
+        } catch (IOException exception) {
+            throw new IllegalStateException(
+                    "사용자 선호 벡터를 OpenSearch에서 삭제하지 못했습니다. userId="
+                            + userId,
+                    exception
+            );
+        }
+    }
 }

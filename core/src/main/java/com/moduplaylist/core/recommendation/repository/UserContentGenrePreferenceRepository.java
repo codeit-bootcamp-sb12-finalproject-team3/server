@@ -1,6 +1,7 @@
 package com.moduplaylist.core.recommendation.repository;
 
 import com.moduplaylist.core.recommendation.entity.UserContentGenrePreference;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,6 +15,21 @@ public interface UserContentGenrePreferenceRepository
     Optional<UserContentGenrePreference> findByUser_IdAndGenre_Id(UUID userId, UUID genreId);
 
     List<UserContentGenrePreference> findAllByUser_Id(UUID userId);
+
+    @Query("""
+            select preference
+            from UserContentGenrePreference preference
+            join fetch preference.genre
+            where preference.user.id = :userId
+              and preference.genre.id in :genreIds
+            """)
+    List<UserContentGenrePreference> findAllWithGenreByUserIdAndGenreIdIn(
+            @Param("userId") UUID userId,
+            @Param("genreIds") Collection<UUID> genreIds
+    );
+
+    @Query("select distinct preference.user.id from UserContentGenrePreference preference")
+    List<UUID> findDistinctUserIds();
 
     @Query("""
             select distinct preference.user.id
