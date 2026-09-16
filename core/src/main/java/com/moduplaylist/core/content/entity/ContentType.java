@@ -21,6 +21,9 @@ public enum ContentType {
 		return this == MOVIE || this == TV_SEASON;
 	}
 
+	public boolean isLikeable() {
+		return isReviewable();
+	}
 
 	public static ContentType fromValue(String value) {
 		for (ContentType type : values()) {

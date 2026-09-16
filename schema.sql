@@ -592,7 +592,7 @@ CREATE TABLE playlists (
                            id                          BINARY(16) NOT NULL,
                            owner_id                    BINARY(16) NOT NULL,
                            title                       VARCHAR(100) NOT NULL,
-                           description                 TEXT NULL,
+                           description                 TEXT NOT NULL,
                            weekly_popularity_score     DECIMAL(10,2) NOT NULL DEFAULT 0.00,
                            created_at                  DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
                            updated_at                  DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)

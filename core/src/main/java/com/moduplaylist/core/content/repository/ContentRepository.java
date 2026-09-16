@@ -13,7 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 
-public interface ContentRepository extends JpaRepository<Content, UUID> {
+public interface ContentRepository extends JpaRepository<Content, UUID>, ContentQueryRepository {
 
     @Query("select content.id from Content content")
     List<UUID> findAllIds();
@@ -31,4 +31,9 @@ public interface ContentRepository extends JpaRepository<Content, UUID> {
     List<Content> findAllByParentContent_IdOrderBySeasonNumberAsc(UUID parentContentId);
 
     boolean existsByParentContent_IdAndSeasonNumber(UUID parentContentId, Integer seasonNumber);
+
+    boolean existsByParentContent_IdAndSeasonNumberAndIdNot(
+            UUID parentContentId,
+            Integer seasonNumber,
+            UUID contentId);
 }
