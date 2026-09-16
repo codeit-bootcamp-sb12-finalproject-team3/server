@@ -19,5 +19,9 @@ public class PlaylistUpdateRequest {
   )
   private String title;
 
+  @Pattern(
+      regexp = "(?s).*\\S.*",
+      message = "플레이리스트 설명은 공백일 수 없습니다."
+  )
   private String description;
 }
