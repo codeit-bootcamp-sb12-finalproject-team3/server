@@ -26,6 +26,8 @@ dependencies {
     annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
     annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 
+    // Kafka
+    implementation 'org.springframework.kafka:spring-kafka'
 
     runtimeOnly 'com.mysql:mysql-connector-j'
 
