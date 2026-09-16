@@ -1,15 +1,4 @@
 spring:
-  datasource:
-    # example address
-    url: ${DB_URL:jdbc:mysql://localhost:3306/moduplaylist}
-    username: ${DB_USERNAME:mopl}
-    password: ${DB_PASSWORD:mopl}
-
-  jpa:
-    hibernate:
-      ddl-auto: update
-    open-in-view: false
-
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -23,8 +12,9 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
     consumer:
-      auto-offset-reset: latest # 현재 이후 kafka 메시지만 받음
+      auto-offset-reset: latest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: com.moduplaylist.infrastructure.kafka.event
+        spring.json.type.mapping: notification-created:com.moduplaylist.realtime.kafka.event.NotificationCreatedKafkaEvent
+        spring.json.trusted.packages: com.moduplaylist.realtime.kafka.event

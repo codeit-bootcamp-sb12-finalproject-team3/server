@@ -1,6 +1,6 @@
 package com.moduplaylist.realtime.global.config;
 
-import com.moduplaylist.core.user.repository.JwtRegistry;
+import com.moduplaylist.realtime.global.security.AccessTokenSessionRegistry;
 import com.moduplaylist.realtime.global.security.JwtAccessTokenVerifier;
 import com.moduplaylist.realtime.global.security.RealtimeJwtAuthenticationFilter;
 import jakarta.servlet.http.HttpServletResponse;
@@ -19,10 +19,10 @@ public class RealtimeSecurityConfig {
     public SecurityFilterChain realtimeSecurityFilterChain(
             HttpSecurity http,
             JwtAccessTokenVerifier tokenVerifier,
-            JwtRegistry jwtRegistry
+            AccessTokenSessionRegistry accessTokenSessionRegistry
     ) throws Exception {
         RealtimeJwtAuthenticationFilter jwtFilter =
-                new RealtimeJwtAuthenticationFilter(tokenVerifier, jwtRegistry);
+                new RealtimeJwtAuthenticationFilter(tokenVerifier, accessTokenSessionRegistry);
 
         http
                 .csrf(csrf -> csrf.disable())
