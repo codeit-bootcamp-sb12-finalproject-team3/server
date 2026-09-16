@@ -10,14 +10,19 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 class ModuleBoundaryTest {
 
     @Test
-    void appRealtimeShouldNotDependOnAppApiOrAppBatch() {
+    void appRealtimeShouldNotDependOnOtherProjectModules() {
         JavaClasses importedClasses = new ClassFileImporter()
                 .importPackages("com.moduplaylist");
 
         ArchRule rule = noClasses()
                 .that().resideInAPackage("com.moduplaylist.realtime..")
                 .should().dependOnClassesThat()
-                .resideInAnyPackage("com.moduplaylist.api..", "com.moduplaylist.batch..");
+                .resideInAnyPackage(
+                        "com.moduplaylist.api..",
+                        "com.moduplaylist.batch..",
+                        "com.moduplaylist.core..",
+                        "com.moduplaylist.infrastructure.."
+                );
 
         rule.check(importedClasses);
     }

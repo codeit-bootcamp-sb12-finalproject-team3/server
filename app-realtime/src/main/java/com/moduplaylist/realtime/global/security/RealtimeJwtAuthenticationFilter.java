@@ -1,6 +1,5 @@
 package com.moduplaylist.realtime.global.security;
 
-import com.moduplaylist.core.user.repository.JwtRegistry;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,14 +20,14 @@ public class RealtimeJwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String SSE_PATH = "/api/sse";
 
     private final JwtAccessTokenVerifier tokenVerifier;
-    private final JwtRegistry jwtRegistry;
+    private final AccessTokenSessionRegistry accessTokenSessionRegistry;
 
     public RealtimeJwtAuthenticationFilter(
             JwtAccessTokenVerifier tokenVerifier,
-            JwtRegistry jwtRegistry
+            AccessTokenSessionRegistry accessTokenSessionRegistry
     ) {
         this.tokenVerifier = tokenVerifier;
-        this.jwtRegistry = jwtRegistry;
+        this.accessTokenSessionRegistry = accessTokenSessionRegistry;
     }
 
     @Override
@@ -47,7 +46,7 @@ public class RealtimeJwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(token)) {
             try {
                 VerifiedAccessToken verifiedToken = tokenVerifier.verify(token);
-                if (!jwtRegistry.isAccessTokenActive(
+                if (!accessTokenSessionRegistry.isAccessTokenActive(
                         verifiedToken.userId(), verifiedToken.tokenId())) {
                     throw new BadCredentialsException("Inactive access token.");
                 }
