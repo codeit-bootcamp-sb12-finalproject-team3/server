@@ -9,7 +9,6 @@ public record DmMessageCreatedKafkaEvent(
         UUID senderId,
         UUID receiverId,
         String content,
-        Instant createdAt,
-        UUID clientMessageId
+        Instant createdAt
 ) {
 }
