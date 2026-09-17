@@ -66,9 +66,4 @@ public class DirectMessage {
         }
     }
 
-    public void markAsRead(Instant readAt) {
-        if (this.readAt == null) {
-            this.readAt = Objects.requireNonNull(readAt);
-        }
-    }
 }

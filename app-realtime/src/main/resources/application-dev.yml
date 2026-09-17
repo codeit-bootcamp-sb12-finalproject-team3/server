@@ -10,11 +10,14 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.type.mapping: dm-send-requested:com.moduplaylist.realtime.kafka.event.DmSendRequestedKafkaEvent
 
     consumer:
       auto-offset-reset: latest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.type.mapping: notification-created:com.moduplaylist.realtime.kafka.event.NotificationCreatedKafkaEvent
+        spring.json.type.mapping: notification-created:com.moduplaylist.realtime.kafka.event.NotificationCreatedKafkaEvent,
+                                  dm-message-created:com.moduplaylist.realtime.kafka.event.DmMessageCreatedKafkaEvent
         spring.json.trusted.packages: com.moduplaylist.realtime.kafka.event
