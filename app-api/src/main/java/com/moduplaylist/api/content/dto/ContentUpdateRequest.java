@@ -30,7 +30,7 @@ public class ContentUpdateRequest {
 	private JsonNullable<Map<String, Object>> metadata = JsonNullable.undefined();
 	private JsonNullable<@NotNull List<@NotNull UUID>> genreIds = JsonNullable.undefined();
 	private JsonNullable<@NotNull List<@NotBlank @Size(max = 100) String>> manualTags = JsonNullable.undefined();
-	private JsonNullable<@NotNull List<@NotNull @Valid ContentCastUpdateRequest>> casts = JsonNullable.undefined();
+	private JsonNullable<@NotNull List<@NotNull @Valid ContentCastRequest>> casts = JsonNullable.undefined();
 
 	public void setTitle(JsonNullable<String> title) {
 		this.title = map(title, ContentUpdateRequest::strip);
@@ -85,7 +85,7 @@ public class ContentUpdateRequest {
 		);
 	}
 
-	public void setCasts(JsonNullable<List<ContentCastUpdateRequest>> casts) {
+	public void setCasts(JsonNullable<List<ContentCastRequest>> casts) {
 		this.casts = requireWrapper(casts);
 	}
 

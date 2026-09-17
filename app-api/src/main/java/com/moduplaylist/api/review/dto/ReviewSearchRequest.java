@@ -5,7 +5,7 @@ import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
-import java.time.Instant;
+import jakarta.validation.constraints.Size;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,9 +20,10 @@ public class ReviewSearchRequest {
 
 	private UUID userIdEqual;
 
-	private Instant cursorCreatedAt;
+	@Size(max = 2048)
+	private String cursor;
 
-	private UUID cursorId;
+	private UUID idAfter;
 
 	@Min(1)
 	@Max(100)
@@ -36,8 +37,9 @@ public class ReviewSearchRequest {
 	}
 
 	@JsonIgnore
-	@AssertTrue(message = "cursorCreatedAt과 cursorId는 함께 전달해야 합니다.")
+	@AssertTrue(message = "cursor와 idAfter는 함께 전달해야 합니다.")
 	public boolean isCursorValid() {
-		return (cursorCreatedAt == null) == (cursorId == null);
+		boolean cursorEmpty = cursor == null || cursor.isBlank();
+		return cursorEmpty == (idAfter == null);
 	}
 }

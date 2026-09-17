@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @NoArgsConstructor
-public class ContentCastUpdateRequest {
+public class ContentCastRequest {
 
 	@NotBlank
 	@Size(max = 100)
