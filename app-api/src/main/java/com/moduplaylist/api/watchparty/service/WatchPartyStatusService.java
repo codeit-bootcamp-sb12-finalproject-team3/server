@@ -1,13 +1,14 @@
 package com.moduplaylist.api.watchparty.service;
 
+import com.moduplaylist.api.watchparty.event.WatchPartyEndedEvent;
+import com.moduplaylist.api.watchparty.event.WatchPartyStartedEvent;
 import com.moduplaylist.core.watchparty.entity.WatchParty;
 import com.moduplaylist.core.watchparty.entity.WatchPartyPlaybackStatus;
 import com.moduplaylist.core.watchparty.exception.WatchPartyHostOnlyException;
-import com.moduplaylist.core.watchparty.repository.WatchPartyKeyLifecycleRegistry;
-import com.moduplaylist.core.watchparty.repository.WatchPartyPlaybackRegistry;
 import com.moduplaylist.core.watchparty.repository.WatchPartyPlaybackState;
 import com.moduplaylist.core.watchparty.repository.WatchPartyRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.moduplaylist.core.watchparty.exception.WatchPartyNotFoundException;
@@ -20,8 +21,7 @@ import java.util.UUID;
 public class WatchPartyStatusService {
 
     private final WatchPartyRepository watchPartyRepository;
-    private final WatchPartyKeyLifecycleRegistry watchPartyKeyLifecycleRegistry;
-    private final WatchPartyPlaybackRegistry watchPartyPlaybackRegistry;
+    private final ApplicationEventPublisher eventPublisher;
 
     public void startWatchParty(UUID partyId, UUID hostId) {
         WatchParty party = watchPartyRepository.findById(partyId)
@@ -43,7 +43,7 @@ public class WatchPartyStatusService {
                 hostId,
                 now
         );
-        watchPartyPlaybackRegistry.createOnLive(partyId, state);
+        eventPublisher.publishEvent(new WatchPartyStartedEvent(partyId, state));
     }
 
 
@@ -56,6 +56,6 @@ public class WatchPartyStatusService {
         }
 
         party.end();
-        watchPartyKeyLifecycleRegistry.armSafetyNetTtl(partyId);
+        eventPublisher.publishEvent(new WatchPartyEndedEvent(partyId));
     }
 }
