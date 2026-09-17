@@ -1,6 +1,10 @@
 -- MySQL 8.0 기준
 SET NAMES utf8mb4;
 
+-- 모든 PK/FK 식별자는 애플리케이션에서 생성한 UUIDv7을 사용한다.
+-- API/Java에서는 UUID, MySQL에서는 표준 big-endian 바이트 순서의 BINARY(16)으로 표현한다.
+-- 모든 테이블은 비식별 관계이므로 관계 테이블을 포함하여 독립 PK와 FK를 유지한다.
+
 
 -- =================================================================
 -- 사용자
@@ -110,6 +114,12 @@ ALTER TABLE contents
             );
 
 ALTER TABLE contents
+    ADD CONSTRAINT chk_contents_title
+        CHECK (
+            CHAR_LENGTH(TRIM(title)) BETWEEN 1 AND 255
+            );
+
+ALTER TABLE contents
     ADD CONSTRAINT chk_contents_average_rating
         CHECK (average_rating BETWEEN 0.00 AND 5.00);
 
@@ -124,6 +134,23 @@ ALTER TABLE contents
 ALTER TABLE contents
     ADD CONSTRAINT chk_contents_episode_count
         CHECK (episode_count IS NULL OR episode_count >= 0);
+
+ALTER TABLE contents
+    ADD CONSTRAINT chk_contents_tv_season
+        CHECK (
+            (
+                type = 'tvSeason'
+                    AND parent_content_id IS NOT NULL
+                    AND season_number IS NOT NULL
+                )
+                OR
+            (
+                type <> 'tvSeason'
+                    AND parent_content_id IS NULL
+                    AND season_number IS NULL
+                    AND episode_count IS NULL
+                )
+            );
 
 CREATE INDEX idx_contents_created
     ON contents (hidden, created_at DESC, id DESC);
@@ -171,13 +198,11 @@ CREATE INDEX idx_sport_types_active_name
 CREATE TABLE sport_events (
                              content_id          BINARY(16) NOT NULL,
                              sport_type_id       BINARY(16) NOT NULL,
-                             league_id           VARCHAR(100) NULL,
+                             external_league_id  VARCHAR(100) NULL,
                              league_name         VARCHAR(255) NULL,
                              season              VARCHAR(100) NULL,
                              round               VARCHAR(100) NULL,
-                             home_team_id        VARCHAR(100) NULL,
                              home_team_name      VARCHAR(255) NOT NULL,
-                             away_team_id        VARCHAR(100) NULL,
                              away_team_name      VARCHAR(255) NOT NULL,
                              venue               VARCHAR(255) NULL,
                              country             VARCHAR(100) NULL,
@@ -194,7 +219,6 @@ CREATE TABLE sport_events (
                                  'SUSPENDED',
                                  'UNKNOWN'
                              ) NOT NULL DEFAULT 'UNKNOWN',
-                             postponed           BOOLEAN NOT NULL DEFAULT FALSE,
                              last_checked_at      DATETIME(6) NULL
 );
 
@@ -216,8 +240,9 @@ ALTER TABLE sport_events
 ALTER TABLE sport_events
     ADD CONSTRAINT chk_sport_events_scores
         CHECK (
-            (home_score IS NULL OR home_score >= 0)
-                AND (away_score IS NULL OR away_score >= 0)
+            (home_score IS NULL AND away_score IS NULL)
+                OR
+            (home_score >= 0 AND away_score >= 0)
             );
 
 CREATE INDEX idx_sport_events_type_schedule
@@ -233,7 +258,7 @@ CREATE TABLE episodes (
                           id                  BINARY(16) NOT NULL,
                           season_id           BINARY(16) NOT NULL,
                           episode_number      INT NOT NULL,
-                          title               VARCHAR(255) NULL,
+                          title               VARCHAR(255) NOT NULL,
                           description         TEXT NULL,
                           thumbnail_url       VARCHAR(500) NULL,
                           runtime             INT NULL,
@@ -271,6 +296,10 @@ ALTER TABLE episodes
 ALTER TABLE episodes
     ADD CONSTRAINT chk_episodes_number
         CHECK (episode_number >= 0);
+
+ALTER TABLE episodes
+    ADD CONSTRAINT chk_episodes_title
+        CHECK (CHAR_LENGTH(TRIM(title)) BETWEEN 1 AND 255);
 
 ALTER TABLE episodes
     ADD CONSTRAINT chk_episodes_runtime
@@ -483,12 +512,11 @@ ALTER TABLE content_casts
 
 CREATE TABLE platforms (
                           id                  BINARY(16) NOT NULL,
+                          tmdb_provider_id    INT NULL,
                           name                VARCHAR(100) NOT NULL,
                           logo_url            VARCHAR(500) NULL,
-                          platform_type       ENUM('OTT', 'BOTH') NOT NULL DEFAULT 'OTT',
                           active              BOOLEAN NOT NULL DEFAULT TRUE,
-                          created_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-                          updated_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                          created_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 );
 
 ALTER TABLE platforms
@@ -497,9 +525,9 @@ ALTER TABLE platforms
 ALTER TABLE platforms
     ADD CONSTRAINT uq_platforms_name UNIQUE (name);
 
-CREATE INDEX idx_platforms_active_name
-    ON platforms (active, name);
-
+ALTER TABLE platforms
+    ADD CONSTRAINT uq_platforms_tmdb_provider
+        UNIQUE (tmdb_provider_id);
 
 -- =================================================================
 -- 콘텐츠-플랫폼 관계
@@ -510,10 +538,7 @@ CREATE TABLE content_platforms (
                                   platform_id         BINARY(16) NOT NULL,
                                   source              ENUM('TMDB', 'MANUAL') NOT NULL,
                                   region_code         CHAR(2) NOT NULL DEFAULT 'KR',
-                                  watch_url           VARCHAR(1000) NULL,
-                                  attribution_url     VARCHAR(1000) NULL,
-                                  created_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-                                  updated_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                                  url                 VARCHAR(1000) NOT NULL
 );
 
 ALTER TABLE content_platforms
@@ -521,7 +546,7 @@ ALTER TABLE content_platforms
 
 ALTER TABLE content_platforms
     ADD CONSTRAINT uq_content_platforms
-        UNIQUE (content_id, platform_id, source, region_code);
+        UNIQUE (content_id, platform_id, region_code);
 
 ALTER TABLE content_platforms
     ADD CONSTRAINT fk_content_platforms_content
@@ -540,23 +565,11 @@ ALTER TABLE content_platforms
         CHECK (region_code = UPPER(region_code));
 
 ALTER TABLE content_platforms
-    ADD CONSTRAINT chk_content_platforms_urls
-        CHECK (
-            (
-                source = 'MANUAL'
-                    AND watch_url IS NOT NULL
-                    AND (
-                        watch_url LIKE 'http://%'
-                            OR watch_url LIKE 'https://%'
-                        )
-                    AND attribution_url IS NULL
-                )
-                OR
-            (source = 'TMDB' AND watch_url IS NULL)
-            );
+    ADD CONSTRAINT chk_content_platforms_url
+        CHECK (url LIKE 'http://%' OR url LIKE 'https://%');
 
 CREATE INDEX idx_content_platforms_lookup
-    ON content_platforms (content_id, region_code, platform_id, source);
+    ON content_platforms (content_id, region_code, platform_id);
 
 CREATE INDEX idx_content_platforms_platform
     ON content_platforms (platform_id);
@@ -616,7 +629,7 @@ ALTER TABLE content_likes
     ADD CONSTRAINT fk_content_likes_user
         FOREIGN KEY (user_id)
             REFERENCES users (id)
-            ON DELETE CASCADE;
+            ON DELETE RESTRICT;
 
 ALTER TABLE content_likes
     ADD CONSTRAINT fk_content_likes_content
@@ -656,7 +669,7 @@ ALTER TABLE reviews
     ADD CONSTRAINT fk_reviews_user
         FOREIGN KEY (user_id)
             REFERENCES users (id)
-            ON DELETE CASCADE;
+            ON DELETE RESTRICT;
 
 ALTER TABLE reviews
     ADD CONSTRAINT fk_reviews_content
@@ -1193,22 +1206,3 @@ ALTER TABLE notifications
 
 CREATE INDEX idx_notifications_receiver_created
     ON notifications (receiver_id, created_at DESC, id DESC);
-
-
--- =================================================================
--- 애플리케이션 트랜잭션에서 함께 검증할 교차 테이블 불변조건
---
--- MySQL CHECK 제약은 다른 테이블을 조회할 수 없으므로 아래 규칙은 서비스 계층에서
--- 대상 행을 잠근 뒤 검증한다. FK와 UNIQUE는 최종 동시성 안전장치로 사용한다.
---
--- 1. tvSeason.parent_content_id는 type=tvSeries인 콘텐츠를 가리킨다.
--- 2. episodes.season_id는 type=tvSeason인 콘텐츠를 가리킨다.
--- 3. sport_events.content_id는 type=sport인 콘텐츠를 가리킨다.
--- 4. content_genres/content_tags/content_casts/content_platforms는 movie 또는
---    tvSeason에만 연결한다. 콘텐츠 태그는 AI와 MANUAL 합계 최대 3개다.
--- 5. content_likes/reviews는 movie, tvSeason, sport에만 연결한다.
--- 6. playlist_contents/watch_parties는 hidden=false인 movie 또는 tvSeason에만
---    새로 연결한다. 플레이리스트 태그는 최종 3~5개다.
--- 7. 콘텐츠 숨김은 관련 활성 또는 보존 대상 Watch Party가 없을 때만 허용한다.
--- 8. tvSeries 직접 숨김은 금지하며 마지막 유효 tvSeason 숨김 시 부모를 함께 숨긴다.
--- 9. hidden 변경 외에도 좋아요·리뷰·집계값 변경은 각 API의 updated_at 정책을 따른다.
