@@ -58,6 +58,13 @@ public enum ErrorCode {
     NOTIFICATION_NOT_FOUND("존재하지 않는 알림입니다."),
     NOTIFICATION_ACCESS_DENIED("해당 알림에 접근할 수 없습니다."),
 
+    // Direct Message
+    CONVERSATION_NOT_FOUND("존재하지 않는 대화방입니다."),
+    CONVERSATION_ACCESS_DENIED("해당 대화방에 접근할 권한이 없습니다."),
+    DIRECT_MESSAGE_NOT_FOUND("존재하지 않는 메시지입니다."),
+    SELF_DIRECT_MESSAGE_NOT_ALLOWED("자기 자신과 대화방을 만들 수 없습니다."),
+
+
     // WatchParty
     WATCHPARTY_NOT_FOUND("존재하지 않는 방입니다."),
     WATCHPARTY_INVALID_EPISODE_RANGE("영화/스포츠 콘텐츠에는 회차 범위를 지정할 수 없습니다."),
