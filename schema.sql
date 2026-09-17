@@ -515,7 +515,6 @@ CREATE TABLE platforms (
                           tmdb_provider_id    INT NULL,
                           name                VARCHAR(100) NOT NULL,
                           logo_url            VARCHAR(500) NULL,
-                          active              BOOLEAN NOT NULL DEFAULT TRUE,
                           created_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 );
 
