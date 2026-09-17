@@ -10,8 +10,6 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
 
 import java.util.Objects;
 
@@ -38,7 +36,6 @@ public class ContentGenre extends ContentUuidEntity {
             nullable = false,
             updatable = false
     )
-    @OnDelete(action = OnDeleteAction.CASCADE)
     private Content content;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

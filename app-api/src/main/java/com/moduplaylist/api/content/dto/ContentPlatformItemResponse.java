@@ -6,10 +6,10 @@ import lombok.Getter;
 
 @Getter
 @Builder
-public class ContentOttItemResponse {
+public class ContentPlatformItemResponse {
 
-	private UUID ottId;
+	private UUID platformId;
 	private String name;
 	private String logoUrl;
-	private String watchUrl;
+	private String url;
 }

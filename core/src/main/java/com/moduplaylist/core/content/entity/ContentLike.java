@@ -14,8 +14,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -47,7 +45,6 @@ public class ContentLike extends ContentUuidEntity {
 		nullable = false,
 		updatable = false
 	)
-	@OnDelete(action = OnDeleteAction.CASCADE)
 	private User user;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -56,7 +53,6 @@ public class ContentLike extends ContentUuidEntity {
 		nullable = false,
 		updatable = false
 	)
-	@OnDelete(action = OnDeleteAction.CASCADE)
 	private Content content;
 
 	@CreationTimestamp

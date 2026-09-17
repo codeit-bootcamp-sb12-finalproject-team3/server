@@ -6,8 +6,8 @@ import lombok.Getter;
 
 @Getter
 @Builder
-public class ContentOttResponse {
+public class ContentPlatformResponse {
 
 	@Builder.Default
-	private List<ContentOttItemResponse> otts = List.of();
+	private List<ContentPlatformItemResponse> platforms = List.of();
 }

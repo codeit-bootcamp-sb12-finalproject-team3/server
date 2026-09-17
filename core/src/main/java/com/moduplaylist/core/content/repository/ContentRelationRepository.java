@@ -51,11 +51,11 @@ public class ContentRelationRepository {
 
     @Getter
     @RequiredArgsConstructor
-    public static class Ott {
+    public static class PlatformItem {
         private final UUID id;
         private final String name;
         private final String logoUrl;
-        private final String watchUrl;
+        private final String url;
     }
 
     @Getter
@@ -96,9 +96,9 @@ public class ContentRelationRepository {
         return findRows("SELECT name,role_name,profile_image_url,display_order FROM content_casts WHERE content_id=:id ORDER BY display_order", id)
                 .stream().map(r -> new Cast((String) r[0], (String) r[1], (String) r[2], ((Number) r[3]).intValue())).toList();
     }
-    public List<Ott> otts(UUID id) {
-        return findRows("SELECT o.id,o.name,o.logo_url,co.watch_url FROM ott_platforms o JOIN content_ott co ON co.ott_id=o.id WHERE co.content_id=:id ORDER BY o.name,o.id", id)
-                .stream().map(r -> new Ott(uuid(r[0]), (String) r[1], (String) r[2], (String) r[3])).toList();
+    public List<PlatformItem> platforms(UUID id) {
+        return findRows("SELECT p.id,p.name,p.logo_url,cp.url FROM platforms p JOIN content_platforms cp ON cp.platform_id=p.id WHERE cp.content_id=:id ORDER BY p.name,p.id", id)
+                .stream().map(r -> new PlatformItem(uuid(r[0]), (String) r[1], (String) r[2], (String) r[3])).toList();
     }
 
     @SuppressWarnings("unchecked")
