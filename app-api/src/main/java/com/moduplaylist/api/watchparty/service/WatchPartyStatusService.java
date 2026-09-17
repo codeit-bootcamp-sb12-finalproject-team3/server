@@ -5,6 +5,8 @@ import com.moduplaylist.api.watchparty.event.WatchPartyStartedEvent;
 import com.moduplaylist.core.watchparty.entity.WatchParty;
 import com.moduplaylist.core.watchparty.entity.WatchPartyPlaybackStatus;
 import com.moduplaylist.core.watchparty.exception.WatchPartyHostOnlyException;
+import com.moduplaylist.core.watchparty.repository.WatchPartyActivePartyRegistry;
+import com.moduplaylist.core.watchparty.repository.WatchPartyJoinedRegistry;
 import com.moduplaylist.core.watchparty.repository.WatchPartyPlaybackState;
 import com.moduplaylist.core.watchparty.repository.WatchPartyRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,8 @@ public class WatchPartyStatusService {
 
     private final WatchPartyRepository watchPartyRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final WatchPartyJoinedRegistry watchPartyJoinedRegistry;
+    private final WatchPartyActivePartyRegistry watchPartyActivePartyRegistry;
 
     public void startWatchParty(UUID partyId, UUID hostId) {
         WatchParty party = watchPartyRepository.findById(partyId)
@@ -56,6 +60,11 @@ public class WatchPartyStatusService {
         }
 
         party.end();
+
+        // joinedParty 역인덱스는 파티 키 그룹에 안 묶이니 여기서 별도 정리
+        watchPartyJoinedRegistry.findAll(partyId)
+                .forEach(watchPartyActivePartyRegistry::clearJoinedParty);
+
         eventPublisher.publishEvent(new WatchPartyEndedEvent(partyId));
     }
 }

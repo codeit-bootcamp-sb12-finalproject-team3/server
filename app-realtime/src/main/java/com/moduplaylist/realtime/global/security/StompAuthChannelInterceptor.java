@@ -1,12 +1,17 @@
 package com.moduplaylist.realtime.global.security;
 
 
+import com.moduplaylist.realtime.watchparty.WatchPartyActivePartyRegistry;
+import com.moduplaylist.realtime.watchparty.WatchPartyHostRegistry;
+import com.moduplaylist.realtime.watchparty.WatchPartyJoinedRegistry;
+import com.moduplaylist.realtime.watchparty.WatchPartyKickedRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.lang.NonNull;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
@@ -15,26 +20,62 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.util.Optional;
+import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 @Component
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(StompAuthChannelInterceptor.class);
+    // watch-parties SEND/SUBSCRIBE destination에서 partyId(UUID)를 뽑기 위한 패턴
+    private static final Pattern WATCH_PARTY_DESTINATION_PATTERN =
+            Pattern.compile("^/(?:pub|sub)/watch-parties/([^/]+)/.*$");
     private final JwtAccessTokenVerifier tokenVerifier;
     private final AccessTokenSessionRegistry accessTokenSessionRegistry;
+    private final WatchPartyKickedRegistry watchPartyKickedRegistry;
+    private final WatchPartyJoinedRegistry watchPartyJoinedRegistry;
+    private final WatchPartyHostRegistry watchPartyHostRegistry;
+    private final WatchPartyActivePartyRegistry watchPartyActivePartyRegistry;
+    private final SimpMessagingTemplate messagingTemplate;
 
-    public StompAuthChannelInterceptor(JwtAccessTokenVerifier tokenVerifier, AccessTokenSessionRegistry accessTokenSessionRegistry) {
+    public StompAuthChannelInterceptor(
+            JwtAccessTokenVerifier tokenVerifier,
+            AccessTokenSessionRegistry accessTokenSessionRegistry,
+            WatchPartyKickedRegistry watchPartyKickedRegistry,
+            WatchPartyJoinedRegistry watchPartyJoinedRegistry,
+            WatchPartyHostRegistry watchPartyHostRegistry,
+            WatchPartyActivePartyRegistry watchPartyActivePartyRegistry,
+            SimpMessagingTemplate messagingTemplate
+    ) {
         this.tokenVerifier = tokenVerifier;
         this.accessTokenSessionRegistry = accessTokenSessionRegistry;
+        this.watchPartyKickedRegistry = watchPartyKickedRegistry;
+        this.watchPartyJoinedRegistry = watchPartyJoinedRegistry;
+        this.watchPartyHostRegistry = watchPartyHostRegistry;
+        this.watchPartyActivePartyRegistry = watchPartyActivePartyRegistry;
+        this.messagingTemplate = messagingTemplate;
     }
 
     @Override
     public Message<?> preSend(@NonNull Message<?> message, @NonNull MessageChannel channel) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+        StompCommand command = accessor.getCommand();
 
-        if (!StompCommand.CONNECT.equals(accessor.getCommand())) {
-            return message;
+        if (StompCommand.CONNECT.equals(command)) {
+            return handleConnect(message, accessor);
         }
+        if (StompCommand.SUBSCRIBE.equals(command)) {
+            return handleSubscribe(message, accessor);
+        }
+        if (StompCommand.SEND.equals(command)) {
+            return handleSend(message, accessor);
+        }
+        return message;
+    }
 
+    private Message<?> handleConnect(Message<?> message, StompHeaderAccessor accessor) {
         // 토큰 꺼내기
         String token = resolveToken(accessor);
         if (!StringUtils.hasText(token)) {
@@ -60,6 +101,77 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         accessor.setLeaveMutable(true);
 
         return MessageBuilder.createMessage(message.getPayload(), accessor.getMessageHeaders());
+    }
+
+    // SUBSCRIBE: kicked 체크 + "이미 다른 방에 JOINED면 구경 차단" 체크
+    private Message<?> handleSubscribe(Message<?> message, StompHeaderAccessor accessor) {
+        UUID partyId = extractPartyId(accessor.getDestination());
+        if (partyId == null) {
+            return message;
+        }
+        UUID userId = resolveUserId(accessor);
+
+        if (watchPartyKickedRegistry.isKicked(partyId, userId)) {
+            return null;
+        }
+
+        Optional<UUID> joinedPartyId = watchPartyActivePartyRegistry.findJoinedPartyId(userId);
+        if (joinedPartyId.isPresent() && !joinedPartyId.get().equals(partyId)) {
+            sendError(userId, "이미 시청 중인 Watch Party가 있습니다. 먼저 나가주세요.");
+            return null;
+        }
+
+        return message;
+    }
+
+    // SEND: kicked 체크 + "JOINED 또는 host만 채팅 가능" 체크
+    private Message<?> handleSend(Message<?> message, StompHeaderAccessor accessor) {
+        UUID partyId = extractPartyId(accessor.getDestination());
+        if (partyId == null) {
+            return message;
+        }
+        UUID userId = resolveUserId(accessor);
+
+        if (watchPartyKickedRegistry.isKicked(partyId, userId)) {
+            return null;
+        }
+
+        boolean allowed = watchPartyJoinedRegistry.isJoined(partyId, userId)
+                || watchPartyHostRegistry.isHost(partyId, userId);
+        if (!allowed) {
+            sendError(userId, "참가 후 채팅이 가능합니다.");
+            return null;
+        }
+
+        return message;
+    }
+
+    // destination에서 partyId(UUID) 추출, watch-party 관련 아니면 null
+    private UUID extractPartyId(String destination) {
+        if (destination == null) {
+            return null;
+        }
+        Matcher matcher = WATCH_PARTY_DESTINATION_PATTERN.matcher(destination);
+        if (!matcher.matches()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(matcher.group(1));
+        } catch (IllegalArgumentException invalidUuid) {
+            return null;
+        }
+    }
+    // CONNECT 때 심어둔 RealtimePrincipal에서 userId 꺼내기
+    private UUID resolveUserId(StompHeaderAccessor accessor) {
+        if (accessor.getUser() instanceof RealtimePrincipal principal) {
+            return principal.userId();
+        }
+        throw new BadCredentialsException("Authenticated principal not found.");
+    }
+
+    // 개인 에러 큐(/user/queue/errors)로 안내 메시지 전송
+    private void sendError(UUID userId, String errorMessage) {
+        messagingTemplate.convertAndSendToUser(userId.toString(), "/queue/errors", errorMessage);
     }
 
     private String resolveToken(StompHeaderAccessor accessor) {

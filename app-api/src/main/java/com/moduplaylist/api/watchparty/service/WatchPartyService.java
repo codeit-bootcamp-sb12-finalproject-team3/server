@@ -16,10 +16,7 @@ import com.moduplaylist.core.watchparty.entity.WatchParty;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import com.moduplaylist.core.watchparty.exception.WatchPartyInvalidEpisodeRangeException;
 import com.moduplaylist.core.watchparty.exception.WatchPartyNotFoundException;
-import com.moduplaylist.core.watchparty.repository.WatchPartyParticipantRepository;
-import com.moduplaylist.core.watchparty.repository.WatchPartyQueryRepository;
-import com.moduplaylist.core.watchparty.repository.WatchPartyRepository;
-import com.moduplaylist.core.watchparty.repository.WatchPartySearch;
+import com.moduplaylist.core.watchparty.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +35,7 @@ public class WatchPartyService {
     private final ContentRepository contentRepository;
     private final WatchPartyQueryRepository watchPartyQueryRepository;
     private final WatchPartyParticipantRepository watchPartyParticipantRepository;
+    private final WatchPartyHostRegistry watchPartyHostRegistry;
 
     public WatchPartyResponse createWatchParty(UUID hostId, CreateWatchPartyRequest request) {
 
@@ -61,6 +59,7 @@ public class WatchPartyService {
                 .build();
 
         WatchParty saved = watchPartyRepository.save(watchParty);
+        watchPartyHostRegistry.setHost(saved.getId(), hostId);
 
         return toResponse(saved, host, content, 0);
     }
