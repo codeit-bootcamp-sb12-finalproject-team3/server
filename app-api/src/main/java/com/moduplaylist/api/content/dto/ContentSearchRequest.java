@@ -1,13 +1,9 @@
 package com.moduplaylist.api.content.dto;
 
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -23,6 +19,8 @@ public class ContentSearchRequest {
 
 	private ContentTypeFilter typeEqual;
 
+	private UUID genreIdEqual;
+
 	@Size(max = 50)
 	private String sportTypeEqual;
 
@@ -30,15 +28,8 @@ public class ContentSearchRequest {
 
 	private ContentSort sortBy;
 
-	private Instant cursorCreatedAt;
-
-	private Instant cursorLikedAt;
-
-	@DecimalMin("0.0")
-	@DecimalMax("5.0")
-	private BigDecimal cursorRating;
-
-	private UUID cursorId;
+	@Size(max = 2048)
+	private String cursor;
 
 	@Min(1)
 	@Max(100)
