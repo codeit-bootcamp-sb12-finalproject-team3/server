@@ -9,11 +9,21 @@ import com.moduplaylist.api.playlist.dto.PlaylistSummaryResponse;
 import com.moduplaylist.api.playlist.dto.PlaylistUpdateRequest;
 import com.moduplaylist.api.playlist.service.PlaylistService;
 import com.moduplaylist.api.user.dto.UserSummary;
+import com.moduplaylist.core.content.entity.Content;
+import com.moduplaylist.core.content.exception.ContentNotFoundException;
+import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.playlist.entity.Playlist;
 import com.moduplaylist.core.playlist.entity.PlaylistContent;
 import com.moduplaylist.core.playlist.entity.PlaylistSubscription;
+import com.moduplaylist.core.playlist.exception.InvalidPlaylistContentRequestException;
 import com.moduplaylist.core.playlist.exception.PlaylistAccessDeniedException;
+import com.moduplaylist.core.playlist.exception.PlaylistAlreadySubscribedException;
+import com.moduplaylist.core.playlist.exception.PlaylistContentAlreadyExistsException;
+import com.moduplaylist.core.playlist.exception.PlaylistContentNotFoundException;
+import com.moduplaylist.core.playlist.exception.PlaylistMinimumContentException;
 import com.moduplaylist.core.playlist.exception.PlaylistNotFoundException;
+import com.moduplaylist.core.playlist.exception.PlaylistSubscriptionNotFoundException;
+import com.moduplaylist.core.playlist.exception.SelfPlaylistSubscriptionNotAllowedException;
 import com.moduplaylist.core.playlist.repository.PlaylistContentQueryRepository;
 import com.moduplaylist.core.playlist.repository.PlaylistContentRepository;
 import com.moduplaylist.core.playlist.repository.PlaylistQueryRepository;
@@ -24,14 +34,15 @@ import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.exception.UserNotFoundException;
 import com.moduplaylist.core.user.repository.UserRepository;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,10 +50,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class PlaylistServiceImpl implements PlaylistService {
 
+  private static final int MIN_CONTENT_COUNT = 4;
   private static final int PREVIEW_CONTENT_LIMIT = 4;
 
   private final PlaylistRepository playlistRepository;
   private final UserRepository userRepository;
+  private final ContentRepository contentRepository;
   private final PlaylistContentRepository playlistContentRepository;
   private final PlaylistSubscriptionRepository playlistSubscriptionRepository;
   private final PlaylistQueryRepository playlistQueryRepository;
@@ -54,6 +67,33 @@ public class PlaylistServiceImpl implements PlaylistService {
     User owner = userRepository.findById(userId)
         .orElseThrow(() -> new UserNotFoundException(userId));
 
+    List<UUID> contentIds = request.getContentIds();
+    Set<UUID> uniqueContentIds = new HashSet<>(contentIds);
+
+    if (uniqueContentIds.size() != contentIds.size()) {
+      throw new InvalidPlaylistContentRequestException();
+    }
+
+    if (uniqueContentIds.size() < MIN_CONTENT_COUNT) {
+      throw new PlaylistMinimumContentException();
+    }
+
+    List<Content> contents = contentRepository.findAllById(uniqueContentIds);
+
+    if (contents.size() != uniqueContentIds.size()) {
+      // 요청한 contentId 중 존재하지 않는 콘텐츠 ID 확인
+      Set<UUID> foundContentIds = contents.stream()
+          .map(Content::getId)
+          .collect(Collectors.toSet());
+
+      UUID missingContentId = uniqueContentIds.stream()
+          .filter(contentId -> !foundContentIds.contains(contentId))
+          .findFirst()
+          .orElseThrow();
+
+      throw new ContentNotFoundException(missingContentId);
+    }
+
     Playlist playlist = Playlist.create(
         owner,
         request.getTitle(),
@@ -61,6 +101,12 @@ public class PlaylistServiceImpl implements PlaylistService {
     );
 
     Playlist savedPlaylist = playlistRepository.save(playlist);
+
+    List<PlaylistContent> playlistContents = contents.stream()
+        .map(content -> PlaylistContent.create(savedPlaylist, content))
+        .toList();
+
+    playlistContentRepository.saveAll(playlistContents);
 
     return PlaylistResponse.builder()
         .id(savedPlaylist.getId())
@@ -70,7 +116,11 @@ public class PlaylistServiceImpl implements PlaylistService {
         .updatedAt(savedPlaylist.getUpdatedAt())
         .subscriberCount(0L)
         .subscribedByMe(false)
-        .contents(Collections.emptyList())
+        .contents(
+            contents.stream()
+                .map(ContentSummary::from)
+                .toList()
+        )
         .build();
   }
 
@@ -167,6 +217,46 @@ public class PlaylistServiceImpl implements PlaylistService {
     playlistRepository.delete(playlist);
   }
 
+  @Override
+  @Transactional
+  public void subscribe(UUID userId, UUID playlistId) {
+    User user = userRepository.findById(userId)
+        .orElseThrow(() -> new UserNotFoundException(userId));
+
+    Playlist playlist = playlistRepository.findById(playlistId)
+        .orElseThrow(() -> new PlaylistNotFoundException(playlistId));
+
+    if (playlist.getOwner().getId().equals(userId)) {
+      throw new SelfPlaylistSubscriptionNotAllowedException(userId, playlistId);
+    }
+
+    if (playlistSubscriptionRepository.existsByUser_IdAndPlaylist_Id(userId, playlistId)) {
+      throw new PlaylistAlreadySubscribedException(userId, playlistId);
+    }
+
+    PlaylistSubscription subscription = PlaylistSubscription.create(user, playlist);
+
+    try {
+      playlistSubscriptionRepository.saveAndFlush(subscription);
+    } catch (DataIntegrityViolationException e) {
+      throw new PlaylistAlreadySubscribedException(userId, playlistId, e);
+    }
+  }
+
+  @Override
+  @Transactional
+  public void unsubscribe(UUID userId, UUID playlistId) {
+    playlistRepository.findById(playlistId)
+        .orElseThrow(() -> new PlaylistNotFoundException(playlistId));
+
+    PlaylistSubscription subscription =
+        playlistSubscriptionRepository
+            .findByUser_IdAndPlaylist_Id(userId, playlistId)
+            .orElseThrow(() -> new PlaylistSubscriptionNotFoundException(userId, playlistId));
+
+    playlistSubscriptionRepository.delete(subscription);
+  }
+
   private Set<UUID> findSubscribedPlaylistIds(
       UUID userId,
       List<UUID> playlistIds
@@ -181,6 +271,67 @@ public class PlaylistServiceImpl implements PlaylistService {
     }
 
     return subscribedPlaylistIds;
+  }
+
+  @Override
+  @Transactional
+  public void addContent(UUID userId, UUID playlistId, UUID contentId) {
+    Playlist playlist = playlistRepository.findById(playlistId)
+        .orElseThrow(() -> new PlaylistNotFoundException(playlistId));
+
+    if (!playlist.getOwner().getId().equals(userId)) {
+      throw new PlaylistAccessDeniedException(playlistId);
+    }
+
+    Content content = contentRepository.findById(contentId)
+        .orElseThrow(() -> new ContentNotFoundException(contentId));
+
+    if (playlistContentRepository.existsByPlaylist_IdAndContent_Id(
+        playlistId,
+        contentId
+    )) {
+      throw new PlaylistContentAlreadyExistsException(playlistId, contentId);
+    }
+
+    PlaylistContent playlistContent = PlaylistContent.create(playlist, content);
+
+    try {
+      playlistContentRepository.saveAndFlush(playlistContent);
+    } catch (DataIntegrityViolationException e) {
+      throw new PlaylistContentAlreadyExistsException(
+          playlistId,
+          contentId,
+          e
+      );
+    }
+  }
+
+  @Override
+  @Transactional
+  public void removeContent(UUID userId, UUID playlistId, UUID contentId) {
+    Playlist playlist = playlistRepository.findByIdForUpdate(playlistId)
+        .orElseThrow(() -> new PlaylistNotFoundException(playlistId));
+
+    if (!playlist.getOwner().getId().equals(userId)) {
+      throw new PlaylistAccessDeniedException(playlistId);
+    }
+
+    contentRepository.findById(contentId)
+        .orElseThrow(() -> new ContentNotFoundException(contentId));
+
+    PlaylistContent playlistContent = playlistContentRepository
+        .findByPlaylist_IdAndContent_Id(playlistId, contentId)
+        .orElseThrow(
+            () -> new PlaylistContentNotFoundException(playlistId, contentId)
+        );
+
+    long contentCount = playlistContentRepository.countByPlaylist_Id(playlistId);
+
+    if (contentCount <= MIN_CONTENT_COUNT) {
+      throw new PlaylistMinimumContentException();
+    }
+
+    playlistContentRepository.delete(playlistContent);
   }
 
   private Map<UUID, List<ContentSummary>> findPreviewContentsByPlaylistId(List<UUID> playlistIds) {

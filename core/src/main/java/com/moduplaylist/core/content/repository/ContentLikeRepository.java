@@ -31,6 +31,7 @@ public interface ContentLikeRepository extends JpaRepository<ContentLike, UUID> 
                 on contentLike.content = content
                 and contentLike.user.id = :userId
             where content.id = :contentId
+              and content.hidden = false
             group by content.id, content.type, content.likeCount
             """)
     Optional<LikeStatus> findStatus(
@@ -46,6 +47,24 @@ public interface ContentLikeRepository extends JpaRepository<ContentLike, UUID> 
     int deleteByUserIdAndContentId(
             @Param("userId") UUID userId,
             @Param("contentId") UUID contentId);
+
+    @Modifying
+    @Query("""
+            update Content content
+            set content.likeCount = content.likeCount + 1
+            where content.id = :contentId
+              and content.hidden = false
+            """)
+    int incrementLikeCount(@Param("contentId") UUID contentId);
+
+    @Modifying
+    @Query("""
+            update Content content
+            set content.likeCount = content.likeCount - 1
+            where content.id = :contentId
+              and content.likeCount > 0
+            """)
+    int decrementLikeCount(@Param("contentId") UUID contentId);
 
     interface LikeStatus {
 

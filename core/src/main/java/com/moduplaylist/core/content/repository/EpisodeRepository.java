@@ -9,11 +9,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface EpisodeRepository extends JpaRepository<Episode, UUID> {
 
-    List<Episode> findAllBySeason_IdOrderByEpisodeNumberAsc(UUID seasonId);
+    List<Episode> findAllBySeason_IdAndSeason_HiddenFalseOrderByEpisodeNumberAsc(
+            UUID seasonId);
 
-    Optional<Episode> findByExternalId(Integer externalId);
+    Optional<Episode> findByExternalSourceAndExternalId(
+            String externalSource,
+            Integer externalId);
 
-    List<Episode> findAllByExternalIdIn(Collection<Integer> externalIds);
+    List<Episode> findAllByExternalSourceAndExternalIdIn(
+            String externalSource,
+            Collection<Integer> externalIds);
 
     boolean existsBySeason_IdAndEpisodeNumber(UUID seasonId, Integer episodeNumber);
 }

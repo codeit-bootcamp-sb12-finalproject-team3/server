@@ -10,8 +10,6 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
 
 import java.util.Objects;
 
@@ -38,7 +36,6 @@ public class ContentGenre extends ContentUuidEntity {
             nullable = false,
             updatable = false
     )
-    @OnDelete(action = OnDeleteAction.CASCADE)
     private Content content;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -52,6 +49,12 @@ public class ContentGenre extends ContentUuidEntity {
     private ContentGenre(Content content, Genre genre) {
         this.content = Objects.requireNonNull(content, "content는 필수입니다.");
         this.genre = Objects.requireNonNull(genre, "genre는 필수입니다.");
+        if (content.getType() != ContentType.MOVIE
+                && content.getType() != ContentType.TV_SEASON) {
+            throw new IllegalArgumentException(
+                    "장르는 영화와 TV 시즌에만 추가할 수 있습니다."
+            );
+        }
     }
 
     public static ContentGenre create(Content content, Genre genre) {

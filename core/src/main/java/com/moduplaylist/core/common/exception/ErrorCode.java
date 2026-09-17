@@ -43,6 +43,13 @@ public enum ErrorCode {
     PLAYLIST_NOT_FOUND("존재하지 않는 플레이리스트입니다."),
     PLAYLIST_ACCESS_DENIED("플레이리스트 수정 또는 삭제 권한이 없습니다."),
     INVALID_PLAYLIST_SEARCH("플레이리스트 검색 조건이 올바르지 않습니다."),
+    SELF_PLAYLIST_SUBSCRIPTION_NOT_ALLOWED("본인의 플레이리스트는 구독할 수 없습니다."),
+    PLAYLIST_ALREADY_SUBSCRIBED("이미 구독 중인 플레이리스트입니다."),
+    PLAYLIST_SUBSCRIPTION_NOT_FOUND("존재하지 않는 플레이리스트 구독 관계입니다."),
+    PLAYLIST_CONTENT_ALREADY_EXISTS("이미 플레이리스트에 포함된 콘텐츠입니다."),
+    PLAYLIST_CONTENT_NOT_FOUND("플레이리스트에 존재하지 않는 콘텐츠입니다."),
+    PLAYLIST_MINIMUM_CONTENT_REQUIRED("플레이리스트에는 최소 4개의 콘텐츠가 필요합니다."),
+    INVALID_PLAYLIST_CONTENT_REQUEST("중복된 콘텐츠가 포함되어 있습니다."),
 
     // Preference
     PREFERENCE_NOT_FOUND("초기 선호 정보가 없습니다."),
@@ -62,6 +69,7 @@ public enum ErrorCode {
     CONVERSATION_NOT_FOUND("존재하지 않는 대화방입니다."),
     CONVERSATION_ACCESS_DENIED("해당 대화방에 접근할 권한이 없습니다."),
     DIRECT_MESSAGE_NOT_FOUND("존재하지 않는 메시지입니다."),
+    DIRECT_MESSAGE_CONTENT_INVALID("메시지 내용이 올바르지 않습니다."),
     SELF_DIRECT_MESSAGE_NOT_ALLOWED("자기 자신과 대화방을 만들 수 없습니다."),
 
 
@@ -71,6 +79,7 @@ public enum ErrorCode {
     WATCHPARTY_ALREADY_ENDED("이미 종료된 방에는 참가할 수 없습니다."),
     WATCHPARTY_HOST_CANNOT_JOIN("방장은 참가 신청 대상이 아닙니다."),
     WATCHPARTY_ALREADY_JOINED("이미 참가 중입니다."),
+    WATCHPARTY_ALREADY_JOINED_ELSEWHERE("이미 다른 Watch Party에 참가 중입니다. 먼저 나가주세요."),
     WATCHPARTY_KICKED_CANNOT_REJOIN("강퇴된 방에는 다시 참가할 수 없습니다."),
     WATCHPARTY_CAPACITY_FULL("정원이 가득 찼습니다."),
     WATCHPARTY_PARTICIPANT_NOT_FOUND("참가 정보를 찾을 수 없습니다."),

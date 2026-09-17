@@ -30,7 +30,21 @@ public final class WatchPartyRedisKey {
         return PREFIX + require(partyId) + ":chat";
     }
 
-    private static UUID require(UUID partyId) {
-        return Objects.requireNonNull(partyId, "partyId must not be null");
+    public static String host(UUID partyId) {
+        return PREFIX + require(partyId) + ":host";
+    }
+
+    public static String joined(UUID partyId) {
+        return PREFIX + require(partyId) + ":joined";
+    }
+
+    // 파티 기준이 아니라 유저 기준이라 prefix가 다름 (watchparty: 아니라 user:)
+    public static String joinedParty(UUID userId) {
+        return "user:" + require(userId) + ":joinedParty";
+    }
+
+
+    private static UUID require(UUID id) {
+        return Objects.requireNonNull(id, "id must not be null");
     }
 }

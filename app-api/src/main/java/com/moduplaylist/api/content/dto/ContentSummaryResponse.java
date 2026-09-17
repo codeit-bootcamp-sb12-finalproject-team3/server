@@ -1,28 +1,32 @@
 package com.moduplaylist.api.content.dto;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 @Getter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class ContentSummaryResponse {
-    private UUID id;
-    private String title;
-    private String type;
-    private String thumbnailUrl;
-    private String sportType;
-    private Integer seasonNumber;
-    private LocalDate releaseDate;
-    private BigDecimal averageRating;
-    private long likeCount;
-    private long reviewCount;
-    private Instant createdAt;
+
+	private UUID id;
+	private UUID parentContentId;
+	private String title;
+	private ContentSummaryType type;
+	private Integer seasonNumber;
+	private String sportType;
+	private String thumbnailUrl;
+	private LocalDate releaseDate;
+	private Integer runtime;
+	private BigDecimal averageRating;
+	private long reviewCount;
+	private long likeCount;
+
+	@Builder.Default
+	private List<GenreResponse> genres = List.of();
+
+	@Builder.Default
+	private List<TagResponse> tags = List.of();
 }

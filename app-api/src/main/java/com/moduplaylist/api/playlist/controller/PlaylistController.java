@@ -128,6 +128,56 @@ public class PlaylistController {
     return ResponseEntity.noContent().build();
   }
 
+  @PostMapping("/{playlistId}/subscription")
+  public ResponseEntity<Void> subscribe(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @PathVariable UUID playlistId
+  ) {
+    UUID userId = userDetails.getUserId();
+
+    playlistService.subscribe(userId, playlistId);
+
+    return ResponseEntity.status(HttpStatus.CREATED).build();
+  }
+
+  @DeleteMapping("/{playlistId}/subscription")
+  public ResponseEntity<Void> unsubscribe(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @PathVariable UUID playlistId
+  ) {
+    UUID userId = userDetails.getUserId();
+
+    playlistService.unsubscribe(userId, playlistId);
+
+    return ResponseEntity.noContent().build();
+  }
+
+  @PostMapping("/{playlistId}/contents/{contentId}")
+  public ResponseEntity<Void> addContent(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @PathVariable UUID playlistId,
+      @PathVariable UUID contentId
+  ) {
+    UUID userId = userDetails.getUserId();
+
+    playlistService.addContent(userId, playlistId, contentId);
+
+    return ResponseEntity.status(HttpStatus.CREATED).build();
+  }
+
+  @DeleteMapping("/{playlistId}/contents/{contentId}")
+  public ResponseEntity<Void> removeContent(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @PathVariable UUID playlistId,
+      @PathVariable UUID contentId
+  ) {
+    UUID userId = userDetails.getUserId();
+
+    playlistService.removeContent(userId, playlistId, contentId);
+
+    return ResponseEntity.noContent().build();
+  }
+
   private PlaylistSearch.Sort parseSort(String sortBy) {
     return switch (sortBy) {
       case "createdAt" ->
