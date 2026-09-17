@@ -1,6 +1,7 @@
 package com.moduplaylist.api.recommendation.service.impl;
 
 import com.moduplaylist.api.content.dto.ContentSummaryResponse;
+import com.moduplaylist.api.content.dto.ContentSummaryType;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
 import com.moduplaylist.api.recommendation.service.ContentRecommendationQueryService;
@@ -91,17 +92,15 @@ public class ContentRecommendationQueryServiceImpl
 
     private ContentSummaryResponse toResponse(Content content) {
         return ContentSummaryResponse.builder()
-                .id(content.getId())
-                .title(content.getTitle())
-                .type(content.getType().getValue())
-                .thumbnailUrl(content.getThumbnailUrl())
-                .sportType(content.getSportType())
-                .seasonNumber(content.getSeasonNumber())
-                .releaseDate(content.getReleaseDate())
-                .averageRating(content.getAverageRating())
-                .likeCount(content.getLikeCount())
-                .reviewCount(content.getReviewCount())
-                .createdAt(content.getCreatedAt())
-                .build();
+            .id(content.getId())
+            .title(content.getTitle())
+            .type(ContentSummaryType.from(content.getType()))
+            .thumbnailUrl(content.getThumbnailUrl())
+            .seasonNumber(content.getSeasonNumber())
+            .releaseDate(content.getReleaseDate())
+            .averageRating(content.getAverageRating())
+            .likeCount(content.getLikeCount())
+            .reviewCount(content.getReviewCount())
+            .build();
     }
 }
