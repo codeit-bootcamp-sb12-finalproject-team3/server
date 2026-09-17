@@ -2,6 +2,7 @@ package com.moduplaylist.core.dm.repository;
 
 import com.moduplaylist.core.dm.entity.Conversation;
 import com.moduplaylist.core.dm.entity.ConversationParticipant;
+import com.moduplaylist.core.user.entity.User;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,6 +23,17 @@ public interface ConversationParticipantRepository
     Optional<ConversationParticipant> findByConversation_IdAndUser_Id(
             UUID conversationId,
             UUID userId
+    );
+
+    @Query("""
+            SELECT participant.user
+            FROM ConversationParticipant participant
+            WHERE participant.conversation.id = :conversationId
+              AND participant.user.id <> :senderId
+            """)
+    List<User> findPeers(
+            @Param("conversationId") UUID conversationId,
+            @Param("senderId") UUID senderId
     );
 
     @Query("""

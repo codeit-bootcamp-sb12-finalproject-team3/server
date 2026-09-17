@@ -62,6 +62,7 @@ public enum ErrorCode {
     CONVERSATION_NOT_FOUND("존재하지 않는 대화방입니다."),
     CONVERSATION_ACCESS_DENIED("해당 대화방에 접근할 권한이 없습니다."),
     DIRECT_MESSAGE_NOT_FOUND("존재하지 않는 메시지입니다."),
+    DIRECT_MESSAGE_CONTENT_INVALID("메시지 내용이 올바르지 않습니다."),
     SELF_DIRECT_MESSAGE_NOT_ALLOWED("자기 자신과 대화방을 만들 수 없습니다."),
 
 

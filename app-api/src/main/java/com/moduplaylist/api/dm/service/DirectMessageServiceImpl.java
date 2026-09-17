@@ -2,6 +2,7 @@ package com.moduplaylist.api.dm.service;
 
 import com.moduplaylist.api.dm.dto.ConversationResponse;
 import com.moduplaylist.api.dm.dto.ConversationSearchRequest;
+import com.moduplaylist.api.dm.dto.DirectMessageCreateResult;
 import com.moduplaylist.api.dm.dto.DirectMessageResponse;
 import com.moduplaylist.api.dm.dto.DirectMessageSearchRequest;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
@@ -14,6 +15,7 @@ import com.moduplaylist.core.dm.entity.DirectMessage;
 import com.moduplaylist.core.dm.exception.ConversationAccessDeniedException;
 import com.moduplaylist.core.dm.exception.ConversationNotFoundException;
 import com.moduplaylist.core.dm.exception.DirectMessageNotFoundException;
+import com.moduplaylist.core.dm.exception.InvalidDirectMessageContentException;
 import com.moduplaylist.core.dm.exception.SelfDirectMessageNotAllowedException;
 import com.moduplaylist.core.dm.repository.ConversationParticipantRepository;
 import com.moduplaylist.core.dm.repository.ConversationListItem;
@@ -45,6 +47,51 @@ public class DirectMessageServiceImpl implements DirectMessageService {
     private final ConversationParticipantRepository participantRepository;
     private final DirectMessageRepository directMessageRepository;
     private final UserRepository userRepository;
+
+    @Override
+    public DirectMessageCreateResult createMessage(
+            UUID conversationId,
+            UUID senderId,
+            String content
+    ) {
+        if (conversationId == null) {
+            throw new ConversationNotFoundException(null);
+        }
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new ConversationNotFoundException(conversationId));
+
+        if (senderId == null) {
+            throw new ConversationAccessDeniedException(conversationId);
+        }
+        ConversationParticipant senderParticipant = participantRepository
+                .findByConversation_IdAndUser_Id(conversationId, senderId)
+                .orElseThrow(() -> new ConversationAccessDeniedException(conversationId));
+        List<User> peers = participantRepository.findPeers(conversationId, senderId);
+        if (peers.size() != 1) {
+            throw new ConversationNotFoundException(conversationId);
+        }
+        User receiver = peers.get(0);
+
+        validateMessageContent(content);
+
+        DirectMessage savedMessage = directMessageRepository.saveAndFlush(
+                DirectMessage.create(conversation, senderParticipant.getUser(), content)
+        );
+        DirectMessageCreateResult result = new DirectMessageCreateResult(
+                savedMessage.getId(),
+                conversationId,
+                senderId,
+                receiver.getId(),
+                savedMessage.getContent(),
+                savedMessage.getCreatedAt()
+        );
+
+        conversationRepository.updateUpdatedAtIfOlder(
+                conversationId,
+                savedMessage.getCreatedAt()
+        );
+        return result;
+    }
 
     @Override
     public ConversationResponse createOrGetConversation(UUID userId, UUID peerId) {
@@ -215,6 +262,12 @@ public class DirectMessageServiceImpl implements DirectMessageService {
     private void validateAuthenticatedUser(UUID userId) {
         if (userId == null) {
             throw new BaseException(ErrorCode.UNAUTHORIZED);
+        }
+    }
+
+    private void validateMessageContent(String content) {
+        if (content == null || content.isBlank() || content.length() > 255) {
+            throw new InvalidDirectMessageContentException();
         }
     }
 
