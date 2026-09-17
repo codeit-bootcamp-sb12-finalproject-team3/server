@@ -38,6 +38,11 @@ public enum ErrorCode {
     FORBIDDEN("요청 권한이 없습니다."),
     INVALID_CSRF_TOKEN("CSRF 토큰이 없거나 올바르지 않습니다."),
 
+
+    // Playlist
+    PLAYLIST_NOT_FOUND("존재하지 않는 플레이리스트입니다."),
+    PLAYLIST_ACCESS_DENIED("플레이리스트 수정 또는 삭제 권한이 없습니다."),
+
     // Preference
     PREFERENCE_NOT_FOUND("초기 선호 정보가 없습니다."),
     PREFERENCE_ALREADY_EXISTS("이미 초기 선호 정보가 등록되어 있습니다."),

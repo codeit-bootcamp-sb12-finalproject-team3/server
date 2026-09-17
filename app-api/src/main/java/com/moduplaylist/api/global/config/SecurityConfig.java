@@ -24,6 +24,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 /**
  * API 서버의 인증/인가 및 Spring Security 기본 정책을 설정한다.
@@ -63,6 +64,19 @@ public class SecurityConfig {
     CsrfTokenRequestAttributeHandler csrfTokenRequestHandler =
         new CsrfTokenRequestAttributeHandler();
 
+    // 로그인 및 인증 쿠키가 사용되는 요청에만 CSRF 보호를 적용한다.
+    RequestMatcher csrfProtectionMatcher = request -> {
+      if (!HttpMethod.POST.name().equals(request.getMethod())) {
+        return false;
+      }
+
+      String path = request.getServletPath();
+
+      return "/api/auth/login".equals(path)
+          || "/api/auth/refresh".equals(path)
+          || "/api/auth/logout".equals(path);
+    };
+
     JwtAuthenticationFilter jwtAuthenticationFilter =
         new JwtAuthenticationFilter(
             jwtTokenProvider,
@@ -79,6 +93,7 @@ public class SecurityConfig {
         .csrf(csrf -> csrf
             .csrfTokenRepository(csrfTokenRepository)
             .csrfTokenRequestHandler(csrfTokenRequestHandler)
+            .requireCsrfProtectionMatcher(csrfProtectionMatcher)
         )
 
         // JWT 사용을 고려하여 서버 세션을 생성하지 않음

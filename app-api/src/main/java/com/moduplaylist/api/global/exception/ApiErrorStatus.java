@@ -47,6 +47,10 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.INVALID_REQUEST, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.VALIDATION_ERROR, HttpStatus.BAD_REQUEST);
 
+        // Playlist
+        STATUS_MAP.put(ErrorCode.PLAYLIST_NOT_FOUND, HttpStatus.NOT_FOUND);
+        STATUS_MAP.put(ErrorCode.PLAYLIST_ACCESS_DENIED, HttpStatus.FORBIDDEN);
+
         STATUS_MAP.put(ErrorCode.SELF_FOLLOW_NOT_ALLOWED, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.FOLLOW_ALREADY_EXISTS, HttpStatus.CONFLICT);
         STATUS_MAP.put(ErrorCode.FOLLOW_NOT_FOUND, HttpStatus.NOT_FOUND);
