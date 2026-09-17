@@ -46,6 +46,10 @@ public enum ErrorCode {
     SELF_PLAYLIST_SUBSCRIPTION_NOT_ALLOWED("본인의 플레이리스트는 구독할 수 없습니다."),
     PLAYLIST_ALREADY_SUBSCRIBED("이미 구독 중인 플레이리스트입니다."),
     PLAYLIST_SUBSCRIPTION_NOT_FOUND("존재하지 않는 플레이리스트 구독 관계입니다."),
+    PLAYLIST_CONTENT_ALREADY_EXISTS("이미 플레이리스트에 포함된 콘텐츠입니다."),
+    PLAYLIST_CONTENT_NOT_FOUND("플레이리스트에 존재하지 않는 콘텐츠입니다."),
+    PLAYLIST_MINIMUM_CONTENT_REQUIRED("플레이리스트에는 최소 4개의 콘텐츠가 필요합니다."),
+    INVALID_PLAYLIST_CONTENT_REQUEST("중복된 콘텐츠가 포함되어 있습니다."),
 
     // Preference
     PREFERENCE_NOT_FOUND("초기 선호 정보가 없습니다."),
