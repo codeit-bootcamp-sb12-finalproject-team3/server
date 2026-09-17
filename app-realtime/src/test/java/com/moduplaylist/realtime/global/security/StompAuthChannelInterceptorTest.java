@@ -20,7 +20,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 class StompAuthChannelInterceptorTest {
 
     private JwtAccessTokenVerifier tokenVerifier;
-    private AccessTokenSessionRegistry jwtRegistry;
+    private AccessTokenSessionRegistry accessTokenSessionRegistry;
     private StompAuthChannelInterceptor interceptor;
 
     private static final UUID USER_ID = UUID.randomUUID();
@@ -37,8 +37,8 @@ class StompAuthChannelInterceptorTest {
     @BeforeEach
     void setUp() {
         tokenVerifier = mock(JwtAccessTokenVerifier.class);
-        jwtRegistry = mock(AccessTokenSessionRegistry.class);
-        interceptor = new StompAuthChannelInterceptor(tokenVerifier, jwtRegistry);
+        accessTokenSessionRegistry = mock(AccessTokenSessionRegistry.class);
+        interceptor = new StompAuthChannelInterceptor(tokenVerifier, accessTokenSessionRegistry);
     }
 
 
@@ -89,7 +89,7 @@ class StompAuthChannelInterceptorTest {
         Message<byte[]> message = createConnectMessage("Bearer valid-token");
         when(tokenVerifier.verify(anyString()))
                 .thenReturn(new VerifiedAccessToken(USER_ID, TOKEN_ID));
-        when(jwtRegistry.isAccessTokenActive(USER_ID, TOKEN_ID)).thenReturn(false);
+        when(accessTokenSessionRegistry.isAccessTokenActive(USER_ID, TOKEN_ID)).thenReturn(false);
 
         assertThatThrownBy(() -> interceptor.preSend(message, null))
                 .isInstanceOf(BadCredentialsException.class);
@@ -101,7 +101,7 @@ class StompAuthChannelInterceptorTest {
         Message<byte[]> message = createConnectMessage("Bearer valid-token");
         when(tokenVerifier.verify(anyString()))
                 .thenReturn(new VerifiedAccessToken(USER_ID, TOKEN_ID));
-        when(jwtRegistry.isAccessTokenActive(USER_ID, TOKEN_ID)).thenReturn(true);
+        when(accessTokenSessionRegistry.isAccessTokenActive(USER_ID, TOKEN_ID)).thenReturn(true);
 
         Message<?> result = interceptor.preSend(message, null);
 
@@ -115,7 +115,7 @@ class StompAuthChannelInterceptorTest {
         Message<byte[]> message = createConnectMessage("Bearer valid-token");
         when(tokenVerifier.verify(anyString()))
                 .thenReturn(new VerifiedAccessToken(USER_ID, TOKEN_ID));
-        when(jwtRegistry.isAccessTokenActive(any(), any()))
+        when(accessTokenSessionRegistry.isAccessTokenActive(any(), any()))
                 .thenThrow(new DataAccessException("redis down") {});
 
         assertThatThrownBy(() -> interceptor.preSend(message, null))

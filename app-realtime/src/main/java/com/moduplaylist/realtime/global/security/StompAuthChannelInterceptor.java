@@ -20,11 +20,11 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(StompAuthChannelInterceptor.class);
     private final JwtAccessTokenVerifier tokenVerifier;
-    private final AccessTokenSessionRegistry jwtRegistry;
+    private final AccessTokenSessionRegistry accessTokenSessionRegistry;
 
-    public StompAuthChannelInterceptor(JwtAccessTokenVerifier tokenVerifier, AccessTokenSessionRegistry jwtRegistry) {
+    public StompAuthChannelInterceptor(JwtAccessTokenVerifier tokenVerifier, AccessTokenSessionRegistry accessTokenSessionRegistry) {
         this.tokenVerifier = tokenVerifier;
-        this.jwtRegistry = jwtRegistry;
+        this.accessTokenSessionRegistry = accessTokenSessionRegistry;
     }
 
     @Override
@@ -46,7 +46,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
         // Redis jti 활성 세션 확인
         try {
-            if (!jwtRegistry.isAccessTokenActive(verifiedToken.userId(), verifiedToken.tokenId())) {
+            if (!accessTokenSessionRegistry.isAccessTokenActive(verifiedToken.userId(), verifiedToken.tokenId())) {
                 throw new BadCredentialsException("Inactive access token.");
             }
         } catch (DataAccessException redisFailure) {
