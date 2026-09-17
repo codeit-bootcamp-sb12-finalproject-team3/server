@@ -64,7 +64,7 @@ public class DirectMessageController {
         ));
     }
 
-    @PatchMapping("/{conversationId}/read")
+    @PostMapping("/{conversationId}/read")
     public ResponseEntity<Void> markAsRead(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID conversationId,
