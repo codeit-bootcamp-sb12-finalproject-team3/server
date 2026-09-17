@@ -7,33 +7,50 @@ import com.moduplaylist.core.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
 
 @Entity
-@Table(name = "reviews")
+@Table(
+	name = "reviews",
+	indexes = {
+		@Index(
+			name = "idx_reviews_content_created",
+			columnList = "content_id, created_at DESC, id DESC"
+		),
+		@Index(
+			name = "idx_reviews_user_created",
+			columnList = "user_id, created_at DESC, id DESC"
+		)
+	},
+	uniqueConstraints = {
+		@UniqueConstraint(
+			name = "uq_reviews_user_content",
+			columnNames = {"user_id", "content_id"}
+		)
+	}
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Review extends BaseEntity {
 	private static final BigDecimal MIN_RATING = new BigDecimal("0.5");
 	private static final BigDecimal MAX_RATING = new BigDecimal("5.0");
 	private static final BigDecimal RATING_STEP = new BigDecimal("0.5");
+	private static final int MAX_REVIEW_TEXT_LENGTH = 800;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "user_id", nullable = false, updatable = false)
-	@OnDelete(action = OnDeleteAction.CASCADE)
 	private User user;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "content_id", nullable = false, updatable = false)
-	@OnDelete(action = OnDeleteAction.CASCADE)
 	private Content content;
 
 	// 리뷰 대상 Content와 구분하기 위해 본문은 reviewText로 명명한다.
@@ -76,31 +93,39 @@ public class Review extends BaseEntity {
 			throw new ContentNotReviewableException(content.getId());
 		}
 
-		validateReviewText(reviewText);
+		String normalizedReviewText = normalizeReviewText(reviewText);
 		validateRating(rating);
 
 		return new Review(
 			user,
 			content,
-			reviewText,
+			normalizedReviewText,
 			rating,
 			spoiler
 		);
 	}
 
 	public void update(String reviewText, BigDecimal rating, Boolean spoiler) {
-		if (reviewText != null) validateReviewText(reviewText);
+		String normalizedReviewText = reviewText == null
+			? null
+			: normalizeReviewText(reviewText);
 		if (rating != null) validateRating(rating);
 
-		if (reviewText != null) this.reviewText = reviewText;
+		if (normalizedReviewText != null) this.reviewText = normalizedReviewText;
 		if (rating != null) this.rating = rating;
 		if (spoiler != null) this.spoiler = spoiler;
 	}
 
-	private static void validateReviewText(String reviewText) {
-		if (reviewText == null || reviewText.isBlank()) {
+	private static String normalizeReviewText(String reviewText) {
+		if (reviewText == null) {
 			throw new IllegalArgumentException("리뷰 내용은 필수입니다.");
 		}
+
+		String normalized = reviewText.strip();
+		if (normalized.isEmpty() || normalized.length() > MAX_REVIEW_TEXT_LENGTH) {
+			throw new IllegalArgumentException("리뷰 내용은 필수이며 800자 이하여야 합니다.");
+		}
+		return normalized;
 	}
 
 	private static void validateRating(BigDecimal rating) {

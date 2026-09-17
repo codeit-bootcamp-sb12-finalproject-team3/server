@@ -14,24 +14,30 @@ import java.time.Instant;
 @Getter
 @Entity
 @Table(
-	name = "ott_platforms",
+	name = "platforms",
 	uniqueConstraints = {
 		@UniqueConstraint(
-			name = "uq_ott_platforms_name",
+			name = "uq_platforms_name",
 			columnNames = "name"
+		),
+		@UniqueConstraint(
+			name = "uq_platforms_tmdb_provider",
+			columnNames = "tmdb_provider_id"
 		)
 	}
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class OttPlatform extends ContentUuidEntity {
+public class Platform extends ContentUuidEntity {
 
-	private static final int MAX_NAME_LENGTH = 50;
+	private static final int MAX_NAME_LENGTH = 100;
 	private static final int MAX_LOGO_URL_LENGTH = 500;
+
+	@Column(name = "tmdb_provider_id")
+	private Integer tmdbProviderId;
 
 	@Column(
 		name = "name",
 		nullable = false,
-		updatable = false,
 		length = MAX_NAME_LENGTH
 	)
 	private String name;
@@ -47,16 +53,22 @@ public class OttPlatform extends ContentUuidEntity {
 	)
 	private Instant createdAt;
 
-	private OttPlatform(String name, String logoUrl) {
+	private Platform(Integer tmdbProviderId, String name, String logoUrl) {
+		this.tmdbProviderId = tmdbProviderId;
 		this.name = normalizeName(name);
 		this.logoUrl = normalizeLogoUrl(logoUrl);
 	}
 
-	public static OttPlatform create(String name, String logoUrl) {
-		return new OttPlatform(name, logoUrl);
+	public static Platform create(
+		Integer tmdbProviderId,
+		String name,
+		String logoUrl
+	) {
+		return new Platform(tmdbProviderId, name, logoUrl);
 	}
 
-	public void updateLogoUrl(String logoUrl) {
+	public void updateDetails(String name, String logoUrl) {
+		this.name = normalizeName(name);
 		this.logoUrl = normalizeLogoUrl(logoUrl);
 	}
 

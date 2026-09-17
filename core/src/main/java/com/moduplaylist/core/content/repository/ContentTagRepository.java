@@ -15,6 +15,7 @@ public interface ContentTagRepository extends JpaRepository<ContentTag, UUID> {
             from ContentTag ct
             join fetch ct.tag
             where ct.content.id in :contentIds
+              and ct.content.hidden = false
             """)
     List<ContentTag> findAllWithTagByContentIdIn(@Param("contentIds") Collection<UUID> contentIds);
 }

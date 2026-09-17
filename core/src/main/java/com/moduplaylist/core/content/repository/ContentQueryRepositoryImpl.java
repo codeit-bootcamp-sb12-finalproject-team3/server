@@ -37,7 +37,8 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
         appendContentCursor(filter, parameters, request);
         String orderBy = request.getSort() == ContentSearch.Sort.LATEST
                 ? " order by content.createdAt desc, content.id desc"
-                : " order by content.averageRating desc, content.id desc";
+                : " order by content.averageRating desc,"
+                        + " content.reviewCount desc, content.id desc";
 
         TypedQuery<Content> query = entityManager.createQuery(
                 "select content from Content content" + filter + orderBy,
@@ -83,11 +84,7 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
         Instant nextCursorLikedAt = hasNext
                 ? (Instant) fetched.get(resultSize - 1)[1]
                 : null;
-        return new SearchResult(
-                contents,
-                totalCount,
-                hasNext,
-                nextCursorLikedAt);
+        return new SearchResult(contents, totalCount, hasNext, nextCursorLikedAt);
     }
 
     private StringBuilder createContentFilter(
@@ -96,18 +93,36 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
             String contentAlias) {
         StringBuilder filter = new StringBuilder(" where ")
                 .append(contentAlias)
-                .append(".type <> :excludedType");
-        parameters.put("excludedType", ContentType.TV_SERIES);
+                .append(".hidden = false and ")
+                .append(contentAlias);
+        if (request.getType() == null) {
+            filter.append(".type <> :excludedType");
+            parameters.put("excludedType", ContentType.TV_SERIES);
+        } else {
+            filter.append(".type = :contentType");
+            parameters.put("contentType", request.getType());
+        }
 
         if (request.getSportType() != null && !request.getSportType().isBlank()) {
             filter.append(" and ")
                     .append(contentAlias)
                     .append(".type = :sportContentType")
-                    .append(" and ")
+                    .append(" and exists (select sportEvent.contentId")
+                    .append(" from SportEvent sportEvent")
+                    .append(" join sportEvent.sportType sportType")
+                    .append(" where sportEvent.content = ")
                     .append(contentAlias)
-                    .append(".sportType = :sportType");
+                    .append(" and sportType.code = :sportType)");
             parameters.put("sportContentType", ContentType.SPORT);
             parameters.put("sportType", request.getSportType());
+        }
+        if (request.getGenreId() != null) {
+            filter.append(" and exists (select contentGenre.id")
+                    .append(" from ContentGenre contentGenre")
+                    .append(" where contentGenre.content = ")
+                    .append(contentAlias)
+                    .append(" and contentGenre.genre.id = :genreId)");
+            parameters.put("genreId", request.getGenreId());
         }
         if (request.hasContentIdFilter()) {
             filter.append(" and ")
@@ -160,8 +175,12 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
 
         filter.append(" and (content.averageRating < :cursorRating")
                 .append(" or (content.averageRating = :cursorRating")
+                .append(" and content.reviewCount < :cursorReviewCount)")
+                .append(" or (content.averageRating = :cursorRating")
+                .append(" and content.reviewCount = :cursorReviewCount")
                 .append(" and content.id < :cursorId))");
         parameters.put("cursorRating", request.getCursorRating());
+        parameters.put("cursorReviewCount", request.getCursorReviewCount());
     }
 
     private void appendLikedCursor(

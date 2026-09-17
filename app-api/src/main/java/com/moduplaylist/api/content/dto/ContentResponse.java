@@ -1,20 +1,23 @@
 package com.moduplaylist.api.content.dto;
 
+import com.moduplaylist.core.content.entity.ContentType;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.Builder;
 import lombok.Getter;
 
 @Getter
 @Builder
-public class ContentSummaryResponse {
+public class ContentResponse {
 
 	private UUID id;
 	private UUID parentContentId;
 	private String title;
-	private ContentSummaryType type;
+	private ContentType type;
 	private Integer seasonNumber;
 	private String sportType;
 	private String thumbnailUrl;
@@ -29,4 +32,15 @@ public class ContentSummaryResponse {
 
 	@Builder.Default
 	private List<TagResponse> tags = List.of();
+
+	private String description;
+	private Integer seasonCount;
+	private Integer episodeCount;
+
+	@Builder.Default
+	private List<CastResponse> cast = List.of();
+
+	private Map<String, Object> metadata;
+	private Instant createdAt;
+	private Instant updatedAt;
 }
