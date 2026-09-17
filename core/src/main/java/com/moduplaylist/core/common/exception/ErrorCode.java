@@ -64,6 +64,7 @@ public enum ErrorCode {
     WATCHPARTY_ALREADY_ENDED("이미 종료된 방에는 참가할 수 없습니다."),
     WATCHPARTY_HOST_CANNOT_JOIN("방장은 참가 신청 대상이 아닙니다."),
     WATCHPARTY_ALREADY_JOINED("이미 참가 중입니다."),
+    WATCHPARTY_ALREADY_JOINED_ELSEWHERE("이미 다른 Watch Party에 참가 중입니다. 먼저 나가주세요."),
     WATCHPARTY_KICKED_CANNOT_REJOIN("강퇴된 방에는 다시 참가할 수 없습니다."),
     WATCHPARTY_CAPACITY_FULL("정원이 가득 찼습니다."),
     WATCHPARTY_PARTICIPANT_NOT_FOUND("참가 정보를 찾을 수 없습니다."),
