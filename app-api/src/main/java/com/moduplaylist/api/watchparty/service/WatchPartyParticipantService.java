@@ -1,5 +1,7 @@
 package com.moduplaylist.api.watchparty.service;
 
+import com.moduplaylist.api.recommendation.service.ContentPreferenceUpdateService;
+import com.moduplaylist.core.activity.enums.ContentActivityType;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.exception.UserNotFoundException;
 import com.moduplaylist.core.user.repository.UserRepository;
@@ -8,6 +10,7 @@ import com.moduplaylist.core.watchparty.entity.WatchParty;
 import com.moduplaylist.core.watchparty.entity.WatchPartyParticipant;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import com.moduplaylist.core.watchparty.exception.*;
+import com.moduplaylist.core.watchparty.repository.WatchPartyKickedRegistry;
 import com.moduplaylist.core.watchparty.repository.WatchPartyParticipantRepository;
 import com.moduplaylist.core.watchparty.repository.WatchPartyRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,8 +28,14 @@ public class WatchPartyParticipantService {
     private final WatchPartyRepository watchPartyRepository;
     private final UserRepository userRepository;
     private final WatchPartyParticipantRepository watchPartyParticipantRepository;
+    private final WatchPartyKickedRegistry watchPartyKickedRegistry;
+    private final ContentPreferenceUpdateService contentPreferenceUpdateService;
 
     public void joinWatchParty(UUID partyId, UUID userId) {
+
+        if (watchPartyKickedRegistry.isKicked(partyId, userId)) {
+            throw new WatchPartyKickedCannotRejoinException(partyId, userId);
+        }
 
         WatchParty party = watchPartyRepository.findByIdForUpdate(partyId)
                 .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
@@ -63,6 +72,12 @@ public class WatchPartyParticipantService {
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
         watchPartyParticipantRepository.save(new WatchPartyParticipant(user, party));
+
+        contentPreferenceUpdateService.applyActivity(
+                userId,
+                party.getContentId(),
+                ContentActivityType.WATCH_PARTY_JOINED
+        );
     }
 
 
@@ -104,5 +119,6 @@ public class WatchPartyParticipantService {
         }
 
         participant.kick();
+        watchPartyKickedRegistry.kick(partyId, targetUserId);
     }
 }

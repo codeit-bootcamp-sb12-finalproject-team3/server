@@ -8,6 +8,11 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.kafka:spring-kafka'
 
+    // Embedding abstraction and OpenSearch vector persistence
+    implementation 'org.springframework.ai:spring-ai-model'
+    implementation 'org.opensearch.client:opensearch-java:2.19.0'
+    implementation 'org.opensearch.client:opensearch-rest-client:2.19.0'
+
     // JSON 직렬화/역직렬화
     implementation 'com.fasterxml.jackson.core:jackson-databind'
 
@@ -16,4 +21,5 @@ dependencies {
     implementation "software.amazon.awssdk:s3"
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

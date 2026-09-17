@@ -7,7 +7,7 @@ public final class ContentRecommendationScorePolicy {
 
     private static final double INITIAL_PREFERENCE_WEIGHT = 0.5;
     private static final double CONTENT_LIKE_WEIGHT = 1.0;
-    private static final double PLAYLIST_CONTENT_ADDED_WEIGHT = 0.3;
+    private static final double PLAYLIST_CONTENT_ADDED_WEIGHT = 0.5;
     private static final double WATCH_PARTY_JOINED_WEIGHT = 0.7;
 
     private static final double MIN_RATING = 0.0;
