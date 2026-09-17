@@ -5,25 +5,16 @@ import com.moduplaylist.core.activity.enums.ContentActivityType;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentGenre;
 import com.moduplaylist.core.content.entity.ContentTag;
-import com.moduplaylist.core.content.entity.Genre;
-import com.moduplaylist.core.content.entity.Tag;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.repository.ContentGenreRepository;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.content.repository.ContentTagRepository;
-import com.moduplaylist.core.recommendation.entity.UserContentGenrePreference;
-import com.moduplaylist.core.recommendation.entity.UserContentTagPreference;
 import com.moduplaylist.core.recommendation.policy.ContentRecommendationScorePolicy;
-import com.moduplaylist.core.recommendation.repository.UserContentGenrePreferenceRepository;
-import com.moduplaylist.core.recommendation.repository.UserContentTagPreferenceRepository;
+import com.moduplaylist.core.recommendation.repository.ContentPreferenceScoreRepository;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.exception.UserNotFoundException;
 import com.moduplaylist.core.user.repository.UserRepository;
-import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -38,8 +29,7 @@ public class ContentPreferenceUpdateServiceImpl implements ContentPreferenceUpda
     private final ContentGenreRepository contentGenreRepository;
     private final ContentTagRepository contentTagRepository;
     private final UserRepository userRepository;
-    private final UserContentGenrePreferenceRepository userContentGenrePreferenceRepository;
-    private final UserContentTagPreferenceRepository userContentTagPreferenceRepository;
+    private final ContentPreferenceScoreRepository contentPreferenceScoreRepository;
 
     @Override
     public void applyActivity(
@@ -91,16 +81,14 @@ public class ContentPreferenceUpdateServiceImpl implements ContentPreferenceUpda
             return;
         }
 
-        Instant scoreUpdatedAt = Instant.now();
-        updateGenrePreferences(user, contentId, delta, scoreUpdatedAt);
-        updateTagPreferences(user, contentId, delta, scoreUpdatedAt);
+        updateGenrePreferences(user, contentId, delta);
+        updateTagPreferences(user, contentId, delta);
     }
 
     private void updateGenrePreferences(
             User user,
             UUID contentId,
-            double delta,
-            Instant scoreUpdatedAt
+            double delta
     ) {
         List<ContentGenre> contentGenres =
                 contentGenreRepository.findAllWithGenreByContentIdIn(List.of(contentId));
@@ -108,42 +96,18 @@ public class ContentPreferenceUpdateServiceImpl implements ContentPreferenceUpda
             return;
         }
 
-        Map<UUID, Genre> genreById = new LinkedHashMap<>();
-        contentGenres.forEach(contentGenre -> {
-            Genre genre = contentGenre.getGenre();
-            genreById.putIfAbsent(genre.getId(), genre);
-        });
-
-        List<UserContentGenrePreference> existingPreferences =
-                userContentGenrePreferenceRepository.findAllWithGenreByUserIdAndGenreIdIn(
-                        user.getId(),
-                        genreById.keySet()
-                );
-        Map<UUID, UserContentGenrePreference> preferenceByGenreId = new LinkedHashMap<>();
-        existingPreferences.forEach(preference ->
-                preferenceByGenreId.put(preference.getGenre().getId(), preference));
-        existingPreferences.forEach(preference -> preference.addScore(delta));
-
-        Set<UUID> existingGenreIds = preferenceByGenreId.keySet();
-        List<UserContentGenrePreference> newPreferences = genreById.entrySet().stream()
-                .filter(entry -> !existingGenreIds.contains(entry.getKey()))
-                .map(entry -> UserContentGenrePreference.create(
-                        user,
-                        entry.getValue(),
-                        delta,
-                        scoreUpdatedAt
-                ))
-                .toList();
-        if (!newPreferences.isEmpty()) {
-            userContentGenrePreferenceRepository.saveAll(newPreferences);
-        }
+        contentGenres.stream()
+                .map(contentGenre -> contentGenre.getGenre().getId())
+                .distinct()
+                .sorted()
+                .forEach(genreId -> contentPreferenceScoreRepository.addGenreScore(
+                        user.getId(), genreId, delta));
     }
 
     private void updateTagPreferences(
             User user,
             UUID contentId,
-            double delta,
-            Instant scoreUpdatedAt
+            double delta
     ) {
         List<ContentTag> contentTags =
                 contentTagRepository.findAllWithTagByContentIdIn(List.of(contentId));
@@ -151,34 +115,11 @@ public class ContentPreferenceUpdateServiceImpl implements ContentPreferenceUpda
             return;
         }
 
-        Map<UUID, Tag> tagById = new LinkedHashMap<>();
-        contentTags.forEach(contentTag -> {
-            Tag tag = contentTag.getTag();
-            tagById.putIfAbsent(tag.getId(), tag);
-        });
-
-        List<UserContentTagPreference> existingPreferences =
-                userContentTagPreferenceRepository.findAllWithTagByUserIdAndTagIdIn(
-                        user.getId(),
-                        tagById.keySet()
-                );
-        Map<UUID, UserContentTagPreference> preferenceByTagId = new LinkedHashMap<>();
-        existingPreferences.forEach(preference ->
-                preferenceByTagId.put(preference.getTag().getId(), preference));
-        existingPreferences.forEach(preference -> preference.addScore(delta));
-
-        Set<UUID> existingTagIds = preferenceByTagId.keySet();
-        List<UserContentTagPreference> newPreferences = tagById.entrySet().stream()
-                .filter(entry -> !existingTagIds.contains(entry.getKey()))
-                .map(entry -> UserContentTagPreference.create(
-                        user,
-                        entry.getValue(),
-                        delta,
-                        scoreUpdatedAt
-                ))
-                .toList();
-        if (!newPreferences.isEmpty()) {
-            userContentTagPreferenceRepository.saveAll(newPreferences);
-        }
+        contentTags.stream()
+                .map(contentTag -> contentTag.getTag().getId())
+                .distinct()
+                .sorted()
+                .forEach(tagId -> contentPreferenceScoreRepository.addTagScore(
+                        user.getId(), tagId, delta));
     }
 }

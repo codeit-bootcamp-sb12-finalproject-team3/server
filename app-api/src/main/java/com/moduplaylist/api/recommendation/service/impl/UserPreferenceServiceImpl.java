@@ -80,8 +80,8 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
                 .map(content -> UserPreferenceContent.create(user, content))
                 .toList();
         userPreferenceContentRepository.saveAll(preferences);
-        userContentTagPreferenceService.createFromInitialPreferences(user, contentIds);
         userContentGenrePreferenceService.createFromInitialPreferences(user, contentIds);
+        userContentTagPreferenceService.createFromInitialPreferences(user, contentIds);
 
         userProfileEmbeddingService.embedAndIndex(userId);
         contentRecommendationService.generateAndCache(userId);

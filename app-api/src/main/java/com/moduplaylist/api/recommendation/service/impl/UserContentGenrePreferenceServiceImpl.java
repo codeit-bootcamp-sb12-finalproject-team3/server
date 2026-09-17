@@ -3,13 +3,10 @@ package com.moduplaylist.api.recommendation.service.impl;
 import com.moduplaylist.api.recommendation.service.UserContentGenrePreferenceService;
 import com.moduplaylist.core.activity.enums.ContentActivityType;
 import com.moduplaylist.core.content.entity.ContentGenre;
-import com.moduplaylist.core.content.entity.Genre;
 import com.moduplaylist.core.content.repository.ContentGenreRepository;
-import com.moduplaylist.core.recommendation.entity.UserContentGenrePreference;
 import com.moduplaylist.core.recommendation.policy.ContentRecommendationScorePolicy;
-import com.moduplaylist.core.recommendation.repository.UserContentGenrePreferenceRepository;
+import com.moduplaylist.core.recommendation.repository.ContentPreferenceScoreRepository;
 import com.moduplaylist.core.user.entity.User;
-import java.time.Instant;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,7 +22,7 @@ public class UserContentGenrePreferenceServiceImpl
         implements UserContentGenrePreferenceService {
 
     private final ContentGenreRepository contentGenreRepository;
-    private final UserContentGenrePreferenceRepository userContentGenrePreferenceRepository;
+    private final ContentPreferenceScoreRepository contentPreferenceScoreRepository;
 
     @Override
     @Transactional
@@ -39,25 +36,15 @@ public class UserContentGenrePreferenceServiceImpl
         double initialWeight = ContentRecommendationScorePolicy.calculate(
                 ContentActivityType.INITIAL_PREFERENCE
         );
-        Map<UUID, Genre> genreById = new LinkedHashMap<>();
         Map<UUID, Double> scoreByGenreId = new LinkedHashMap<>();
 
         for (ContentGenre contentGenre : contentGenres) {
-            Genre genre = contentGenre.getGenre();
-            genreById.putIfAbsent(genre.getId(), genre);
-            scoreByGenreId.merge(genre.getId(), initialWeight, Double::sum);
+            scoreByGenreId.merge(contentGenre.getGenre().getId(), initialWeight, Double::sum);
         }
 
-        Instant scoreUpdatedAt = Instant.now();
-        List<UserContentGenrePreference> genrePreferences = scoreByGenreId.entrySet().stream()
-                .map(entry -> UserContentGenrePreference.create(
-                        user,
-                        genreById.get(entry.getKey()),
-                        entry.getValue(),
-                        scoreUpdatedAt
-                ))
-                .toList();
-
-        userContentGenrePreferenceRepository.saveAll(genrePreferences);
+        scoreByGenreId.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> contentPreferenceScoreRepository.addGenreScore(
+                        user.getId(), entry.getKey(), entry.getValue()));
     }
 }
