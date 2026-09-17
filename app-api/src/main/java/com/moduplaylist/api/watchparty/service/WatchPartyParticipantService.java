@@ -73,6 +73,7 @@ public class WatchPartyParticipantService {
 
         watchPartyParticipantRepository.save(new WatchPartyParticipant(user, party));
 
+        // TODO: Kafka RecommendationConsumer 적용 후 직접 호출 제거 - 일단 테스트를 위해 남겨둡니다 혼란을 드려 죄송합니다..........
         contentPreferenceUpdateService.applyActivity(
                 userId,
                 party.getContentId(),

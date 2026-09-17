@@ -24,14 +24,12 @@ public class RecommendationController {
     public ResponseEntity<CursorPageResponse<ContentSummaryResponse>> getContentRecommendations(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestParam(required = false) String cursor,
-            @RequestParam(required = false) UUID idAfter,
             @RequestParam(defaultValue = "20") int limit
     ) {
         CursorPageResponse<ContentSummaryResponse> response =
                 recommendationQueryService.findRecommendations(
                         userDetails.getUserId(),
                         cursor,
-                        idAfter,
                         limit
                 );
         return ResponseEntity.ok(response);
