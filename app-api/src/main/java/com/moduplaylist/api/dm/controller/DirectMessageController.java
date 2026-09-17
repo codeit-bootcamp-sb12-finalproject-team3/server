@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/dm/conversations")
+@RequestMapping("/api/conversations")
 @RequiredArgsConstructor
 public class DirectMessageController {
 
@@ -51,7 +51,7 @@ public class DirectMessageController {
         );
     }
 
-    @GetMapping("/{conversationId}/messages")
+    @GetMapping("/{conversationId}/direct-messages")
     public ResponseEntity<CursorPageResponse<DirectMessageResponse>> getMessages(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @PathVariable UUID conversationId,
