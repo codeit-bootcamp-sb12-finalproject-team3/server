@@ -70,9 +70,10 @@ public class ContentTag extends ContentUuidEntity {
 		this.content = Objects.requireNonNull(content, "content는 필수입니다.");
 		this.tag = Objects.requireNonNull(tag, "tag는 필수입니다.");
 		this.source = Objects.requireNonNull(source, "source는 필수입니다.");
-		if (source == TagSource.AI && !content.isReviewable()) {
+		if (content.getType() != ContentType.MOVIE
+			&& content.getType() != ContentType.TV_SEASON) {
 			throw new IllegalArgumentException(
-				"TV 시리즈 컨테이너에는 AI 태그를 추가할 수 없습니다."
+				"태그는 영화와 TV 시즌에만 추가할 수 있습니다."
 			);
 		}
 	}

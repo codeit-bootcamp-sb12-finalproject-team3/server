@@ -49,6 +49,12 @@ public class ContentGenre extends ContentUuidEntity {
     private ContentGenre(Content content, Genre genre) {
         this.content = Objects.requireNonNull(content, "content는 필수입니다.");
         this.genre = Objects.requireNonNull(genre, "genre는 필수입니다.");
+        if (content.getType() != ContentType.MOVIE
+                && content.getType() != ContentType.TV_SEASON) {
+            throw new IllegalArgumentException(
+                    "장르는 영화와 TV 시즌에만 추가할 수 있습니다."
+            );
+        }
     }
 
     public static ContentGenre create(Content content, Genre genre) {

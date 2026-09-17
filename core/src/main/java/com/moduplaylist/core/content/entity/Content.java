@@ -154,6 +154,20 @@ public class Content extends BaseEntity {
 		Map<String, Object> metadata
 	) {
 		validateTitle(title);
+		if (type == ContentType.SPORT
+			&& (releaseDate != null || metadata != null)) {
+			throw new IllegalArgumentException(
+				"스포츠에는 공개일과 메타데이터를 저장할 수 없습니다."
+			);
+		}
+		validateTvSeriesContainerFields(
+			type,
+			description,
+			null,
+			releaseDate,
+			null,
+			metadata
+		);
 		this.title = title;
 		this.description = description;
 		this.releaseDate = releaseDate;
@@ -162,12 +176,22 @@ public class Content extends BaseEntity {
 
 	public void replaceThumbnailUrl(String thumbnailUrl) {
 		validateOptionalThumbnailUrl(thumbnailUrl);
+		validateTvSeriesContainerFields(
+			type,
+			null,
+			thumbnailUrl,
+			null,
+			null,
+			null
+		);
 		this.thumbnailUrl = thumbnailUrl;
 	}
 
 	public void updateMovieDetails(Integer runtime) {
 		validateCurrentType(ContentType.MOVIE);
-		validateTypeStructure(type, null, null, null, runtime);
+		if (runtime != null && runtime <= 0) {
+			throw new IllegalArgumentException("상영 시간은 0보다 커야 합니다.");
+		}
 		this.runtime = runtime;
 	}
 
@@ -191,13 +215,17 @@ public class Content extends BaseEntity {
 		this.runtime = runtime;
 	}
 
-	public void updateSportDetails(Integer runtime) {
-		validateCurrentType(ContentType.SPORT);
-		validateTypeStructure(type, null, null, null, runtime);
-		this.runtime = runtime;
-	}
-
 	public void updateAiTaggingStatus(AiTaggingStatus aiTaggingStatus) {
+		if (type != ContentType.MOVIE && type != ContentType.TV_SEASON) {
+			throw new IllegalStateException(
+				"AI 태깅 상태는 영화와 TV 시즌에만 설정할 수 있습니다."
+			);
+		}
+		if (externalSource == null || externalId == null) {
+			throw new IllegalStateException(
+				"AI 태깅 상태는 외부 콘텐츠에만 설정할 수 있습니다."
+			);
+		}
 		this.aiTaggingStatus = aiTaggingStatus;
 	}
 
@@ -252,6 +280,14 @@ public class Content extends BaseEntity {
 			episodeCount,
 			runtime
 		);
+		validateTvSeriesContainerFields(
+			type,
+			description,
+			thumbnailUrl,
+			releaseDate,
+			runtime,
+			metadata
+		);
 		if ((externalSource == null) != (externalId == null)) {
 			throw new IllegalArgumentException("외부 데이터 출처와 외부 ID는 함께 지정해야 합니다.");
 		}
@@ -285,6 +321,26 @@ public class Content extends BaseEntity {
 		}
 		if (episodeCount != null && episodeCount < 0) {
 			throw new IllegalArgumentException("회차 수는 음수일 수 없습니다.");
+		}
+	}
+
+	private static void validateTvSeriesContainerFields(
+		ContentType type,
+		String description,
+		String thumbnailUrl,
+		LocalDate releaseDate,
+		Integer runtime,
+		Map<String, Object> metadata
+	) {
+		if (type == ContentType.TV_SERIES
+			&& (description != null
+				|| thumbnailUrl != null
+				|| releaseDate != null
+				|| runtime != null
+				|| metadata != null)) {
+			throw new IllegalArgumentException(
+				"TV 시리즈 컨테이너에는 설명, 썸네일, 공개일, 상영 시간, 메타데이터를 저장할 수 없습니다."
+			);
 		}
 	}
 
