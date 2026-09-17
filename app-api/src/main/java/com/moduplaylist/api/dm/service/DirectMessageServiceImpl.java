@@ -5,6 +5,7 @@ import com.moduplaylist.api.dm.dto.ConversationSearchRequest;
 import com.moduplaylist.api.dm.dto.DirectMessageCreateResult;
 import com.moduplaylist.api.dm.dto.DirectMessageResponse;
 import com.moduplaylist.api.dm.dto.DirectMessageSearchRequest;
+import com.moduplaylist.api.dm.event.DmMessageCreatedEvent;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
 import com.moduplaylist.core.common.exception.BaseException;
@@ -29,6 +30,7 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -47,6 +49,7 @@ public class DirectMessageServiceImpl implements DirectMessageService {
     private final ConversationParticipantRepository participantRepository;
     private final DirectMessageRepository directMessageRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public DirectMessageCreateResult createMessage(
@@ -90,6 +93,14 @@ public class DirectMessageServiceImpl implements DirectMessageService {
                 conversationId,
                 savedMessage.getCreatedAt()
         );
+        eventPublisher.publishEvent(new DmMessageCreatedEvent(
+                result.getMessageId(),
+                result.getConversationId(),
+                result.getSenderId(),
+                result.getReceiverId(),
+                result.getContent(),
+                result.getCreatedAt()
+        ));
         return result;
     }
 
