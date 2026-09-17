@@ -64,7 +64,6 @@ public class ContentPlatform extends ContentUuidEntity {
 	@Column(
 		name = "source",
 		nullable = false,
-		updatable = false,
 		columnDefinition = "enum('TMDB','MANUAL')"
 	)
 	private PlatformSource source;
@@ -108,8 +107,9 @@ public class ContentPlatform extends ContentUuidEntity {
 		return new ContentPlatform(content, platform, source, regionCode, url);
 	}
 
-	public void updateUrl(String url) {
+	public void updateManually(String url) {
 		this.url = normalizeUrl(url);
+		this.source = PlatformSource.MANUAL;
 	}
 
 	public void updateRegionCode(String regionCode) {

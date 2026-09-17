@@ -45,9 +45,6 @@ public class Platform extends ContentUuidEntity {
 	@Column(name = "logo_url", length = MAX_LOGO_URL_LENGTH)
 	private String logoUrl;
 
-	@Column(nullable = false)
-	private boolean active = true;
-
 	@CreationTimestamp
 	@Column(
 		name = "created_at",
@@ -73,14 +70,6 @@ public class Platform extends ContentUuidEntity {
 	public void updateDetails(String name, String logoUrl) {
 		this.name = normalizeName(name);
 		this.logoUrl = normalizeLogoUrl(logoUrl);
-	}
-
-	public void activate() {
-		this.active = true;
-	}
-
-	public void deactivate() {
-		this.active = false;
 	}
 
 	private static String normalizeName(String name) {
