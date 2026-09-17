@@ -70,4 +70,8 @@ public class ContentEmbeddingService {
 
         return new ContentEmbeddingResult(contentId, embeddingText, embedding.length);
     }
+
+    public void deleteFromIndex(UUID contentId) {
+        vectorRepository.deleteById(contentId);
+    }
 }

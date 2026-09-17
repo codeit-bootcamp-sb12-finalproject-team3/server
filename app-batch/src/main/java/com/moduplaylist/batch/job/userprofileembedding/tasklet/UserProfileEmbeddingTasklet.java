@@ -1,6 +1,7 @@
 package com.moduplaylist.batch.job.userprofileembedding.tasklet;
 
 import com.moduplaylist.batch.job.userprofileembedding.UserProfileEmbeddingTargetService;
+import com.moduplaylist.batch.job.userprofileembedding.UserProfileRecommendationCleanupService;
 import com.moduplaylist.infrastructure.recommendation.embedding.UserProfileEmbeddingService;
 import com.moduplaylist.infrastructure.recommendation.embedding.dto.UserProfileEmbeddingResult;
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ public class UserProfileEmbeddingTasklet implements Tasklet {
 
     private final UserProfileEmbeddingService embeddingService;
     private final UserProfileEmbeddingTargetService targetService;
+    private final UserProfileRecommendationCleanupService cleanupService;
 
     @Override
     public RepeatStatus execute(
@@ -33,8 +35,19 @@ public class UserProfileEmbeddingTasklet implements Tasklet {
 // 현재 전체 임베딩 대상을 List로 메모리에 적재하고 건별로 임베딩 생성/색인을 수행한다.
 // 데이터 증가 시 메모리 사용량과 OpenAI/OpenSearch I/O 횟수가 증가할 수 있으므로,
 // Paging/Chunk 기반 조회 + 임베딩 Batch 요청 + OpenSearch Bulk 색인 방식으로 개선한다.
+        List<UUID> cleanupTargetIds = targetService.findUserIdsWithoutPositivePreference();
+        List<UUID> cleanupFailedIds = new ArrayList<>();
+        for (UUID userId : cleanupTargetIds) {
+            try {
+                cleanupService.removeStaleRecommendation(userId);
+            } catch (RuntimeException exception) {
+                cleanupFailedIds.add(userId);
+                log.error("비활성 사용자 추천 데이터 삭제 실패 - userId={}", userId, exception);
+            }
+        }
+
         List<UUID> targetIds = targetService.findTargetUserIds();
-        List<UUID> failedIds = new ArrayList<>();
+        List<UUID> embeddingFailedIds = new ArrayList<>();
 
         for (UUID userId : targetIds) {
             try {
@@ -45,21 +58,27 @@ public class UserProfileEmbeddingTasklet implements Tasklet {
                         result.getDimensions()
                 );
             } catch (RuntimeException exception) {
-                failedIds.add(userId);
+                embeddingFailedIds.add(userId);
                 log.error("사용자 프로필 임베딩 저장 실패 - userId={}", userId, exception);
             }
         }
 
         log.info(
-                "사용자 프로필 임베딩 배치 완료 - targets={}, succeeded={}, failed={}",
+                "사용자 프로필 임베딩 배치 완료 - targets={}, succeeded={}, failed={}, "
+                        + "cleanupTargets={}, cleanupFailed={}",
                 targetIds.size(),
-                targetIds.size() - failedIds.size(),
-                failedIds.size()
+                targetIds.size() - embeddingFailedIds.size(),
+                embeddingFailedIds.size(),
+                cleanupTargetIds.size(),
+                cleanupFailedIds.size()
         );
 
-        if (!failedIds.isEmpty()) {
+        if (!cleanupFailedIds.isEmpty() || !embeddingFailedIds.isEmpty()) {
             throw new IllegalStateException(
-                    "일부 사용자 프로필 임베딩 처리에 실패했습니다. failedUserIds=" + failedIds
+                    "일부 사용자 프로필 처리에 실패했습니다. embeddingFailedUserIds="
+                            + embeddingFailedIds
+                            + ", cleanupFailedUserIds="
+                            + cleanupFailedIds
             );
         }
 
