@@ -42,6 +42,7 @@ public enum ErrorCode {
     // Playlist
     PLAYLIST_NOT_FOUND("존재하지 않는 플레이리스트입니다."),
     PLAYLIST_ACCESS_DENIED("플레이리스트 수정 또는 삭제 권한이 없습니다."),
+    INVALID_PLAYLIST_SEARCH("플레이리스트 검색 조건이 올바르지 않습니다."),
 
     // Preference
     PREFERENCE_NOT_FOUND("초기 선호 정보가 없습니다."),
@@ -56,6 +57,13 @@ public enum ErrorCode {
     // Notification
     NOTIFICATION_NOT_FOUND("존재하지 않는 알림입니다."),
     NOTIFICATION_ACCESS_DENIED("해당 알림에 접근할 수 없습니다."),
+
+    // Direct Message
+    CONVERSATION_NOT_FOUND("존재하지 않는 대화방입니다."),
+    CONVERSATION_ACCESS_DENIED("해당 대화방에 접근할 권한이 없습니다."),
+    DIRECT_MESSAGE_NOT_FOUND("존재하지 않는 메시지입니다."),
+    SELF_DIRECT_MESSAGE_NOT_ALLOWED("자기 자신과 대화방을 만들 수 없습니다."),
+
 
     // WatchParty
     WATCHPARTY_NOT_FOUND("존재하지 않는 방입니다."),

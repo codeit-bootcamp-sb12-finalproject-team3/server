@@ -1,9 +1,11 @@
 package com.moduplaylist.api.watchparty.controller;
 
+import com.moduplaylist.api.global.security.CustomUserDetails;
 import com.moduplaylist.api.watchparty.service.WatchPartyParticipantService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -16,27 +18,29 @@ public class WatchPartyParticipantController {
     private final WatchPartyParticipantService watchPartyParticipantService;
 
     @PostMapping
-    public ResponseEntity<Void> join(@PathVariable UUID partyId) {
-        //TODO Security 구현 후 @AuthenticationPrincipal CustomUserDetails로 변경
-        UUID userId = UUID.fromString("01a07a54-7f70-7e0d-9a80-15abccab6c92");
+    public ResponseEntity<Void> join(@PathVariable UUID partyId,
+                                     @AuthenticationPrincipal CustomUserDetails userDetails) {
+        UUID userId = userDetails.getUserId();
 
         watchPartyParticipantService.joinWatchParty(partyId, userId);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
     @DeleteMapping("/me")
-    public ResponseEntity<Void> leave(@PathVariable UUID partyId) {
-        //TODO Security 구현 후 @AuthenticationPrincipal CustomUserDetails로 변경
-        UUID userId = UUID.fromString("01a07a54-7f70-7e0d-9a80-15abccab6c92");
+    public ResponseEntity<Void> leave(@PathVariable UUID partyId,
+                                      @AuthenticationPrincipal CustomUserDetails userDetails) {
+        UUID userId = userDetails.getUserId();
 
         watchPartyParticipantService.leaveWatchParty(partyId, userId);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{userId}")
-    public ResponseEntity<Void> kick(@PathVariable UUID partyId, @PathVariable UUID userId) {
-        //TODO Security 구현 후 @AuthenticationPrincipal CustomUserDetails로 변경
-        UUID hostId = UUID.fromString("01a07a54-7f70-7e0d-9a80-15abccab6c92");
+    public ResponseEntity<Void> kick(@PathVariable UUID partyId,
+                                     @PathVariable UUID userId,
+                                     @AuthenticationPrincipal CustomUserDetails userDetails) {
+        UUID hostId = userDetails.getUserId();
+
 
         watchPartyParticipantService.kickParticipant(partyId, hostId, userId);
         return ResponseEntity.noContent().build();

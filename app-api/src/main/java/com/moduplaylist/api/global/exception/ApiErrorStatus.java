@@ -50,10 +50,21 @@ public final class ApiErrorStatus {
         // Playlist
         STATUS_MAP.put(ErrorCode.PLAYLIST_NOT_FOUND, HttpStatus.NOT_FOUND);
         STATUS_MAP.put(ErrorCode.PLAYLIST_ACCESS_DENIED, HttpStatus.FORBIDDEN);
+        STATUS_MAP.put(ErrorCode.INVALID_PLAYLIST_SEARCH, HttpStatus.BAD_REQUEST);
 
         STATUS_MAP.put(ErrorCode.SELF_FOLLOW_NOT_ALLOWED, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.FOLLOW_ALREADY_EXISTS, HttpStatus.CONFLICT);
         STATUS_MAP.put(ErrorCode.FOLLOW_NOT_FOUND, HttpStatus.NOT_FOUND);
+
+        // Direct Message
+        STATUS_MAP.put(ErrorCode.CONVERSATION_NOT_FOUND, HttpStatus.NOT_FOUND);
+        STATUS_MAP.put(ErrorCode.CONVERSATION_ACCESS_DENIED, HttpStatus.FORBIDDEN);
+        STATUS_MAP.put(ErrorCode.DIRECT_MESSAGE_NOT_FOUND, HttpStatus.NOT_FOUND);
+        STATUS_MAP.put(ErrorCode.SELF_DIRECT_MESSAGE_NOT_ALLOWED, HttpStatus.BAD_REQUEST);
+
+        // TODO: Notification ErrorCode의 HTTP Status 매핑 추가
+        // NOTIFICATION_NOT_FOUND -> 404
+        // NOTIFICATION_ACCESS_DENIED -> 403
 
         // Preference
         STATUS_MAP.put(ErrorCode.PREFERENCE_NOT_FOUND, HttpStatus.NOT_FOUND);
