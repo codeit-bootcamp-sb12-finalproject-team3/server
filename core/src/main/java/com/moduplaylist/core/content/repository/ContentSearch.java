@@ -13,6 +13,7 @@ import lombok.Getter;
 public class ContentSearch {
 
     private final ContentType type;
+    private final UUID genreId;
     private final String sportType;
     private final UUID likedByUserId;
     private final List<UUID> matchedContentIds;
@@ -20,11 +21,13 @@ public class ContentSearch {
     private final Instant cursorCreatedAt;
     private final Instant cursorLikedAt;
     private final BigDecimal cursorRating;
+    private final Long cursorReviewCount;
     private final UUID cursorId;
     private final int limit;
 
     public ContentSearch(
             ContentType type,
+            UUID genreId,
             String sportType,
             UUID likedByUserId,
             Collection<UUID> matchedContentIds,
@@ -32,6 +35,7 @@ public class ContentSearch {
             Instant cursorCreatedAt,
             Instant cursorLikedAt,
             BigDecimal cursorRating,
+            Long cursorReviewCount,
             UUID cursorId,
             int limit) {
         validateSortAndCursors(
@@ -40,16 +44,34 @@ public class ContentSearch {
                 cursorCreatedAt,
                 cursorLikedAt,
                 cursorRating,
+                cursorReviewCount,
                 cursorId);
         if (limit < 1 || limit > 100) {
             throw new InvalidContentSearchException();
         }
         if (sportType != null && !sportType.isBlank()
-                && type != null && type != ContentType.SPORT) {
+                && type != ContentType.SPORT) {
+            throw new InvalidContentSearchException();
+        }
+        if (genreId != null
+                && type != ContentType.MOVIE
+                && type != ContentType.TV_SEASON) {
+            throw new InvalidContentSearchException();
+        }
+        if (genreId != null && sportType != null && !sportType.isBlank()) {
+            throw new InvalidContentSearchException();
+        }
+        if (matchedContentIds != null
+                && (genreId != null
+                || sportType != null && !sportType.isBlank())) {
+            throw new InvalidContentSearchException();
+        }
+        if (matchedContentIds != null && matchedContentIds.size() > 100) {
             throw new InvalidContentSearchException();
         }
 
         this.type = type;
+        this.genreId = genreId;
         this.sportType = sportType;
         this.likedByUserId = likedByUserId;
         this.matchedContentIds = matchedContentIds == null
@@ -59,16 +81,17 @@ public class ContentSearch {
         this.cursorCreatedAt = cursorCreatedAt;
         this.cursorLikedAt = cursorLikedAt;
         this.cursorRating = cursorRating;
+        this.cursorReviewCount = cursorReviewCount;
         this.cursorId = cursorId;
         this.limit = limit;
     }
 
-    public boolean isLikedContentsSearch() {
-        return likedByUserId != null;
-    }
-
     public boolean hasContentIdFilter() {
         return matchedContentIds != null;
+    }
+
+    public boolean isLikedContentsSearch() {
+        return likedByUserId != null;
     }
 
     private static void validateSortAndCursors(
@@ -77,13 +100,16 @@ public class ContentSearch {
             Instant cursorCreatedAt,
             Instant cursorLikedAt,
             BigDecimal cursorRating,
+            Long cursorReviewCount,
             UUID cursorId) {
         if (likedByUserId != null) {
             if (sort != null) {
                 throw new InvalidContentSearchException();
             }
             requirePair(cursorLikedAt, cursorId);
-            if (cursorCreatedAt != null || cursorRating != null) {
+            if (cursorCreatedAt != null
+                    || cursorRating != null
+                    || cursorReviewCount != null) {
                 throw new InvalidContentSearchException();
             }
             return;
@@ -97,13 +123,13 @@ public class ContentSearch {
         }
         if (sort == Sort.LATEST) {
             requirePair(cursorCreatedAt, cursorId);
-            if (cursorRating != null) {
+            if (cursorRating != null || cursorReviewCount != null) {
                 throw new InvalidContentSearchException();
             }
             return;
         }
 
-        requirePair(cursorRating, cursorId);
+        requireRatingCursor(cursorRating, cursorReviewCount, cursorId);
         if (cursorCreatedAt != null) {
             throw new InvalidContentSearchException();
         }
@@ -111,6 +137,22 @@ public class ContentSearch {
 
     private static void requirePair(Object value, UUID cursorId) {
         if ((value == null) != (cursorId == null)) {
+            throw new InvalidContentSearchException();
+        }
+    }
+
+    private static void requireRatingCursor(
+            BigDecimal cursorRating,
+            Long cursorReviewCount,
+            UUID cursorId) {
+        boolean absent = cursorRating == null
+                && cursorReviewCount == null
+                && cursorId == null;
+        boolean complete = cursorRating != null
+                && cursorReviewCount != null
+                && cursorReviewCount >= 0
+                && cursorId != null;
+        if (!absent && !complete) {
             throw new InvalidContentSearchException();
         }
     }

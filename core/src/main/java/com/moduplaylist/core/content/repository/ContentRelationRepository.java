@@ -1,12 +1,10 @@
 package com.moduplaylist.core.content.repository;
 
-import com.github.f4b6a3.uuid.UuidCreator;
 import com.moduplaylist.core.content.entity.TagSource;
 import jakarta.persistence.EntityManager;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
 import lombok.Getter;
@@ -85,19 +83,19 @@ public class ContentRelationRepository {
     }
 
     public List<Genre> genres(UUID id) {
-        return findRows("SELECT g.id,g.name FROM genres g JOIN content_genres cg ON cg.genre_id=g.id WHERE cg.content_id=:id ORDER BY g.name,g.id", id)
+        return findRows("SELECT g.id,g.name FROM contents c JOIN content_genres cg ON cg.content_id=c.id JOIN genres g ON g.id=cg.genre_id WHERE c.id=:id AND c.hidden=false ORDER BY g.name,g.id", id)
                 .stream().map(r -> new Genre(uuid(r[0]), (String) r[1])).toList();
     }
     public List<Tag> tags(UUID id) {
-        return findRows("SELECT t.id,t.name,ct.source FROM tags t JOIN content_tags ct ON ct.tag_id=t.id WHERE ct.content_id=:id ORDER BY t.name,t.id", id)
+        return findRows("SELECT t.id,t.name,ct.source FROM contents c JOIN content_tags ct ON ct.content_id=c.id JOIN tags t ON t.id=ct.tag_id WHERE c.id=:id AND c.hidden=false ORDER BY t.name,t.id", id)
                 .stream().map(this::toTag).toList();
     }
     public List<Cast> casts(UUID id) {
-        return findRows("SELECT name,role_name,profile_image_url,display_order FROM content_casts WHERE content_id=:id ORDER BY display_order", id)
+        return findRows("SELECT cc.name,cc.role_name,cc.profile_image_url,cc.display_order FROM contents c JOIN content_casts cc ON cc.content_id=c.id WHERE c.id=:id AND c.hidden=false ORDER BY cc.display_order", id)
                 .stream().map(r -> new Cast((String) r[0], (String) r[1], (String) r[2], ((Number) r[3]).intValue())).toList();
     }
     public List<PlatformItem> platforms(UUID id) {
-        return findRows("SELECT p.id,p.name,p.logo_url,cp.url FROM platforms p JOIN content_platforms cp ON cp.platform_id=p.id WHERE cp.content_id=:id ORDER BY p.name,p.id", id)
+        return findRows("SELECT p.id,p.name,p.logo_url,cp.url FROM contents c JOIN content_platforms cp ON cp.content_id=c.id JOIN platforms p ON p.id=cp.platform_id WHERE c.id=:id AND c.hidden=false AND cp.region_code='KR' ORDER BY p.name,p.id", id)
                 .stream().map(r -> new PlatformItem(uuid(r[0]), (String) r[1], (String) r[2], (String) r[3])).toList();
     }
 
@@ -107,48 +105,35 @@ public class ContentRelationRepository {
                 SELECT p.id,p.title,p.description,
                     (SELECT COUNT(*) FROM playlist_subscriptions ps WHERE ps.playlist_id=p.id) AS subscribers,
                     p.created_at
-                FROM playlists p JOIN playlist_contents pc ON pc.playlist_id=p.id
-                WHERE pc.content_id=:id ORDER BY subscribers DESC,p.created_at DESC,p.id ASC
+                FROM contents c
+                JOIN playlist_contents pc ON pc.content_id=c.id
+                JOIN playlists p ON p.id=pc.playlist_id
+                WHERE c.id=:id AND c.hidden=false
+                ORDER BY subscribers DESC,p.created_at DESC,p.id ASC
                 """).setParameter("id", bytes(id)).setMaxResults(PREVIEW_FETCH_LIMIT).getResultList();
         return values.stream().map(this::toPlaylist).toList();
     }
 
     @SuppressWarnings("unchecked")
-    public List<WatchParty> findWatchParties(UUID id, Instant now, Instant cutoff) {
+    public List<WatchParty> findWatchParties(UUID id, Instant cutoff) {
         List<Object[]> values = em.createNativeQuery("""
                 SELECT w.id,w.title,w.scheduled_at,
-                    CASE WHEN w.scheduled_at <= :now THEN 'LIVE' ELSE 'SCHEDULED' END AS display_status,
+                    w.status AS display_status,
                     (SELECT COUNT(*) FROM watch_party_participants participant
                         WHERE participant.watch_party_id=w.id AND participant.status='JOINED') AS participants,
                     w.max_participants,
                     (SELECT COUNT(*) FROM watch_party_reminders wr WHERE wr.watch_party_id=w.id) AS reminders
-                FROM watch_parties w WHERE w.content_id=:id AND w.status <> 'ENDED'
+                FROM contents c JOIN watch_parties w ON w.content_id=c.id
+                WHERE c.id=:id AND c.hidden=false AND w.status <> 'ENDED'
                     AND w.scheduled_at >= :cutoff
-                ORDER BY CASE WHEN w.scheduled_at <= :now THEN 0 ELSE 1 END,
-                    CASE WHEN w.scheduled_at <= :now THEN w.scheduled_at END DESC,
-                    CASE WHEN w.scheduled_at > :now THEN w.scheduled_at END ASC,
+                ORDER BY CASE WHEN w.status='LIVE' THEN 0 ELSE 1 END,
+                    CASE WHEN w.status='LIVE' THEN w.scheduled_at END DESC,
+                    CASE WHEN w.status='SCHEDULED' THEN w.scheduled_at END ASC,
                     reminders DESC,w.id ASC
                 """).setParameter("id", bytes(id)).setParameter("cutoff", Timestamp.from(cutoff))
-                .setParameter("now", Timestamp.from(now)).setMaxResults(PREVIEW_FETCH_LIMIT)
+                .setMaxResults(PREVIEW_FETCH_LIMIT)
                 .getResultList();
         return values.stream().map(this::toWatchParty).toList();
-    }
-
-    /** 호출 Service에서 대상 Content를 잠가 동일 콘텐츠의 수정을 직렬화한다. */
-    public void replaceManualTags(UUID contentId, List<String> names) {
-        deleteTagsBySource(contentId, TagSource.MANUAL);
-        for (String name : new LinkedHashSet<>(names)) {
-            upsertTag(name);
-            upsertContentTag(contentId, name, TagSource.MANUAL);
-        }
-    }
-
-    public boolean hasWatchParty(UUID id) {
-        Number exists = (Number) em.createNativeQuery("""
-                SELECT EXISTS (SELECT 1 FROM watch_parties WHERE content_id=:id)
-                """)
-                .setParameter("id", bytes(id)).getSingleResult();
-        return exists.intValue() == 1;
     }
 
     private Tag toTag(Object[] row) {
@@ -172,27 +157,6 @@ public class ContentRelationRepository {
                 DisplayStatus.valueOf((String) row[3]),
                 ((Number) row[4]).intValue(),
                 ((Number) row[5]).intValue());
-    }
-
-    private void deleteTagsBySource(UUID contentId, TagSource source) {
-        em.createNativeQuery("DELETE FROM content_tags WHERE content_id=:id AND source=:source")
-                .setParameter("id", bytes(contentId)).setParameter("source", source.name()).executeUpdate();
-    }
-
-    private void upsertTag(String name) {
-        em.createNativeQuery("INSERT INTO tags(id,name) VALUES (:id,:name) ON DUPLICATE KEY UPDATE name=name")
-                .setParameter("id", bytes(UuidCreator.getTimeOrderedEpoch()))
-                .setParameter("name", name).executeUpdate();
-    }
-
-    private void upsertContentTag(UUID contentId, String name, TagSource source) {
-        em.createNativeQuery("""
-                INSERT INTO content_tags(id,content_id,tag_id,source)
-                SELECT :id,:contentId,t.id,:source FROM tags t WHERE t.name=:name
-                ON DUPLICATE KEY UPDATE source=content_tags.source
-                """).setParameter("id", bytes(UuidCreator.getTimeOrderedEpoch()))
-                .setParameter("contentId", bytes(contentId)).setParameter("name", name)
-                .setParameter("source", source.name()).executeUpdate();
     }
 
     private byte[] bytes(UUID id) {

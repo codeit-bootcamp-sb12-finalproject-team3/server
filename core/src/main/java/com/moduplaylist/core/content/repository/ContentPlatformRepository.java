@@ -16,10 +16,13 @@ public interface ContentPlatformRepository extends JpaRepository<ContentPlatform
 		from ContentPlatform contentPlatform
 		join fetch contentPlatform.platform platform
 		where contentPlatform.content.id = :contentId
+		  and contentPlatform.content.hidden = false
+		  and contentPlatform.regionCode = :regionCode
 		order by platform.name asc, platform.id asc
 		""")
-	List<ContentPlatform> findAllWithPlatformByContentId(
-		@Param("contentId") UUID contentId);
+	List<ContentPlatform> findAllWithPlatformByContentIdAndRegionCode(
+		@Param("contentId") UUID contentId,
+		@Param("regionCode") String regionCode);
 
 	Optional<ContentPlatform> findByContent_IdAndPlatform_IdAndRegionCode(
 		UUID contentId,
@@ -30,6 +33,11 @@ public interface ContentPlatformRepository extends JpaRepository<ContentPlatform
 	@Query("""
 		delete from ContentPlatform contentPlatform
 		where contentPlatform.content.id = :contentId
+		  and contentPlatform.platform.id = :platformId
+		  and contentPlatform.regionCode = :regionCode
 		""")
-	int deleteAllByContentId(@Param("contentId") UUID contentId);
+	int deleteByContentIdAndPlatformIdAndRegionCode(
+		@Param("contentId") UUID contentId,
+		@Param("platformId") UUID platformId,
+		@Param("regionCode") String regionCode);
 }

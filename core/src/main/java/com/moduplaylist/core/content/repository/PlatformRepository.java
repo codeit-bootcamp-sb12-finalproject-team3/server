@@ -9,9 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface PlatformRepository extends JpaRepository<Platform, UUID> {
 
-	Optional<Platform> findByName(String name);
-
 	Optional<Platform> findByTmdbProviderId(Integer tmdbProviderId);
 
-	List<Platform> findAllByNameIn(Collection<String> names);
+	List<Platform> findAllByTmdbProviderIdIn(Collection<Integer> tmdbProviderIds);
 }
