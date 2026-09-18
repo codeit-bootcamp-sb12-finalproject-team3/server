@@ -185,9 +185,9 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         throw new BadCredentialsException("Authenticated principal not found.");
     }
 
-    // 개인 에러 큐(/user/sub/errors)로 안내 메시지 전송
+    // 개인 에러 큐(/user/queue/errors)로 안내 메시지 전송
     private void sendError(UUID userId, String errorMessage) {
-        messagingTemplate.convertAndSendToUser(userId.toString(), "/sub/errors", errorMessage);
+        messagingTemplate.convertAndSendToUser(userId.toString(), "/queue/errors", errorMessage);
     }
 
     private String resolveToken(StompHeaderAccessor accessor) {

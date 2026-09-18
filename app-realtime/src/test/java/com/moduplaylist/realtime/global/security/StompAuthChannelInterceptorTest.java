@@ -193,7 +193,7 @@ class StompAuthChannelInterceptorTest {
 
         assertThat(result).isNull();
         verify(messagingTemplate)
-                .convertAndSendToUser(eq(USER_ID.toString()), eq("/sub/errors"), any());
+                .convertAndSendToUser(eq(USER_ID.toString()), eq("/queue/errors"), any());
     }
 
     @Test
@@ -253,7 +253,7 @@ class StompAuthChannelInterceptorTest {
 
         assertThat(result).isNull();
         verify(messagingTemplate)
-                .convertAndSendToUser(eq(USER_ID.toString()), eq("/sub/errors"), any());
+                .convertAndSendToUser(eq(USER_ID.toString()), eq("/queue/errors"), any());
     }
 
     @Test
@@ -309,7 +309,7 @@ class StompAuthChannelInterceptorTest {
 
         assertThat(result).isNull();
         verify(messagingTemplate)
-                .convertAndSendToUser(eq(USER_ID.toString()), eq("/sub/errors"), any());
+                .convertAndSendToUser(eq(USER_ID.toString()), eq("/queue/errors"), any());
         verifyNoInteractions(watchPartyKickedRegistry, watchPartyJoinedRegistry,
                 watchPartyHostRegistry, watchPartyActivePartyRegistry);
     }
@@ -323,7 +323,7 @@ class StompAuthChannelInterceptorTest {
 
         assertThat(result).isNull();
         verify(messagingTemplate)
-                .convertAndSendToUser(eq(USER_ID.toString()), eq("/sub/errors"), any());
+                .convertAndSendToUser(eq(USER_ID.toString()), eq("/queue/errors"), any());
         verifyNoInteractions(watchPartyKickedRegistry, watchPartyJoinedRegistry,
                 watchPartyHostRegistry, watchPartyActivePartyRegistry);
     }
