@@ -1,13 +1,12 @@
 package com.moduplaylist.batch.job.contentembedding;
 
 import com.moduplaylist.core.content.entity.Content;
+import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.content.repository.ContentTagRepository;
 import com.moduplaylist.infrastructure.embedding.EmbeddingGenerator;
 import com.moduplaylist.infrastructure.opensearch.content.ContentVectorDocument;
 import com.moduplaylist.infrastructure.opensearch.content.ContentVectorRepository;
-import java.time.Instant;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -21,16 +20,20 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ContentEmbeddingTargetService {
 
+    private static final List<ContentType> EMBEDDABLE_TYPES =
+            List.of(ContentType.MOVIE, ContentType.TV_SEASON);
+
     private final ContentRepository contentRepository;
     private final ContentTagRepository contentTagRepository;
     private final ContentVectorRepository vectorRepository;
     private final EmbeddingGenerator embeddingGenerator;
 
-    public List<UUID> findTargetContentIds() {
-        List<Content> contents = contentRepository.findAll().stream()
-                .filter(content -> content.getType().isPersonalizable())
-                .sorted(Comparator.comparing(Content::getId))
-                .toList();
+    public List<UUID> findTargetContentIds(ContentEmbeddingRunWindow window) {
+        List<Content> contents = window.fullScan()
+                ? contentRepository.findEmbeddingSourcesThrough(
+                        EMBEDDABLE_TYPES, window.through())
+                : contentRepository.findModifiedEmbeddingSources(
+                        EMBEDDABLE_TYPES, window.after(), window.through());
         if (contents.isEmpty()) {
             return List.of();
         }
@@ -75,10 +78,10 @@ public class ContentEmbeddingTargetService {
             List<String> tags,
             ContentVectorDocument document
     ) {
-        Instant sourceUpdatedAt = document.getSourceUpdatedAt();
-        return sourceUpdatedAt == null
-                || content.getUpdatedAt().isAfter(sourceUpdatedAt)
-                || !Objects.equals(embeddingGenerator.modelName(), document.getEmbeddingModel())
+        return !Objects.equals(embeddingGenerator.modelName(), document.getEmbeddingModel())
+                || !Objects.equals(content.getType().getValue(), document.getType())
+                || !Objects.equals(content.getTitle(), document.getTitle())
+                || !Objects.equals(content.getDescription(), document.getDescription())
                 || !tags.equals(document.getTags());
     }
 }
