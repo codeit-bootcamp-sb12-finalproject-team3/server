@@ -41,6 +41,7 @@ public class ContentResponse {
 	private List<CastResponse> cast = List.of();
 
 	private Map<String, Object> metadata;
+	private SportEventResponse sportEvent;
 	private Instant createdAt;
 	private Instant updatedAt;
 }

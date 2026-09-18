@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -38,6 +39,18 @@ public class ContentCreateRequest {
 
 	@Size(max = 50)
 	private String sportType;
+	private Instant scheduledAt;
+	private String league;
+	private String season;
+	private String round;
+	private String homeTeam;
+	private String awayTeam;
+	private String venue;
+	private String country;
+	@PositiveOrZero
+	private Integer homeScore;
+	@PositiveOrZero
+	private Integer awayScore;
 
 	private String description;
 
@@ -81,6 +94,17 @@ public class ContentCreateRequest {
 	public void setSportType(String sportType) {
 		this.sportType = strip(sportType);
 	}
+
+	public void setScheduledAt(Instant scheduledAt) { this.scheduledAt = scheduledAt; }
+	public void setLeague(String league) { this.league = strip(league); }
+	public void setSeason(String season) { this.season = strip(season); }
+	public void setRound(String round) { this.round = strip(round); }
+	public void setHomeTeam(String homeTeam) { this.homeTeam = strip(homeTeam); }
+	public void setAwayTeam(String awayTeam) { this.awayTeam = strip(awayTeam); }
+	public void setVenue(String venue) { this.venue = strip(venue); }
+	public void setCountry(String country) { this.country = strip(country); }
+	public void setHomeScore(Integer homeScore) { this.homeScore = homeScore; }
+	public void setAwayScore(Integer awayScore) { this.awayScore = awayScore; }
 
 	public void setDescription(String description) {
 		this.description = description;

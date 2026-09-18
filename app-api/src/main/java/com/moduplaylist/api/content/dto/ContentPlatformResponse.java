@@ -7,7 +7,8 @@ import lombok.Getter;
 @Getter
 @Builder
 public class ContentPlatformResponse {
+	private String regionCode;
 
 	@Builder.Default
-	private List<ContentPlatformItemResponse> platforms = List.of();
+	private List<ContentPlatformItemResponse> otts = List.of();
 }
