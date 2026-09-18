@@ -1,6 +1,7 @@
 package com.moduplaylist.infrastructure.redis.recommendation;
 
 import com.moduplaylist.infrastructure.recommendation.RecommendationProperties;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -48,5 +49,25 @@ public class PlaylistRecommendationRedisRepository {
             }
             throw exception;
         }
+    }
+
+    public List<UUID> findAll(UUID userId) {
+        List<Object> values = redisTemplate.opsForList()
+                .range(RecommendationRedisKey.playlists(userId), 0, -1);
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> playlistIds = new ArrayList<>(values.size());
+        for (Object value : values) {
+            if (value instanceof UUID id) {
+                playlistIds.add(id);
+            } else if (value instanceof String id) {
+                playlistIds.add(UUID.fromString(id));
+            } else {
+                throw new IllegalStateException("플레이리스트 추천 캐시에 UUID가 아닌 값이 저장되어 있습니다.");
+            }
+        }
+        return List.copyOf(playlistIds);
     }
 }

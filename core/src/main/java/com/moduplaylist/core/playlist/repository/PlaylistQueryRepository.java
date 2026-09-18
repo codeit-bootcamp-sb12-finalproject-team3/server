@@ -2,11 +2,14 @@ package com.moduplaylist.core.playlist.repository;
 
 import com.moduplaylist.core.playlist.entity.Playlist;
 import java.util.List;
+import java.util.UUID;
 import lombok.Getter;
 
 public interface PlaylistQueryRepository {
 
   SearchResult search(PlaylistSearch search);
+
+  List<Item> findAllByIds(List<UUID> playlistIds);
 
   @Getter
   class SearchResult {

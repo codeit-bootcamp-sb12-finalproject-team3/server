@@ -62,6 +62,36 @@ public class PlaylistQueryRepositoryImpl implements PlaylistQueryRepository {
     );
   }
 
+  @Override
+  public List<Item> findAllByIds(List<UUID> playlistIds) {
+    if (playlistIds.isEmpty()) {
+      return List.of();
+    }
+
+    List<Playlist> playlists = entityManager.createQuery("""
+        SELECT p
+        FROM Playlist p
+        JOIN FETCH p.owner
+        WHERE p.id IN :playlistIds
+        """, Playlist.class)
+        .setParameter("playlistIds", playlistIds)
+        .getResultList();
+    if (playlists.isEmpty()) {
+      return List.of();
+    }
+
+    List<UUID> existingIds = playlists.stream().map(Playlist::getId).toList();
+    Map<UUID, Long> subscriberCounts = findSubscriberCounts(existingIds);
+    Map<UUID, Long> contentCounts = findContentCounts(existingIds);
+    return playlists.stream()
+        .map(playlist -> new Item(
+            playlist,
+            subscriberCounts.getOrDefault(playlist.getId(), 0L),
+            contentCounts.getOrDefault(playlist.getId(), 0L)
+        ))
+        .toList();
+  }
+
   private List<Playlist> findPlaylists(PlaylistSearch search) {
     StringBuilder jpql = new StringBuilder("""
         SELECT p
