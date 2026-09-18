@@ -25,6 +25,8 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
     Optional<Content> findByExternalSourceAndTypeAndExternalId(
             String externalSource, ContentType type, Integer externalId);
 
+    Optional<Content> findByIdAndHiddenFalse(UUID contentId);
+
     List<Content> findAllByExternalSourceAndTypeAndExternalIdIn(
             String externalSource, ContentType type, Collection<Integer> externalIds);
 

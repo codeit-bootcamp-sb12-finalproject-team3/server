@@ -5,6 +5,7 @@ import jakarta.persistence.EntityManager;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import lombok.Getter;
@@ -63,6 +64,7 @@ public class ContentRelationRepository {
         private final String title;
         private final String description;
         private final long subscriberCount;
+        private final BigDecimal weeklyPopularityScore;
         private final Instant createdAt;
     }
 
@@ -94,8 +96,13 @@ public class ContentRelationRepository {
         return findRows("SELECT cc.name,cc.role_name,cc.profile_image_url,cc.display_order FROM contents c JOIN content_casts cc ON cc.content_id=c.id WHERE c.id=:id AND c.hidden=false ORDER BY cc.display_order", id)
                 .stream().map(r -> new Cast((String) r[0], (String) r[1], (String) r[2], ((Number) r[3]).intValue())).toList();
     }
-    public List<PlatformItem> platforms(UUID id) {
-        return findRows("SELECT p.id,p.name,p.logo_url,cp.url FROM contents c JOIN content_platforms cp ON cp.content_id=c.id JOIN platforms p ON p.id=cp.platform_id WHERE c.id=:id AND c.hidden=false AND cp.region_code='KR' ORDER BY p.name,p.id", id)
+    public List<PlatformItem> platforms(UUID id, String regionCode) {
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery("SELECT p.id,p.name,p.logo_url,cp.url FROM contents c JOIN content_platforms cp ON cp.content_id=c.id JOIN platforms p ON p.id=cp.platform_id WHERE c.id=:id AND c.hidden=false AND p.active=true AND cp.region_code=:regionCode ORDER BY p.name,p.id")
+                .setParameter("id", bytes(id))
+                .setParameter("regionCode", regionCode)
+                .getResultList();
+        return rows
                 .stream().map(r -> new PlatformItem(uuid(r[0]), (String) r[1], (String) r[2], (String) r[3])).toList();
     }
 
@@ -104,18 +111,18 @@ public class ContentRelationRepository {
         List<Object[]> values = em.createNativeQuery("""
                 SELECT p.id,p.title,p.description,
                     (SELECT COUNT(*) FROM playlist_subscriptions ps WHERE ps.playlist_id=p.id) AS subscribers,
-                    p.created_at
+                    p.weekly_popularity_score,p.created_at
                 FROM contents c
                 JOIN playlist_contents pc ON pc.content_id=c.id
                 JOIN playlists p ON p.id=pc.playlist_id
                 WHERE c.id=:id AND c.hidden=false
-                ORDER BY subscribers DESC,p.created_at DESC,p.id ASC
+                ORDER BY p.weekly_popularity_score DESC,p.id ASC
                 """).setParameter("id", bytes(id)).setMaxResults(PREVIEW_FETCH_LIMIT).getResultList();
         return values.stream().map(this::toPlaylist).toList();
     }
 
     @SuppressWarnings("unchecked")
-    public List<WatchParty> findWatchParties(UUID id, Instant cutoff) {
+    public List<WatchParty> findWatchParties(UUID id) {
         List<Object[]> values = em.createNativeQuery("""
                 SELECT w.id,w.title,w.scheduled_at,
                     w.status AS display_status,
@@ -124,13 +131,13 @@ public class ContentRelationRepository {
                     w.max_participants,
                     (SELECT COUNT(*) FROM watch_party_reminders wr WHERE wr.watch_party_id=w.id) AS reminders
                 FROM contents c JOIN watch_parties w ON w.content_id=c.id
-                WHERE c.id=:id AND c.hidden=false AND w.status <> 'ENDED'
-                    AND w.scheduled_at >= :cutoff
+                WHERE c.id=:id AND c.hidden=false AND w.status IN ('LIVE','SCHEDULED')
                 ORDER BY CASE WHEN w.status='LIVE' THEN 0 ELSE 1 END,
+                    CASE WHEN w.status='LIVE' THEN participants END DESC,
                     CASE WHEN w.status='LIVE' THEN w.scheduled_at END DESC,
                     CASE WHEN w.status='SCHEDULED' THEN w.scheduled_at END ASC,
                     reminders DESC,w.id ASC
-                """).setParameter("id", bytes(id)).setParameter("cutoff", Timestamp.from(cutoff))
+                """).setParameter("id", bytes(id))
                 .setMaxResults(PREVIEW_FETCH_LIMIT)
                 .getResultList();
         return values.stream().map(this::toWatchParty).toList();
@@ -146,7 +153,8 @@ public class ContentRelationRepository {
                 (String) row[1],
                 (String) row[2],
                 ((Number) row[3]).longValue(),
-                ((Timestamp) row[4]).toInstant());
+                (BigDecimal) row[4],
+                ((Timestamp) row[5]).toInstant());
     }
 
     private WatchParty toWatchParty(Object[] row) {
