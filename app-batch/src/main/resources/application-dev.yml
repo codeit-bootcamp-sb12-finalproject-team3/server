@@ -51,6 +51,11 @@ aws:
    bucket: ${AWS_S3_BUCKET:}
 
 mopl:
+  tmdb:
+    api-base-url: ${TMDB_API_BASE_URL:https://api.themoviedb.org/3}
+    image-base-url: ${TMDB_IMAGE_BASE_URL:https://image.tmdb.org/t/p/original}
+    access-token: ${TMDB_ACCESS_TOKEN:}
+    timeout-seconds: ${TMDB_TIMEOUT_SECONDS:10}
   batch:
     embedding:
       scheduler:
