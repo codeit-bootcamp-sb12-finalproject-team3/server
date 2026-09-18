@@ -59,14 +59,17 @@ aws:
     region: ${AWS_REGION:ap-northeast-2}
     bucket: ${AWS_S3_BUCKET:}
 
-embedding:
-  enabled: ${EMBEDDING_ENABLED:true}
-  model: text-embedding-3-small
-  dimensions: 1536
+mopl:
+  embedding:
+    enabled: ${EMBEDDING_ENABLED:true}
+    model: text-embedding-3-small
+    dimensions: 1536
   opensearch:
     enabled: ${OPENSEARCH_ENABLED:true}
     uris: ${OPENSEARCH_URIS:http://localhost:9200}
     username: ${OPENSEARCH_USERNAME:}
     password: ${OPENSEARCH_PASSWORD:}
-    user-preference-index: user-preference-index
+    user-content-preference-index: user-content-preference-index
+    user-playlist-preference-index: user-playlist-preference-index
     content-index: content-index
+    playlist-index: playlist-index

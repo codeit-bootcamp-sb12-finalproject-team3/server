@@ -4,6 +4,8 @@ import com.moduplaylist.api.recommendation.dto.UserPreferenceCreateRequest;
 import com.moduplaylist.api.recommendation.dto.UserPreferenceResponse;
 import com.moduplaylist.api.recommendation.service.UserContentGenrePreferenceService;
 import com.moduplaylist.api.recommendation.service.UserContentTagPreferenceService;
+import com.moduplaylist.api.recommendation.service.UserPlaylistGenrePreferenceService;
+import com.moduplaylist.api.recommendation.service.UserPlaylistTagPreferenceService;
 import com.moduplaylist.api.recommendation.service.UserPreferenceService;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
@@ -20,7 +22,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import com.moduplaylist.infrastructure.recommendation.embedding.UserProfileEmbeddingService;
+import com.moduplaylist.infrastructure.recommendation.embedding.UserContentProfileEmbeddingService;
+import com.moduplaylist.infrastructure.recommendation.embedding.UserPlaylistProfileEmbeddingService;
 import com.moduplaylist.infrastructure.recommendation.ContentRecommendationService;
 
 import lombok.RequiredArgsConstructor;
@@ -38,7 +41,10 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
     private final ContentRepository contentRepository;
     private final UserContentTagPreferenceService userContentTagPreferenceService;
     private final UserContentGenrePreferenceService userContentGenrePreferenceService;
-    private final UserProfileEmbeddingService userProfileEmbeddingService;
+    private final UserPlaylistTagPreferenceService userPlaylistTagPreferenceService;
+    private final UserPlaylistGenrePreferenceService userPlaylistGenrePreferenceService;
+    private final UserContentProfileEmbeddingService userContentProfileEmbeddingService;
+    private final UserPlaylistProfileEmbeddingService userPlaylistProfileEmbeddingService;
     private final ContentRecommendationService contentRecommendationService;
 
     // TODO: 현재는 DB 트랜잭션 안에서 OpenSearch/Redis까지 함께 호출하고 있음. -> 트러블슈팅 소스 메모..
@@ -82,8 +88,11 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
         userPreferenceContentRepository.saveAll(preferences);
         userContentGenrePreferenceService.createFromInitialPreferences(user, contentIds);
         userContentTagPreferenceService.createFromInitialPreferences(user, contentIds);
+        userPlaylistGenrePreferenceService.createFromInitialPreferences(user, contentIds);
+        userPlaylistTagPreferenceService.createFromInitialPreferences(user, contentIds);
 
-        userProfileEmbeddingService.embedAndIndex(userId);
+        userContentProfileEmbeddingService.embedAndIndex(userId);
+        userPlaylistProfileEmbeddingService.embedAndIndex(userId);
         contentRecommendationService.generateAndCache(userId);
 
         return UserPreferenceResponse.builder()

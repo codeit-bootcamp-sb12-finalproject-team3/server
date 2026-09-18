@@ -79,5 +79,7 @@ mopl:
     uris: ${OPENSEARCH_URIS:http://localhost:9200}
     username: ${OPENSEARCH_USERNAME:}
     password: ${OPENSEARCH_PASSWORD:}
-    user-preference-index: user-preference-index
+    user-content-preference-index: user-content-preference-index
+    user-playlist-preference-index: user-playlist-preference-index
     content-index: content-index
+    playlist-index: playlist-index

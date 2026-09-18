@@ -6,8 +6,8 @@ import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.recommendation.repository.UserPreferenceContentRepository;
 import com.moduplaylist.infrastructure.opensearch.content.ContentSimilarityCandidate;
 import com.moduplaylist.infrastructure.opensearch.content.ContentVectorSearchRepository;
-import com.moduplaylist.infrastructure.opensearch.recommendation.UserPreferenceVectorDocument;
-import com.moduplaylist.infrastructure.opensearch.recommendation.UserPreferenceVectorRepository;
+import com.moduplaylist.infrastructure.opensearch.recommendation.UserContentPreferenceVectorDocument;
+import com.moduplaylist.infrastructure.opensearch.recommendation.UserContentPreferenceVectorRepository;
 import com.moduplaylist.infrastructure.redis.recommendation.ContentRecommendationRedisRepository;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -21,7 +21,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ContentRecommendationService {
 
-    private final UserPreferenceVectorRepository userVectorRepository;
+    private final UserContentPreferenceVectorRepository userVectorRepository;
     private final ContentVectorSearchRepository contentVectorSearchRepository;
     private final UserPreferenceContentRepository userPreferenceContentRepository;
     private final ContentLikeRepository contentLikeRepository;
@@ -30,7 +30,7 @@ public class ContentRecommendationService {
     private final RecommendationProperties properties;
 
     public List<UUID> generateAndCache(UUID userId) {
-        UserPreferenceVectorDocument userVector = userVectorRepository.findById(userId)
+        UserContentPreferenceVectorDocument userVector = userVectorRepository.findById(userId)
                 .orElseThrow(() -> new IllegalStateException(
                         "사용자 선호 벡터가 존재하지 않습니다. userId=" + userId
                 ));

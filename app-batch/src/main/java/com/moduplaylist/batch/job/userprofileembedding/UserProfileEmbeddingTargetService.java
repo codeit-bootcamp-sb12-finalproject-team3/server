@@ -5,8 +5,8 @@ import com.moduplaylist.core.recommendation.entity.UserContentTagPreference;
 import com.moduplaylist.core.recommendation.repository.UserContentGenrePreferenceRepository;
 import com.moduplaylist.core.recommendation.repository.UserContentTagPreferenceRepository;
 import com.moduplaylist.infrastructure.embedding.EmbeddingGenerator;
-import com.moduplaylist.infrastructure.opensearch.recommendation.UserPreferenceVectorDocument;
-import com.moduplaylist.infrastructure.opensearch.recommendation.UserPreferenceVectorRepository;
+import com.moduplaylist.infrastructure.opensearch.recommendation.UserContentPreferenceVectorDocument;
+import com.moduplaylist.infrastructure.opensearch.recommendation.UserContentPreferenceVectorRepository;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -24,7 +24,7 @@ public class UserProfileEmbeddingTargetService {
 
     private final UserContentTagPreferenceRepository tagPreferenceRepository;
     private final UserContentGenrePreferenceRepository genrePreferenceRepository;
-    private final UserPreferenceVectorRepository vectorRepository;
+    private final UserContentPreferenceVectorRepository vectorRepository;
     private final EmbeddingGenerator embeddingGenerator;
 
     public List<UUID> findTargetUserIds() {
@@ -71,7 +71,7 @@ public class UserProfileEmbeddingTargetService {
 
     private boolean isOutdated(
             Instant preferenceUpdatedAt,
-            UserPreferenceVectorDocument document
+            UserContentPreferenceVectorDocument document
     ) {
         Instant embeddedPreferenceUpdatedAt = document.getPreferenceUpdatedAt();
         return embeddedPreferenceUpdatedAt == null

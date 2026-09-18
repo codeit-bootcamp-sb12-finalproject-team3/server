@@ -10,8 +10,10 @@ public class OpenSearchProperties {
     private List<String> uris = List.of("http://localhost:9200");
     private String username = "";
     private String password = "";
-    private String userPreferenceIndex = "user-preference-index";
+    private String userContentPreferenceIndex = "user-content-preference-index";
+    private String userPlaylistPreferenceIndex = "user-playlist-preference-index";
     private String contentIndex = "content-index";
+    private String playlistIndex = "playlist-index";
 
     public boolean isEnabled() {
         return enabled;
@@ -45,12 +47,20 @@ public class OpenSearchProperties {
         this.password = password;
     }
 
-    public String getUserPreferenceIndex() {
-        return userPreferenceIndex;
+    public String getUserContentPreferenceIndex() {
+        return userContentPreferenceIndex;
     }
 
-    public void setUserPreferenceIndex(String userPreferenceIndex) {
-        this.userPreferenceIndex = userPreferenceIndex;
+    public void setUserContentPreferenceIndex(String userContentPreferenceIndex) {
+        this.userContentPreferenceIndex = userContentPreferenceIndex;
+    }
+
+    public String getUserPlaylistPreferenceIndex() {
+        return userPlaylistPreferenceIndex;
+    }
+
+    public void setUserPlaylistPreferenceIndex(String userPlaylistPreferenceIndex) {
+        this.userPlaylistPreferenceIndex = userPlaylistPreferenceIndex;
     }
 
     public String getContentIndex() {
@@ -59,5 +69,13 @@ public class OpenSearchProperties {
 
     public void setContentIndex(String contentIndex) {
         this.contentIndex = contentIndex;
+    }
+
+    public String getPlaylistIndex() {
+        return playlistIndex;
+    }
+
+    public void setPlaylistIndex(String playlistIndex) {
+        this.playlistIndex = playlistIndex;
     }
 }
