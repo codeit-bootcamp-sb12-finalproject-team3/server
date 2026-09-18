@@ -52,7 +52,7 @@ public class ContentCreateRequest {
 
 	private List<@NotBlank @Size(max = 100) String> manualTags;
 
-	private List<@NotNull @Valid ContentCastCreateRequest> casts;
+	private List<@NotNull @Valid ContentCastRequest> casts;
 
 	public void setTitle(String title) {
 		this.title = strip(title);
@@ -110,7 +110,7 @@ public class ContentCreateRequest {
 				.toList();
 	}
 
-	public void setCasts(List<ContentCastCreateRequest> casts) {
+	public void setCasts(List<ContentCastRequest> casts) {
 		this.casts = casts;
 	}
 

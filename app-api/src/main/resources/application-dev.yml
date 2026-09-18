@@ -16,7 +16,7 @@ spring:
   ai:
     model:
       chat: none
-      embedding: ${SPRING_AI_MODEL_EMBEDDING:none}
+      embedding: ${SPRING_AI_MODEL_EMBEDDING:openai}
     openai:
       api-key: ${OPENAI_API_KEY:}
       embedding:
@@ -59,13 +59,12 @@ aws:
     region: ${AWS_REGION:ap-northeast-2}
     bucket: ${AWS_S3_BUCKET:}
 
-mopl:
-  embedding:
-    enabled: ${EMBEDDING_ENABLED:false}
-    model: text-embedding-3-small
-    dimensions: 1536
+embedding:
+  enabled: ${EMBEDDING_ENABLED:true}
+  model: text-embedding-3-small
+  dimensions: 1536
   opensearch:
-    enabled: ${OPENSEARCH_ENABLED:false}
+    enabled: ${OPENSEARCH_ENABLED:true}
     uris: ${OPENSEARCH_URIS:http://localhost:9200}
     username: ${OPENSEARCH_USERNAME:}
     password: ${OPENSEARCH_PASSWORD:}

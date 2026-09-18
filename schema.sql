@@ -1205,3 +1205,4 @@ ALTER TABLE notifications
 
 CREATE INDEX idx_notifications_receiver_created
     ON notifications (receiver_id, created_at DESC, id DESC);
+

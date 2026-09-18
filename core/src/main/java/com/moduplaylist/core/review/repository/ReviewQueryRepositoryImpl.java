@@ -68,15 +68,15 @@ public class ReviewQueryRepositoryImpl implements ReviewQueryRepository {
             StringBuilder filter,
             Map<String, Object> parameters,
             SearchCondition condition) {
-        if (condition.getCursorId() == null) {
+        if (condition.getIdAfter() == null) {
             return;
         }
 
         filter.append(" and (review.createdAt < :cursorCreatedAt")
                 .append(" or (review.createdAt = :cursorCreatedAt")
-                .append(" and review.id < :cursorId))");
+                .append(" and review.id < :idAfter))");
         parameters.put("cursorCreatedAt", condition.getCursorCreatedAt());
-        parameters.put("cursorId", condition.getCursorId());
+        parameters.put("idAfter", condition.getIdAfter());
     }
 
     private <T> void setParameters(
