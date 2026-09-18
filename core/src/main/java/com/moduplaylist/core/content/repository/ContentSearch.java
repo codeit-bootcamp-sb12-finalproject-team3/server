@@ -1,16 +1,19 @@
 package com.moduplaylist.core.content.repository;
 
+import com.moduplaylist.core.content.entity.ContentType;
+import com.moduplaylist.core.content.exception.InvalidContentSearchException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 import lombok.Getter;
 
 @Getter
 public class ContentSearch {
 
+    private final ContentType type;
+    private final UUID genreId;
     private final String sportType;
     private final UUID likedByUserId;
     private final List<UUID> matchedContentIds;
@@ -18,10 +21,13 @@ public class ContentSearch {
     private final Instant cursorCreatedAt;
     private final Instant cursorLikedAt;
     private final BigDecimal cursorRating;
-    private final UUID cursorId;
+    private final Long cursorReviewCount;
+    private final UUID idAfter;
     private final int limit;
 
     public ContentSearch(
+            ContentType type,
+            UUID genreId,
             String sportType,
             UUID likedByUserId,
             Collection<UUID> matchedContentIds,
@@ -29,7 +35,8 @@ public class ContentSearch {
             Instant cursorCreatedAt,
             Instant cursorLikedAt,
             BigDecimal cursorRating,
-            UUID cursorId,
+            Long cursorReviewCount,
+            UUID idAfter,
             int limit) {
         validateSortAndCursors(
                 likedByUserId,
@@ -37,11 +44,34 @@ public class ContentSearch {
                 cursorCreatedAt,
                 cursorLikedAt,
                 cursorRating,
-                cursorId);
+                cursorReviewCount,
+                idAfter);
         if (limit < 1 || limit > 100) {
-            throw new IllegalArgumentException("limit은 1부터 100 사이여야 합니다.");
+            throw new InvalidContentSearchException();
+        }
+        if (sportType != null && !sportType.isBlank()
+                && type != ContentType.SPORT) {
+            throw new InvalidContentSearchException();
+        }
+        if (genreId != null
+                && type != ContentType.MOVIE
+                && type != ContentType.TV_SEASON) {
+            throw new InvalidContentSearchException();
+        }
+        if (genreId != null && sportType != null && !sportType.isBlank()) {
+            throw new InvalidContentSearchException();
+        }
+        if (matchedContentIds != null
+                && (genreId != null
+                || sportType != null && !sportType.isBlank())) {
+            throw new InvalidContentSearchException();
+        }
+        if (matchedContentIds != null && matchedContentIds.size() > 100) {
+            throw new InvalidContentSearchException();
         }
 
+        this.type = type;
+        this.genreId = genreId;
         this.sportType = sportType;
         this.likedByUserId = likedByUserId;
         this.matchedContentIds = matchedContentIds == null
@@ -51,16 +81,17 @@ public class ContentSearch {
         this.cursorCreatedAt = cursorCreatedAt;
         this.cursorLikedAt = cursorLikedAt;
         this.cursorRating = cursorRating;
-        this.cursorId = cursorId;
+        this.cursorReviewCount = cursorReviewCount;
+        this.idAfter = idAfter;
         this.limit = limit;
-    }
-
-    public boolean isLikedContentsSearch() {
-        return likedByUserId != null;
     }
 
     public boolean hasContentIdFilter() {
         return matchedContentIds != null;
+    }
+
+    public boolean isLikedContentsSearch() {
+        return likedByUserId != null;
     }
 
     private static void validateSortAndCursors(
@@ -69,44 +100,60 @@ public class ContentSearch {
             Instant cursorCreatedAt,
             Instant cursorLikedAt,
             BigDecimal cursorRating,
-            UUID cursorId) {
+            Long cursorReviewCount,
+            UUID idAfter) {
         if (likedByUserId != null) {
             if (sort != null) {
-                throw new IllegalArgumentException(
-                        "좋아요 콘텐츠 조회에는 일반 정렬 기준을 지정할 수 없습니다.");
+                throw new InvalidContentSearchException();
             }
-            requirePair(cursorLikedAt, cursorId, "좋아요 등록 시각과 콘텐츠 ID");
-            if (cursorCreatedAt != null || cursorRating != null) {
-                throw new IllegalArgumentException(
-                        "좋아요 콘텐츠 조회에는 일반 목록 커서를 지정할 수 없습니다.");
+            requirePair(cursorLikedAt, idAfter);
+            if (cursorCreatedAt != null
+                    || cursorRating != null
+                    || cursorReviewCount != null) {
+                throw new InvalidContentSearchException();
             }
             return;
         }
 
-        Objects.requireNonNull(sort, "일반 콘텐츠 조회의 정렬 기준은 필수입니다.");
+        if (sort == null) {
+            throw new InvalidContentSearchException();
+        }
         if (cursorLikedAt != null) {
-            throw new IllegalArgumentException(
-                    "일반 콘텐츠 조회에는 좋아요 목록 커서를 지정할 수 없습니다.");
+            throw new InvalidContentSearchException();
         }
         if (sort == Sort.LATEST) {
-            requirePair(cursorCreatedAt, cursorId, "콘텐츠 등록 시각과 콘텐츠 ID");
-            if (cursorRating != null) {
-                throw new IllegalArgumentException(
-                        "최신순 조회에는 평점 커서를 지정할 수 없습니다.");
+            requirePair(cursorCreatedAt, idAfter);
+            if (cursorRating != null || cursorReviewCount != null) {
+                throw new InvalidContentSearchException();
             }
             return;
         }
 
-        requirePair(cursorRating, cursorId, "평점과 콘텐츠 ID");
+        requireRatingCursor(cursorRating, cursorReviewCount, idAfter);
         if (cursorCreatedAt != null) {
-            throw new IllegalArgumentException(
-                    "평점순 조회에는 콘텐츠 등록 시각 커서를 지정할 수 없습니다.");
+            throw new InvalidContentSearchException();
         }
     }
 
-    private static void requirePair(Object value, UUID cursorId, String fields) {
-        if ((value == null) != (cursorId == null)) {
-            throw new IllegalArgumentException(fields + "는 함께 지정해야 합니다.");
+    private static void requirePair(Object value, UUID idAfter) {
+        if ((value == null) != (idAfter == null)) {
+            throw new InvalidContentSearchException();
+        }
+    }
+
+    private static void requireRatingCursor(
+            BigDecimal cursorRating,
+            Long cursorReviewCount,
+            UUID idAfter) {
+        boolean absent = cursorRating == null
+                && cursorReviewCount == null
+                && idAfter == null;
+        boolean complete = cursorRating != null
+                && cursorReviewCount != null
+                && cursorReviewCount >= 0
+                && idAfter != null;
+        if (!absent && !complete) {
+            throw new InvalidContentSearchException();
         }
     }
 

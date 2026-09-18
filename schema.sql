@@ -1,6 +1,10 @@
 -- MySQL 8.0 기준
 SET NAMES utf8mb4;
 
+-- 모든 PK/FK 식별자는 애플리케이션에서 생성한 UUIDv7을 사용한다.
+-- API/Java에서는 UUID, MySQL에서는 표준 big-endian 바이트 순서의 BINARY(16)으로 표현한다.
+-- 모든 테이블은 비식별 관계이므로 관계 테이블을 포함하여 독립 PK와 FK를 유지한다.
+
 
 -- =================================================================
 -- 사용자
@@ -61,10 +65,8 @@ CREATE TABLE contents (
                           parent_content_id   BINARY(16) NULL,
                           title               VARCHAR(255) NOT NULL,
                           season_number       INT NULL,
-                          season_count        INT NULL,
                           episode_count       INT NULL,
                           type                ENUM('movie', 'tvSeries', 'tvSeason', 'sport') NOT NULL,
-                          sport_type          VARCHAR(50) NULL,
                           description         TEXT NULL,
                           thumbnail_url       VARCHAR(500) NULL,
                           release_date        DATE NULL,
@@ -72,6 +74,13 @@ CREATE TABLE contents (
                           metadata            JSON NULL,
                           external_source     VARCHAR(30) NULL,
                           external_id         INT NULL,
+                          ai_tagging_status   ENUM(
+                              'PENDING',
+                              'COMPLETED',
+                              'COMPLETED_PARTIAL',
+                              'FAILED'
+                          ) NULL,
+                          hidden              BOOLEAN NOT NULL DEFAULT FALSE,
                           average_rating      DECIMAL(3,2) NOT NULL DEFAULT 0.00,
                           like_count          INT UNSIGNED NOT NULL DEFAULT 0,
                           review_count        INT UNSIGNED NOT NULL DEFAULT 0,
@@ -94,7 +103,7 @@ ALTER TABLE contents
     ADD CONSTRAINT fk_contents_parent
         FOREIGN KEY (parent_content_id)
             REFERENCES contents (id)
-            ON DELETE CASCADE;
+            ON DELETE RESTRICT;
 
 ALTER TABLE contents
     ADD CONSTRAINT chk_contents_external_pair
@@ -102,6 +111,12 @@ ALTER TABLE contents
             (external_source IS NULL AND external_id IS NULL)
                 OR
             (external_source IS NOT NULL AND external_id IS NOT NULL)
+            );
+
+ALTER TABLE contents
+    ADD CONSTRAINT chk_contents_title
+        CHECK (
+            CHAR_LENGTH(TRIM(title)) BETWEEN 1 AND 255
             );
 
 ALTER TABLE contents
@@ -115,10 +130,6 @@ ALTER TABLE contents
 ALTER TABLE contents
     ADD CONSTRAINT chk_contents_season_number
         CHECK (season_number IS NULL OR season_number >= 0);
-
-ALTER TABLE contents
-    ADD CONSTRAINT chk_contents_season_count
-        CHECK (season_count IS NULL OR season_count >= 0);
 
 ALTER TABLE contents
     ADD CONSTRAINT chk_contents_episode_count
@@ -141,39 +152,106 @@ ALTER TABLE contents
                 )
             );
 
-ALTER TABLE contents
-    ADD CONSTRAINT chk_contents_sport_type
-        CHECK (
-            (type = 'sport' AND sport_type IS NOT NULL)
-                OR
-            (type <> 'sport' AND sport_type IS NULL)
-            );
-
-ALTER TABLE contents
-    ADD CONSTRAINT chk_contents_series_count
-        CHECK (
-            (type = 'tvSeries')
-                OR
-            (season_count IS NULL)
-            );
-
 CREATE INDEX idx_contents_created
-    ON contents (created_at DESC, id DESC);
+    ON contents (hidden, created_at DESC, id DESC);
 
 CREATE INDEX idx_contents_rating
-    ON contents (average_rating DESC, id DESC);
+    ON contents (hidden, average_rating DESC, review_count DESC, id DESC);
 
 CREATE INDEX idx_contents_type_created
-    ON contents (type, created_at DESC, id DESC);
+    ON contents (hidden, type, created_at DESC, id DESC);
 
 CREATE INDEX idx_contents_type_rating
-    ON contents (type, average_rating DESC, id DESC);
+    ON contents (hidden, type, average_rating DESC, review_count DESC, id DESC);
 
-CREATE INDEX idx_contents_sport_created
-    ON contents (sport_type, created_at DESC, id DESC);
+CREATE INDEX idx_contents_parent_season
+    ON contents (parent_content_id, hidden, season_number);
 
 
 -- =================================================================
+-- 스포츠 종목 마스터
+
+CREATE TABLE sport_types (
+                            id                  BINARY(16) NOT NULL,
+                            code                VARCHAR(50) NOT NULL,
+                            name                VARCHAR(100) NOT NULL,
+                            active              BOOLEAN NOT NULL DEFAULT TRUE,
+                            created_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                            updated_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+);
+
+ALTER TABLE sport_types
+    ADD CONSTRAINT pk_sport_types PRIMARY KEY (id);
+
+ALTER TABLE sport_types
+    ADD CONSTRAINT uq_sport_types_code UNIQUE (code);
+
+ALTER TABLE sport_types
+    ADD CONSTRAINT uq_sport_types_name UNIQUE (name);
+
+CREATE INDEX idx_sport_types_active_name
+    ON sport_types (active, name);
+
+
+-- 스포츠 경기
+
+CREATE TABLE sport_events (
+                             content_id          BINARY(16) NOT NULL,
+                             sport_type_id       BINARY(16) NOT NULL,
+                             external_league_id  VARCHAR(100) NULL,
+                             league_name         VARCHAR(255) NULL,
+                             season              VARCHAR(100) NULL,
+                             round               VARCHAR(100) NULL,
+                             home_team_name      VARCHAR(255) NOT NULL,
+                             away_team_name      VARCHAR(255) NOT NULL,
+                             venue               VARCHAR(255) NULL,
+                             country             VARCHAR(100) NULL,
+                             scheduled_at        DATETIME(6) NULL,
+                             home_score          INT NULL,
+                             away_score          INT NULL,
+                             raw_status          VARCHAR(100) NULL,
+                             normalized_status   ENUM(
+                                 'SCHEDULED',
+                                 'LIVE',
+                                 'FINISHED',
+                                 'POSTPONED',
+                                 'CANCELLED',
+                                 'SUSPENDED',
+                                 'UNKNOWN'
+                             ) NOT NULL DEFAULT 'UNKNOWN',
+                             last_checked_at      DATETIME(6) NULL
+);
+
+ALTER TABLE sport_events
+    ADD CONSTRAINT pk_sport_events PRIMARY KEY (content_id);
+
+ALTER TABLE sport_events
+    ADD CONSTRAINT fk_sport_events_content
+        FOREIGN KEY (content_id)
+            REFERENCES contents (id)
+            ON DELETE RESTRICT;
+
+ALTER TABLE sport_events
+    ADD CONSTRAINT fk_sport_events_sport_type
+        FOREIGN KEY (sport_type_id)
+            REFERENCES sport_types (id)
+            ON DELETE RESTRICT;
+
+ALTER TABLE sport_events
+    ADD CONSTRAINT chk_sport_events_scores
+        CHECK (
+            (home_score IS NULL AND away_score IS NULL)
+                OR
+            (home_score >= 0 AND away_score >= 0)
+            );
+
+CREATE INDEX idx_sport_events_type_schedule
+    ON sport_events (sport_type_id, scheduled_at, content_id);
+
+CREATE INDEX idx_sport_events_status_schedule
+    ON sport_events (normalized_status, scheduled_at, content_id);
+
+
 -- TV 시즌 회차
 
 CREATE TABLE episodes (
@@ -182,10 +260,10 @@ CREATE TABLE episodes (
                           episode_number      INT NOT NULL,
                           title               VARCHAR(255) NOT NULL,
                           description         TEXT NULL,
-                          still_image_url     VARCHAR(500) NULL,
+                          thumbnail_url       VARCHAR(500) NULL,
                           runtime             INT NULL,
-                          air_date            DATE NULL,
-                          external_id         INT NOT NULL,
+                          external_source     VARCHAR(30) NULL,
+                          external_id         INT NULL,
                           created_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
                           updated_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 );
@@ -194,8 +272,8 @@ ALTER TABLE episodes
     ADD CONSTRAINT pk_episodes PRIMARY KEY (id);
 
 ALTER TABLE episodes
-    ADD CONSTRAINT uq_episodes_external_id
-        UNIQUE (external_id);
+    ADD CONSTRAINT uq_episodes_external
+        UNIQUE (external_source, external_id);
 
 ALTER TABLE episodes
     ADD CONSTRAINT uq_episodes_season_number
@@ -205,16 +283,27 @@ ALTER TABLE episodes
     ADD CONSTRAINT fk_episodes_season
         FOREIGN KEY (season_id)
             REFERENCES contents (id)
-            ON DELETE CASCADE;
+            ON DELETE RESTRICT;
+
+ALTER TABLE episodes
+    ADD CONSTRAINT chk_episodes_external_pair
+        CHECK (
+            (external_source IS NULL AND external_id IS NULL)
+                OR
+            (external_source IS NOT NULL AND external_id IS NOT NULL)
+            );
 
 ALTER TABLE episodes
     ADD CONSTRAINT chk_episodes_number
         CHECK (episode_number >= 0);
 
 ALTER TABLE episodes
+    ADD CONSTRAINT chk_episodes_title
+        CHECK (CHAR_LENGTH(TRIM(title)) BETWEEN 1 AND 255);
+
+ALTER TABLE episodes
     ADD CONSTRAINT chk_episodes_runtime
         CHECK (runtime IS NULL OR runtime > 0);
-
 
 -- =================================================================
 -- 장르
@@ -257,7 +346,7 @@ ALTER TABLE content_genres
     ADD CONSTRAINT fk_content_genres_content
         FOREIGN KEY (content_id)
             REFERENCES contents (id)
-            ON DELETE CASCADE;
+            ON DELETE RESTRICT;
 
 ALTER TABLE content_genres
     ADD CONSTRAINT fk_content_genres_genre
@@ -291,7 +380,7 @@ CREATE TABLE content_tags (
                               id                  BINARY(16) NOT NULL,
                               content_id          BINARY(16) NOT NULL,
                               tag_id              BINARY(16) NOT NULL,
-                              source              ENUM('MANUAL', 'AI', 'EXTERNAL') NOT NULL
+                              source              ENUM('MANUAL', 'AI') NOT NULL
 );
 
 ALTER TABLE content_tags
@@ -305,7 +394,7 @@ ALTER TABLE content_tags
     ADD CONSTRAINT fk_content_tags_content
         FOREIGN KEY (content_id)
             REFERENCES contents (id)
-            ON DELETE CASCADE;
+            ON DELETE RESTRICT;
 
 ALTER TABLE content_tags
     ADD CONSTRAINT fk_content_tags_tag
@@ -411,7 +500,7 @@ ALTER TABLE content_casts
     ADD CONSTRAINT fk_content_casts_content
         FOREIGN KEY (content_id)
             REFERENCES contents (id)
-            ON DELETE CASCADE;
+            ON DELETE RESTRICT;
 
 ALTER TABLE content_casts
     ADD CONSTRAINT chk_content_casts_order
@@ -419,54 +508,70 @@ ALTER TABLE content_casts
 
 
 -- =================================================================
--- OTT 플랫폼
+-- 플랫폼 마스터
 
-CREATE TABLE ott_platforms (
-                               id                  BINARY(16) NOT NULL,
-                               name                VARCHAR(50) NOT NULL,
-                               logo_url            VARCHAR(500) NULL,
-                               created_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+CREATE TABLE platforms (
+                          id                  BINARY(16) NOT NULL,
+                          tmdb_provider_id    INT NULL,
+                          name                VARCHAR(100) NOT NULL,
+                          logo_url            VARCHAR(500) NULL,
+                          created_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 );
 
-ALTER TABLE ott_platforms
-    ADD CONSTRAINT pk_ott_platforms PRIMARY KEY (id);
+ALTER TABLE platforms
+    ADD CONSTRAINT pk_platforms PRIMARY KEY (id);
 
-ALTER TABLE ott_platforms
-    ADD CONSTRAINT uq_ott_platforms_name UNIQUE (name);
+ALTER TABLE platforms
+    ADD CONSTRAINT uq_platforms_name UNIQUE (name);
 
+ALTER TABLE platforms
+    ADD CONSTRAINT uq_platforms_tmdb_provider
+        UNIQUE (tmdb_provider_id);
 
 -- =================================================================
--- 콘텐츠-OTT 관계
+-- 콘텐츠-플랫폼 관계
 
-CREATE TABLE content_ott (
-                             id                  BINARY(16) NOT NULL,
-                             content_id          BINARY(16) NOT NULL,
-                             ott_id              BINARY(16) NOT NULL,
-                             watch_url           VARCHAR(1000) NULL,
-                             updated_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+CREATE TABLE content_platforms (
+                                  id                  BINARY(16) NOT NULL,
+                                  content_id          BINARY(16) NOT NULL,
+                                  platform_id         BINARY(16) NOT NULL,
+                                  source              ENUM('TMDB', 'MANUAL') NOT NULL,
+                                  region_code         CHAR(2) NOT NULL DEFAULT 'KR',
+                                  url                 VARCHAR(1000) NOT NULL
 );
 
-ALTER TABLE content_ott
-    ADD CONSTRAINT pk_content_ott PRIMARY KEY (id);
+ALTER TABLE content_platforms
+    ADD CONSTRAINT pk_content_platforms PRIMARY KEY (id);
 
-ALTER TABLE content_ott
-    ADD CONSTRAINT uq_content_ott
-        UNIQUE (content_id, ott_id);
+ALTER TABLE content_platforms
+    ADD CONSTRAINT uq_content_platforms
+        UNIQUE (content_id, platform_id, region_code);
 
-ALTER TABLE content_ott
-    ADD CONSTRAINT fk_content_ott_content
+ALTER TABLE content_platforms
+    ADD CONSTRAINT fk_content_platforms_content
         FOREIGN KEY (content_id)
             REFERENCES contents (id)
-            ON DELETE CASCADE;
-
-ALTER TABLE content_ott
-    ADD CONSTRAINT fk_content_ott_platform
-        FOREIGN KEY (ott_id)
-            REFERENCES ott_platforms (id)
             ON DELETE RESTRICT;
 
-CREATE INDEX idx_content_ott_platform
-    ON content_ott (ott_id);
+ALTER TABLE content_platforms
+    ADD CONSTRAINT fk_content_platforms_platform
+        FOREIGN KEY (platform_id)
+            REFERENCES platforms (id)
+            ON DELETE RESTRICT;
+
+ALTER TABLE content_platforms
+    ADD CONSTRAINT chk_content_platforms_region
+        CHECK (region_code = UPPER(region_code));
+
+ALTER TABLE content_platforms
+    ADD CONSTRAINT chk_content_platforms_url
+        CHECK (url LIKE 'http://%' OR url LIKE 'https://%');
+
+CREATE INDEX idx_content_platforms_lookup
+    ON content_platforms (content_id, region_code, platform_id);
+
+CREATE INDEX idx_content_platforms_platform
+    ON content_platforms (platform_id);
 
 
 -- =================================================================
@@ -496,7 +601,7 @@ ALTER TABLE user_preference_contents
     ADD CONSTRAINT fk_user_preference_contents_content
         FOREIGN KEY (content_id)
             REFERENCES contents (id)
-            ON DELETE CASCADE;
+            ON DELETE RESTRICT;
 
 CREATE INDEX idx_user_preference_contents_content
     ON user_preference_contents (content_id);
@@ -523,13 +628,13 @@ ALTER TABLE content_likes
     ADD CONSTRAINT fk_content_likes_user
         FOREIGN KEY (user_id)
             REFERENCES users (id)
-            ON DELETE CASCADE;
+            ON DELETE RESTRICT;
 
 ALTER TABLE content_likes
     ADD CONSTRAINT fk_content_likes_content
         FOREIGN KEY (content_id)
             REFERENCES contents (id)
-            ON DELETE CASCADE;
+            ON DELETE RESTRICT;
 
 CREATE INDEX idx_content_likes_content
     ON content_likes (content_id);
@@ -563,19 +668,25 @@ ALTER TABLE reviews
     ADD CONSTRAINT fk_reviews_user
         FOREIGN KEY (user_id)
             REFERENCES users (id)
-            ON DELETE CASCADE;
+            ON DELETE RESTRICT;
 
 ALTER TABLE reviews
     ADD CONSTRAINT fk_reviews_content
         FOREIGN KEY (content_id)
             REFERENCES contents (id)
-            ON DELETE CASCADE;
+            ON DELETE RESTRICT;
 
 ALTER TABLE reviews
     ADD CONSTRAINT chk_reviews_rating
         CHECK (
-            rating BETWEEN 0.0 AND 5.0
+            rating BETWEEN 0.5 AND 5.0
                 AND MOD(rating * 10, 5) = 0
+            );
+
+ALTER TABLE reviews
+    ADD CONSTRAINT chk_reviews_content
+        CHECK (
+            CHAR_LENGTH(TRIM(content)) BETWEEN 1 AND 800
             );
 
 CREATE INDEX idx_reviews_content_created
@@ -645,7 +756,7 @@ ALTER TABLE playlist_contents
     ADD CONSTRAINT fk_playlist_contents_content
         FOREIGN KEY (content_id)
             REFERENCES contents (id)
-            ON DELETE CASCADE;
+            ON DELETE RESTRICT;
 
 CREATE INDEX idx_playlist_contents_content
     ON playlist_contents (content_id);
@@ -832,7 +943,7 @@ CREATE TABLE watch_parties (
                                status              ENUM('SCHEDULED', 'LIVE', 'ENDED') NOT NULL
                                                                         DEFAULT 'SCHEDULED',
                                max_participants    INT UNSIGNED NOT NULL,
-
+                               session_duration_minutes INT NOT NULL,
                                start_episode       INT NULL,
                                end_episode         INT NULL,
                                created_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -859,7 +970,11 @@ ALTER TABLE watch_parties
     ADD CONSTRAINT chk_watch_parties_max_participants
         CHECK (max_participants > 0);
 
-
+ALTER TABLE watch_parties
+    ADD CONSTRAINT chk_watch_parties_duration
+        CHECK (
+            session_duration_minutes > 0
+            );
 
 ALTER TABLE watch_parties
     ADD CONSTRAINT chk_watch_parties_episode_range
@@ -1090,3 +1205,4 @@ ALTER TABLE notifications
 
 CREATE INDEX idx_notifications_receiver_created
     ON notifications (receiver_id, created_at DESC, id DESC);
+

@@ -2,21 +2,18 @@ package com.moduplaylist.core.content.entity;
 
 import com.moduplaylist.core.common.BaseEntity;
 import jakarta.persistence.*;
-import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
 
 @Entity
 @Table(
 	name = "episodes",
 	uniqueConstraints = {
 		@UniqueConstraint(
-			name = "uq_episodes_external_id",
-			columnNames = "external_id"
+			name = "uq_episodes_external",
+			columnNames = {"external_source", "external_id"}
 		),
 		@UniqueConstraint(
 			name = "uq_episodes_season_number",
@@ -29,7 +26,6 @@ import org.hibernate.annotations.OnDeleteAction;
 public class Episode extends BaseEntity {
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "season_id", nullable = false, updatable = false)
-	@OnDelete(action = OnDeleteAction.CASCADE)
 	private Content season;
 
 	@Column(name = "episode_number", nullable = false)
@@ -41,15 +37,15 @@ public class Episode extends BaseEntity {
 	@Column(columnDefinition = "TEXT")
 	private String description;
 
-	@Column(name = "still_image_url", length = 500)
-	private String stillImageUrl;
+	@Column(name = "thumbnail_url", length = 500)
+	private String thumbnailUrl;
 
 	private Integer runtime;
 
-	@Column(name = "air_date")
-	private LocalDate airDate;
+	@Column(name = "external_source", length = 30)
+	private String externalSource;
 
-	@Column(name = "external_id", nullable = false, updatable = false)
+	@Column(name = "external_id")
 	private Integer externalId;
 
 	@Builder
@@ -58,18 +54,18 @@ public class Episode extends BaseEntity {
 		Integer episodeNumber,
 		String title,
 		String description,
-		String stillImageUrl,
+		String thumbnailUrl,
 		Integer runtime,
-		LocalDate airDate,
+		String externalSource,
 		Integer externalId
 	) {
 		this.season = season;
 		this.episodeNumber = episodeNumber;
 		this.title = title;
 		this.description = description;
-		this.stillImageUrl = stillImageUrl;
+		this.thumbnailUrl = thumbnailUrl;
 		this.runtime = runtime;
-		this.airDate = airDate;
+		this.externalSource = externalSource;
 		this.externalId = externalId;
 		validate();
 	}
@@ -78,33 +74,35 @@ public class Episode extends BaseEntity {
 		Integer episodeNumber,
 		String title,
 		String description,
-		String stillImageUrl,
-		Integer runtime,
-		LocalDate airDate
+		String thumbnailUrl,
+		Integer runtime
 	) {
-		validateDetails(episodeNumber, title, stillImageUrl, runtime);
+		validateDetails(episodeNumber, title, thumbnailUrl, runtime);
 		this.episodeNumber = episodeNumber;
 		this.title = title;
 		this.description = description;
-		this.stillImageUrl = stillImageUrl;
+		this.thumbnailUrl = thumbnailUrl;
 		this.runtime = runtime;
-		this.airDate = airDate;
 	}
 
 	private void validate() {
 		if (season == null || season.getType() != ContentType.TV_SEASON) {
 			throw new IllegalArgumentException("회차는 TV 시즌에 속해야 합니다.");
 		}
-		validateDetails(episodeNumber, title, stillImageUrl, runtime);
-		if (externalId == null) {
-			throw new IllegalArgumentException("회차 외부 ID는 필수입니다.");
+		validateDetails(episodeNumber, title, thumbnailUrl, runtime);
+		if ((externalSource == null) != (externalId == null)) {
+			throw new IllegalArgumentException("외부 데이터 출처와 외부 ID는 함께 지정해야 합니다.");
+		}
+		if (externalSource != null
+			&& (externalSource.isBlank() || externalSource.length() > 30)) {
+			throw new IllegalArgumentException("외부 데이터 출처는 30자 이하의 문자열이어야 합니다.");
 		}
 	}
 
 	private static void validateDetails(
 		Integer episodeNumber,
 		String title,
-		String stillImageUrl,
+		String thumbnailUrl,
 		Integer runtime
 	) {
 		if (episodeNumber == null || episodeNumber < 0) {
@@ -116,8 +114,8 @@ public class Episode extends BaseEntity {
 		if (runtime != null && runtime <= 0) {
 			throw new IllegalArgumentException("회차 상영 시간은 0보다 커야 합니다.");
 		}
-		if (stillImageUrl != null && (stillImageUrl.isBlank() || stillImageUrl.length() > 500)) {
-			throw new IllegalArgumentException("회차 스틸 이미지 URL은 500자 이하이거나 null이어야 합니다.");
+		if (thumbnailUrl != null && (thumbnailUrl.isBlank() || thumbnailUrl.length() > 500)) {
+			throw new IllegalArgumentException("회차 썸네일 URL은 500자 이하이거나 null이어야 합니다.");
 		}
 	}
 }

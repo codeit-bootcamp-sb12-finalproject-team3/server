@@ -13,7 +13,7 @@ import org.springframework.data.repository.query.Param;
 public interface ReviewRepository
         extends JpaRepository<Review, UUID>, ReviewQueryRepository {
 
-    boolean existsByUserIdAndContentId(UUID userId, UUID contentId);
+    boolean existsByUser_IdAndContent_Id(UUID userId, UUID contentId);
 
     @Query("""
             select

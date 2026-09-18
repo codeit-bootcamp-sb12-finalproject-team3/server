@@ -19,3 +19,4 @@ realtime:
   kafka:
     # Each realtime instance needs its own group so every node can inspect its local emitters.
     notification-consumer-group: notification-sse-${REALTIME_INSTANCE_ID:${random.uuid}}
+    dm-message-consumer-group: dm-websocket-${REALTIME_INSTANCE_ID:${random.uuid}}

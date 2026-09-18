@@ -15,10 +15,7 @@ public class ContentDependencyQueryRepository {
 
     private final EntityManager entityManager;
 
-    /**
-     * 시리즈 삭제 시 함께 삭제될 하위 시즌을 잠그고 반환한다.
-     * 호출자는 같은 트랜잭션에서 루트 콘텐츠를 먼저 잠가야 한다.
-     */
+    /** 마지막 노출 시즌 판단을 위해 같은 시리즈의 시즌을 잠그고 반환한다. */
     public List<Content> findChildSeasonsForUpdate(UUID parentContentId) {
         return entityManager.createQuery("""
                         select content

@@ -36,7 +36,8 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
-        spring.json.type.mapping: notification-created:com.moduplaylist.infrastructure.kafka.event.NotificationCreatedKafkaEvent
+        spring.json.type.mapping: notification-created:com.moduplaylist.infrastructure.kafka.event.NotificationCreatedKafkaEvent,
+                                  dm-message-created:com.moduplaylist.infrastructure.kafka.event.DmMessageCreatedKafkaEvent
         #                           real-time과 연동되는 event에 대해서 밑에 예시 처럼 작성하시면 됩니다. Java FQCN type-mapping 한다고 알려주시면 돼요
         #                          , watchparty-playback:com.moduplaylist.infrastructure.kafka.event.WatchPartyPlaybackKafkaEvent
 
@@ -44,6 +45,7 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
+        spring.json.type.mapping: dm-send-requested:com.moduplaylist.infrastructure.kafka.event.DmSendRequestedKafkaEvent
         spring.json.trusted.packages: com.moduplaylist.infrastructure.kafka.event
 
 logging:
@@ -58,9 +60,6 @@ aws:
     bucket: ${AWS_S3_BUCKET:}
 
 mopl:
-  recommendation:
-    search-limit: ${RECOMMENDATION_SEARCH_LIMIT:100}
-    cache-ttl: ${RECOMMENDATION_CACHE_TTL:48h}
   embedding:
     enabled: ${EMBEDDING_ENABLED:true}
     model: text-embedding-3-small
