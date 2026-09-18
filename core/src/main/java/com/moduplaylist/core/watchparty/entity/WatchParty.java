@@ -43,6 +43,9 @@ public class WatchParty extends BaseEntity {
     @Column(name = "max_participants", nullable = false)
     private Integer maxParticipants;
 
+    @Column(name = "session_duration_minutes", nullable = false)
+    private Integer sessionDurationMinutes;
+
     @Column(name = "start_episode")
     private Integer startEpisode;
 
