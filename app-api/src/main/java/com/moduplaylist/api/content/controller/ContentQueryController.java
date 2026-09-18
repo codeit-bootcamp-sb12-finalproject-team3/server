@@ -84,8 +84,11 @@ public class ContentQueryController {
 	}
 
 	@GetMapping("/{contentId}/playlists")
-	public ResponseEntity<ContentPlaylistResponse> findPlaylists(@PathVariable UUID contentId) {
-		return ResponseEntity.ok(contentQueryService.findPlaylists(contentId));
+	public ResponseEntity<ContentPlaylistResponse> findPlaylists(
+		@AuthenticationPrincipal CustomUserDetails userDetails,
+		@PathVariable UUID contentId
+	) {
+		return ResponseEntity.ok(contentQueryService.findPlaylists(userDetails.getUserId(), contentId));
 	}
 
 	@GetMapping("/{contentId}/watch-parties")

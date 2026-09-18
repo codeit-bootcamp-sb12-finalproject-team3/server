@@ -13,7 +13,6 @@ import com.moduplaylist.api.content.dto.ContentAutocompleteRequest;
 import com.moduplaylist.api.content.dto.ContentAutocompleteResponse;
 import com.moduplaylist.api.content.dto.ContentPlatformItemResponse;
 import com.moduplaylist.api.content.dto.ContentPlatformResponse;
-import com.moduplaylist.api.content.dto.ContentPlaylistItemResponse;
 import com.moduplaylist.api.content.dto.ContentPlaylistResponse;
 import com.moduplaylist.api.content.dto.ContentResponse;
 import com.moduplaylist.api.content.dto.ContentSuggestionResponse;
@@ -27,6 +26,8 @@ import com.moduplaylist.api.content.service.ContentQueryService;
 import com.moduplaylist.api.content.service.ContentViewActivityService;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
+import com.moduplaylist.api.playlist.dto.PlaylistSummaryResponse;
+import com.moduplaylist.api.playlist.service.PlaylistService;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentTag;
 import com.moduplaylist.core.content.entity.ContentType;
@@ -50,6 +51,7 @@ import com.moduplaylist.core.content.repository.EpisodeRepository;
 import com.moduplaylist.core.content.repository.GenreRepository;
 import com.moduplaylist.core.content.repository.SportEventRepository;
 import com.moduplaylist.core.content.repository.SportTypeRepository;
+import com.moduplaylist.core.playlist.repository.PlaylistSearch;
 import com.moduplaylist.infrastructure.opensearch.content.ContentKeywordSearchRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -82,6 +84,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	private final SportEventRepository sportEventRepository;
 	private final ContentRelationRepository contentRelationRepository;
 	private final ContentViewActivityService contentViewActivityService;
+	private final PlaylistService playlistService;
 	private final ObjectProvider<ContentKeywordSearchRepository> keywordSearchRepositoryProvider;
 
 	@Override
@@ -248,21 +251,24 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public ContentPlaylistResponse findPlaylists(UUID contentId) {
+	public ContentPlaylistResponse findPlaylists(UUID userId, UUID contentId) {
 		requireMovieOrSeason(contentId);
-		List<ContentRelationRepository.Playlist> values = contentRelationRepository.findTopPlaylists(contentId);
-		boolean hasMore = values.size() > 20;
-		List<ContentPlaylistItemResponse> data = values.stream().limit(20)
-			.map(value -> ContentPlaylistItemResponse.builder()
-				.id(value.getId())
-				.title(value.getTitle())
-				.description(value.getDescription())
-				.subscriberCount(value.getSubscriberCount())
-				.weeklyPopularityScore(value.getWeeklyPopularityScore())
-				.createdAt(value.getCreatedAt())
-				.build())
-			.toList();
-		return ContentPlaylistResponse.builder().data(data).hasMore(hasMore).build();
+		PlaylistSearch search = new PlaylistSearch(
+			null,
+			null,
+			contentId,
+			null,
+			null,
+			null,
+			20,
+			PlaylistSearch.Sort.WEEKLY_POPULARITY_SCORE,
+			PlaylistSearch.Direction.DESCENDING
+		);
+		CursorPageResponse<PlaylistSummaryResponse> result = playlistService.findAll(userId, search);
+		return ContentPlaylistResponse.builder()
+			.data(result.getData())
+			.hasMore(Boolean.TRUE.equals(result.getHasNext()))
+			.build();
 	}
 
 	@Override

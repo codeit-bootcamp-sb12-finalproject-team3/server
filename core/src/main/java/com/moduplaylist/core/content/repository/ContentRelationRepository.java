@@ -5,7 +5,6 @@ import jakarta.persistence.EntityManager;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import lombok.Getter;
@@ -59,17 +58,6 @@ public class ContentRelationRepository {
 
     @Getter
     @RequiredArgsConstructor
-    public static class Playlist {
-        private final UUID id;
-        private final String title;
-        private final String description;
-        private final long subscriberCount;
-        private final BigDecimal weeklyPopularityScore;
-        private final Instant createdAt;
-    }
-
-    @Getter
-    @RequiredArgsConstructor
     public static class WatchParty {
         private final UUID id;
         private final String title;
@@ -106,21 +94,6 @@ public class ContentRelationRepository {
     }
 
     @SuppressWarnings("unchecked")
-    public List<Playlist> findTopPlaylists(UUID id) {
-        List<Object[]> values = em.createNativeQuery("""
-                SELECT p.id,p.title,p.description,
-                    (SELECT COUNT(*) FROM playlist_subscriptions ps WHERE ps.playlist_id=p.id) AS subscribers,
-                    p.weekly_popularity_score,p.created_at
-                FROM contents c
-                JOIN playlist_contents pc ON pc.content_id=c.id
-                JOIN playlists p ON p.id=pc.playlist_id
-                WHERE c.id=:id AND c.hidden=false
-                ORDER BY p.weekly_popularity_score DESC,p.id DESC
-                """).setParameter("id", bytes(id)).setMaxResults(PREVIEW_FETCH_LIMIT).getResultList();
-        return values.stream().map(this::toPlaylist).toList();
-    }
-
-    @SuppressWarnings("unchecked")
     public List<WatchParty> findWatchParties(UUID id) {
         List<Object[]> values = em.createNativeQuery("""
                 SELECT w.id,w.title,w.scheduled_at,
@@ -141,16 +114,6 @@ public class ContentRelationRepository {
 
     private Tag toTag(Object[] row) {
         return new Tag(uuid(row[0]), (String) row[1], TagSource.valueOf((String) row[2]));
-    }
-
-    private Playlist toPlaylist(Object[] row) {
-        return new Playlist(
-                uuid(row[0]),
-                (String) row[1],
-                (String) row[2],
-                ((Number) row[3]).longValue(),
-                (BigDecimal) row[4],
-                ((Timestamp) row[5]).toInstant());
     }
 
     private WatchParty toWatchParty(Object[] row) {

@@ -29,7 +29,7 @@ public interface ContentQueryService {
 
 	ContentPlatformResponse findOtt(UUID contentId);
 
-	ContentPlaylistResponse findPlaylists(UUID contentId);
+	ContentPlaylistResponse findPlaylists(UUID userId, UUID contentId);
 
 	ContentWatchPartyResponse findWatchParties(UUID contentId);
 
