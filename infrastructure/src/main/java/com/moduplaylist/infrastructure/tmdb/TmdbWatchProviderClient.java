@@ -8,9 +8,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
-@Component
 @RequiredArgsConstructor
 public class TmdbWatchProviderClient {
 
