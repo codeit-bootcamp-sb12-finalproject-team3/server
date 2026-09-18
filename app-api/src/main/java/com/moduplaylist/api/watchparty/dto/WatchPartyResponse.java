@@ -14,6 +14,7 @@ public class WatchPartyResponse {
     private Instant scheduledAt;
     private WatchPartyStatus status;
     private Integer maxParticipants;
+    private Integer sessionDurationMinutes;
     private Integer currentParticipantCount; // 저장값 아님 - JOINED 상태 count로 계산
     private Integer startEpisode;
     private Integer endEpisode;
@@ -22,7 +23,8 @@ public class WatchPartyResponse {
 
     public WatchPartyResponse(UUID id, HostSummary host, ContentSummary content,
                               String title, String description, Instant scheduledAt,
-                              WatchPartyStatus status, Integer maxParticipants, Integer currentParticipantCount,
+                              WatchPartyStatus status, Integer maxParticipants, Integer sessionDurationMinutes,
+                              Integer currentParticipantCount,
                               Integer startEpisode, Integer endEpisode,
                               Instant createdAt, Instant endedAt) {
         this.id = id;
@@ -33,6 +35,7 @@ public class WatchPartyResponse {
         this.scheduledAt = scheduledAt;
         this.status = status;
         this.maxParticipants = maxParticipants;
+        this.sessionDurationMinutes = sessionDurationMinutes;
         this.currentParticipantCount = currentParticipantCount;
         this.startEpisode = startEpisode;
         this.endEpisode = endEpisode;

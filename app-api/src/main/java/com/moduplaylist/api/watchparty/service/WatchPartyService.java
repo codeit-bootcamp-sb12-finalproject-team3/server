@@ -54,6 +54,7 @@ public class WatchPartyService {
                 .description(request.getDescription())
                 .scheduledAt(request.getScheduledAt())
                 .maxParticipants(request.getMaxParticipants())
+                .sessionDurationMinutes(request.getSessionDurationMinutes())
                 .startEpisode(request.getStartEpisode())
                 .endEpisode(request.getEndEpisode())
                 .build();
@@ -147,6 +148,7 @@ public class WatchPartyService {
                 watchParty.getScheduledAt(),
                 watchParty.getStatus(),
                 watchParty.getMaxParticipants(),
+                watchParty.getSessionDurationMinutes(),
                 currentParticipants,
                 watchParty.getStartEpisode(),
                 watchParty.getEndEpisode(),
