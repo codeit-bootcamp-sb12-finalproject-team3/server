@@ -39,7 +39,14 @@ public interface ConversationParticipantRepository
     @Query("""
             SELECT c AS conversation,
                    peerParticipant.user AS peer,
-                   latestMessage AS latestMessage
+                   latestMessage AS latestMessage,
+                   CASE WHEN EXISTS (
+                       SELECT unreadMessage.id
+                       FROM DirectMessage unreadMessage
+                       WHERE unreadMessage.conversation = c
+                         AND unreadMessage.sender.id <> :userId
+                         AND unreadMessage.readAt IS NULL
+                   ) THEN true ELSE false END AS hasUnread
             FROM ConversationParticipant currentParticipant
             JOIN currentParticipant.conversation c
             JOIN ConversationParticipant peerParticipant
