@@ -15,7 +15,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
-import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -60,9 +60,16 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     @Override
     public Message<?> preSend(@NonNull Message<?> message, @NonNull MessageChannel channel) {
-        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
-        StompCommand command = accessor.getCommand();
+        // CONNECT 원본 accessor의 user-change callback이 WebSocket session Principal을 갱신한다.
+        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(
+                message,
+                StompHeaderAccessor.class
+        );
+        if (accessor == null) {
+            return message;
+        }
 
+        StompCommand command = accessor.getCommand();
         if (StompCommand.CONNECT.equals(command)) {
             return handleConnect(message, accessor);
         }
@@ -98,9 +105,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
         // 인증 성공 처리
         accessor.setUser(new RealtimePrincipal(verifiedToken.userId()));
-        accessor.setLeaveMutable(true);
-
-        return MessageBuilder.createMessage(message.getPayload(), accessor.getMessageHeaders());
+        return message;
     }
 
     // SUBSCRIBE: kicked 체크 + "이미 다른 방에 JOINED면 구경 차단" 체크
