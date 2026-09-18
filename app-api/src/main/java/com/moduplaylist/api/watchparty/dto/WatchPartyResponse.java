@@ -1,14 +1,17 @@
 package com.moduplaylist.api.watchparty.dto;
 
+import com.moduplaylist.api.user.dto.UserSummary;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
+import lombok.Getter;
 import java.time.Instant;
 import java.util.UUID;
 
+@Getter
 public class WatchPartyResponse {
 
     private UUID id;
-    private HostSummary host;
-    private ContentSummary content;
+    private UserSummary host;
+    private WatchPartyContentSummary content;
     private String title;
     private String description;
     private Instant scheduledAt;
@@ -21,7 +24,7 @@ public class WatchPartyResponse {
     private Instant createdAt;
     private Instant endedAt;
 
-    public WatchPartyResponse(UUID id, HostSummary host, ContentSummary content,
+    public WatchPartyResponse(UUID id, UserSummary host, WatchPartyContentSummary content,
                               String title, String description, Instant scheduledAt,
                               WatchPartyStatus status, Integer maxParticipants, Integer sessionDurationMinutes,
                               Integer currentParticipantCount,
@@ -43,32 +46,4 @@ public class WatchPartyResponse {
         this.endedAt = endedAt;
     }
 
-
-    //공용 UserSummary 생기면 이 내부 클래스 대신 그걸로 교체
-    public static class HostSummary {
-        private UUID userId;
-        private String name;
-        private String profileImageUrl;
-
-        public HostSummary(UUID userId, String name, String profileImageUrl) {
-            this.userId = userId;
-            this.name = name;
-            this.profileImageUrl = profileImageUrl;
-        }
-    }
-
-    public static class ContentSummary {
-        private UUID id;
-        // Content 엔티티에서 type 필드 타입 확인하기 (지금은 String이지만, enum으로 매핑되어 있음 변경해야 함)
-        private String type;
-        private String title;
-        private String thumbnailUrl;
-
-        public ContentSummary(UUID id, String type, String title, String thumbnailUrl) {
-            this.id = id;
-            this.type = type;
-            this.title = title;
-            this.thumbnailUrl = thumbnailUrl;  //평점이나 태그 보여주고 싶음 추후 추가 에정(프론트 관련)
-        }
-    }
 }

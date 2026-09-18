@@ -2,8 +2,11 @@ package com.moduplaylist.api.watchparty.service;
 
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
+import com.moduplaylist.api.user.dto.UserSummary;
 import com.moduplaylist.api.watchparty.dto.CreateWatchPartyRequest;
+import com.moduplaylist.api.watchparty.dto.WatchPartyContentSummary;
 import com.moduplaylist.api.watchparty.dto.WatchPartyResponse;
+import com.moduplaylist.api.watchparty.dto.WatchPartySummaryResponse;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
@@ -82,7 +85,7 @@ public class WatchPartyService {
     }
 
     @Transactional(readOnly = true)
-    public CursorPageResponse<WatchPartyResponse> getWatchParties(
+    public CursorPageResponse<WatchPartySummaryResponse> getWatchParties(
             WatchPartyStatus statusEqual, UUID contentIdEqual,
             String cursor, UUID idAfter, int limit, SortDirection sortDirection) {
 
@@ -100,8 +103,8 @@ public class WatchPartyService {
 
         WatchPartyQueryRepository.SearchResult result = watchPartyQueryRepository.search(search);
 
-        List<WatchPartyResponse> data = result.getWatchParties().stream()
-                .map(this::toResponse)
+        List<WatchPartySummaryResponse> data = result.getWatchParties().stream()
+                .map(this::toSummaryResponse)
                 .toList();
 
         String nextCursor = null;
@@ -112,7 +115,7 @@ public class WatchPartyService {
             nextIdAfter = last.getId();
         }
 
-        return CursorPageResponse.<WatchPartyResponse>builder()
+        return CursorPageResponse.<WatchPartySummaryResponse>builder()
                 .data(data)
                 .nextCursor(nextCursor)
                 .nextIdAfter(nextIdAfter)
@@ -131,18 +134,11 @@ public class WatchPartyService {
         return toResponse(watchParty, watchParty.getHost(), content, currentParticipants);
     }
 
-
     private WatchPartyResponse toResponse(WatchParty watchParty, User host, Content content, int currentParticipants) {
-        WatchPartyResponse.HostSummary hostSummary = new WatchPartyResponse.HostSummary(
-                host.getId(), host.getName(), host.getProfileImageUrl());
-
-        WatchPartyResponse.ContentSummary contentSummary = new WatchPartyResponse.ContentSummary(
-                content.getId(), content.getType().getValue(), content.getTitle(), content.getThumbnailUrl());
-
         return new WatchPartyResponse(
                 watchParty.getId(),
-                hostSummary,
-                contentSummary,
+                toHostSummary(host),
+                toContentSummary(content),
                 watchParty.getTitle(),
                 watchParty.getDescription(),
                 watchParty.getScheduledAt(),
@@ -155,5 +151,41 @@ public class WatchPartyService {
                 watchParty.getCreatedAt(),
                 watchParty.getEndedAt()
         );
+    }
+
+    private WatchPartySummaryResponse toSummaryResponse(WatchParty watchParty) {
+        Content content = contentRepository.findById(watchParty.getContentId())
+                .orElseThrow(() -> new ContentNotFoundException(watchParty.getContentId()));
+        int currentParticipants = (int) watchPartyParticipantRepository
+                .countByWatchParty_IdAndStatus(watchParty.getId(), ParticipantStatus.JOINED);
+
+        return WatchPartySummaryResponse.builder()
+                .id(watchParty.getId())
+                .host(toHostSummary(watchParty.getHost()))
+                .content(toContentSummary(content))
+                .title(watchParty.getTitle())
+                .scheduledAt(watchParty.getScheduledAt())
+                .status(watchParty.getStatus())
+                .maxParticipants(watchParty.getMaxParticipants())
+                .currentParticipantCount(currentParticipants)
+                .createdAt(watchParty.getCreatedAt())
+                .build();
+    }
+
+    private UserSummary toHostSummary(User host) {
+        return UserSummary.builder()
+                .userId(host.getId())
+                .name(host.getName())
+                .profileImageUrl(host.getProfileImageUrl())
+                .build();
+    }
+
+    private WatchPartyContentSummary toContentSummary(Content content) {
+        return WatchPartyContentSummary.builder()
+                .id(content.getId())
+                .type(content.getType().getValue())
+                .title(content.getTitle())
+                .thumbnailUrl(content.getThumbnailUrl())
+                .build();
     }
 }
