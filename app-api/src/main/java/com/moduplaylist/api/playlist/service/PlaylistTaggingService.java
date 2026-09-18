@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PlaylistTaggingService {
 
   private static final double CO_OCCURRENCE_THRESHOLD = 0.6;
+  private static final int MIN_CO_OCCURRENCE_COUNT = 2;
 
   private final PlaylistContentRepository playlistContentRepository;
   private final ContentTagRepository contentTagRepository;
@@ -133,29 +134,24 @@ public class PlaylistTaggingService {
             cluster,
             cluster.stream()
                 .mapToInt(TagStat::contentCount)
-                .sum()
+                .sum(),
+            selectRepresentative(cluster)
         ))
         .sorted(
             Comparator.comparingInt(ClusterStat::score)
                 .reversed()
                 .thenComparing(
-                    clusterStat ->
-                        selectRepresentative(clusterStat)
-                            .tag()
-                            .getName()
+                    clusterStat -> clusterStat.representative().tag().getName()
                 )
                 .thenComparing(
-                    clusterStat ->
-                        selectRepresentative(clusterStat)
-                            .tag()
-                            .getId()
+                    clusterStat -> clusterStat.representative().tag().getId()
                 )
         )
         .toList();
 
     List<TagStat> representativeTags = clusterStats.stream()
         .limit(5)
-        .map(this::selectRepresentative)
+        .map(ClusterStat::representative)
         .toList();
 
     playlistTagRepository.deleteAllByPlaylist_Id(playlist.getId());
@@ -210,7 +206,8 @@ public class PlaylistTaggingService {
                 ? 0.0
                 : (double) coOccurrenceCount / minContentCount;
 
-        if (ratio >= CO_OCCURRENCE_THRESHOLD) {
+        if (coOccurrenceCount >= MIN_CO_OCCURRENCE_COUNT
+            && ratio >= CO_OCCURRENCE_THRESHOLD) {
           adjacency.get(i).add(j);
           adjacency.get(j).add(i);
         }
@@ -250,19 +247,13 @@ public class PlaylistTaggingService {
     return clusters;
   }
 
-  private TagStat selectRepresentative(
-      ClusterStat clusterStat
-  ) {
-    return clusterStat.members().stream()
+  private TagStat selectRepresentative(List<TagStat> members) {
+    return members.stream()
         .sorted(
             Comparator.comparingInt(TagStat::contentCount)
                 .reversed()
-                .thenComparing(
-                    tagStat -> tagStat.tag().getName()
-                )
-                .thenComparing(
-                    tagStat -> tagStat.tag().getId()
-                )
+                .thenComparing(tagStat -> tagStat.tag().getName())
+                .thenComparing(tagStat -> tagStat.tag().getId())
         )
         .findFirst()
         .orElseThrow();
@@ -276,7 +267,8 @@ public class PlaylistTaggingService {
 
   private record ClusterStat(
       List<TagStat> members,
-      int score
+      int score,
+      TagStat representative
   ) {
   }
 
