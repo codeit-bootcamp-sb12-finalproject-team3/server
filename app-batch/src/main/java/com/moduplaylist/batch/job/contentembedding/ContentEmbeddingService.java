@@ -7,6 +7,7 @@ import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.repository.ContentGenreRepository;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.content.repository.ContentTagRepository;
+import com.moduplaylist.core.content.repository.SportEventRepository;
 import com.moduplaylist.infrastructure.embedding.EmbeddingGenerator;
 import com.moduplaylist.infrastructure.opensearch.content.ContentVectorDocument;
 import com.moduplaylist.infrastructure.opensearch.content.ContentVectorRepository;
@@ -23,6 +24,7 @@ public class ContentEmbeddingService {
     private final ContentRepository contentRepository;
     private final ContentGenreRepository contentGenreRepository;
     private final ContentTagRepository contentTagRepository;
+    private final SportEventRepository sportEventRepository;
     private final ContentEmbeddingTextBuilder textBuilder;
     private final EmbeddingGenerator embeddingGenerator;
     private final ContentVectorRepository vectorRepository;
@@ -54,21 +56,51 @@ public class ContentEmbeddingService {
         );
         String embeddingText = textBuilder.build(source);
         float[] embedding = embeddingGenerator.embed(embeddingText);
-        ContentVectorDocument document = new ContentVectorDocument(
-                contentId,
-                source.getType(),
-                source.getTitle(),
-                source.getDescription(),
-                genres,
-                tags,
-                embedding,
-                embeddingGenerator.modelName(),
-                content.getUpdatedAt(),
-                Instant.now()
-        );
+        ContentVectorDocument document = ContentVectorDocument.builder()
+                .contentId(contentId)
+                .type(source.getType())
+                .title(source.getTitle())
+                .description(source.getDescription())
+                .hidden(content.isHidden())
+                .genres(genres)
+                .tags(tags)
+                .embedding(embedding)
+                .embeddingModel(embeddingGenerator.modelName())
+                .sourceUpdatedAt(content.getUpdatedAt())
+                .embeddedAt(Instant.now())
+                .build();
         vectorRepository.upsert(document);
 
         return new ContentEmbeddingResult(contentId, embeddingText, embedding.length);
+    }
+
+    public void indexSportSearchDocument(UUID contentId) {
+        Content content = contentRepository.findById(contentId)
+                .orElseThrow(() -> new ContentNotFoundException(contentId));
+        if (content.getType() != ContentType.SPORT) {
+            throw new IllegalArgumentException("스포츠 검색 문서는 SPORT 콘텐츠만 생성할 수 있습니다.");
+        }
+        SportEvent sportEvent = sportEventRepository.findWithSportTypeByContentId(contentId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "스포츠 콘텐츠에 경기 정보가 없습니다. contentId=" + contentId
+                ));
+
+        ContentVectorDocument document = ContentVectorDocument.builder()
+                .contentId(contentId)
+                .type(content.getType().getValue())
+                .title(content.getTitle())
+                .description(content.getDescription())
+                .hidden(content.isHidden())
+                .genres(List.of())
+                .tags(List.of())
+                .sportType(sportEvent.getSportType().getName())
+                .leagueName(sportEvent.getLeagueName())
+                .homeTeamName(sportEvent.getHomeTeamName())
+                .awayTeamName(sportEvent.getAwayTeamName())
+                .venue(sportEvent.getVenue())
+                .sourceUpdatedAt(content.getUpdatedAt())
+                .build();
+        vectorRepository.upsert(document);
     }
 
     public void deleteFromIndex(UUID contentId) {

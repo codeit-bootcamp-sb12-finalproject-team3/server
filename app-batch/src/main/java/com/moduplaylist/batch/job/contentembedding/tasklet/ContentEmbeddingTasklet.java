@@ -61,20 +61,38 @@ public class ContentEmbeddingTasklet implements Tasklet {
             }
         }
 
+        List<UUID> sportTargetIds = targetService.findSportSearchDocumentTargetIds();
+        List<UUID> sportFailedIds = new ArrayList<>();
+        for (UUID contentId : sportTargetIds) {
+            try {
+                embeddingService.indexSportSearchDocument(contentId);
+                log.info("스포츠 검색 문서 저장 완료 - contentId={}", contentId);
+            } catch (RuntimeException exception) {
+                sportFailedIds.add(contentId);
+                log.error("스포츠 검색 문서 저장 실패 - contentId={}", contentId, exception);
+            }
+        }
+
         log.info(
-                "콘텐츠 임베딩 배치 완료 - targets={}, succeeded={}, failed={}, "
-                        + "deletedVectors={}, deletionFailed={}",
+                "콘텐츠 검색 색인 배치 완료 - embeddingTargets={}, embeddingSucceeded={}, "
+                        + "embeddingFailed={}, sportTargets={}, sportSucceeded={}, sportFailed={}, "
+                        + "deletedDocuments={}, deletionFailed={}",
                 targetIds.size(),
                 targetIds.size() - failedIds.size(),
                 failedIds.size(),
+                sportTargetIds.size(),
+                sportTargetIds.size() - sportFailedIds.size(),
+                sportFailedIds.size(),
                 deletedContentIds.size(),
                 deletionFailedIds.size()
         );
 
-        if (!deletionFailedIds.isEmpty() || !failedIds.isEmpty()) {
+        if (!deletionFailedIds.isEmpty() || !failedIds.isEmpty() || !sportFailedIds.isEmpty()) {
             throw new IllegalStateException(
-                    "일부 콘텐츠 임베딩 처리에 실패했습니다. failedContentIds="
+                    "일부 콘텐츠 검색 색인 처리에 실패했습니다. failedEmbeddingContentIds="
                             + failedIds
+                            + ", failedSportContentIds="
+                            + sportFailedIds
                             + ", deletionFailedContentIds="
                             + deletionFailedIds
             );
