@@ -34,9 +34,6 @@ public class SportType extends BaseEntity {
 	@Column(nullable = false, length = MAX_NAME_LENGTH)
 	private String name;
 
-	@Column(nullable = false)
-	private boolean active = true;
-
 	private SportType(String code, String name) {
 		this.code = normalizeRequired(code, MAX_CODE_LENGTH, "code");
 		this.name = normalizeRequired(name, MAX_NAME_LENGTH, "name");
@@ -48,14 +45,6 @@ public class SportType extends BaseEntity {
 
 	public void updateName(String name) {
 		this.name = normalizeRequired(name, MAX_NAME_LENGTH, "name");
-	}
-
-	public void activate() {
-		this.active = true;
-	}
-
-	public void deactivate() {
-		this.active = false;
 	}
 
 	private static String normalizeRequired(
