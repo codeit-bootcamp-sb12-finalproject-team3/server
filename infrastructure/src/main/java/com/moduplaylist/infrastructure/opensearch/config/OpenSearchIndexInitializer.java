@@ -30,6 +30,7 @@ public class OpenSearchIndexInitializer {
                 properties.getContentIndex(),
                 "opensearch/content-index.json"
         );
+        ensureContentHiddenMapping();
     }
 
     private void createIndexIfAbsent(String indexName, String mappingPath) throws IOException {
@@ -44,6 +45,26 @@ public class OpenSearchIndexInitializer {
         String mappingJson = mapping.getContentAsString(StandardCharsets.UTF_8);
         Request request = new Request("PUT", "/" + indexName);
         request.setJsonEntity(mappingJson);
+        restClient.performRequest(request);
+    }
+
+    private void ensureContentHiddenMapping() throws IOException {
+        Request request = new Request(
+                "PUT",
+                "/" + properties.getContentIndex() + "/_mapping"
+        );
+        request.setJsonEntity("""
+                {
+                  "properties": {
+                    "hidden": { "type": "boolean" },
+                    "sportType": { "type": "text" },
+                    "leagueName": { "type": "text" },
+                    "homeTeamName": { "type": "text" },
+                    "awayTeamName": { "type": "text" },
+                    "venue": { "type": "text" }
+                  }
+                }
+                """);
         restClient.performRequest(request);
     }
 }
