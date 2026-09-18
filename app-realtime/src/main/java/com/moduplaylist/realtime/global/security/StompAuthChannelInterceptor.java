@@ -67,7 +67,6 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             return message;
         }
         StompCommand command = accessor.getCommand();
-
         if (StompCommand.CONNECT.equals(command)) {
             return handleConnect(message, accessor);
         }
@@ -103,7 +102,6 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
         // 인증 성공 처리
         accessor.setUser(new RealtimePrincipal(verifiedToken.userId()));
-
         return message;
     }
 
