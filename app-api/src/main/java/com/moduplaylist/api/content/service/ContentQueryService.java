@@ -23,7 +23,9 @@ public interface ContentQueryService {
 
 	List<SportTypeResponse> findSportTypes();
 
-	ContentResponse findById(UUID contentId);
+	ContentResponse findById(UUID userId, UUID contentId);
+
+	ContentResponse findByIdForCommand(UUID contentId);
 
 	ContentPlatformResponse findOtt(UUID contentId, String regionCode);
 

@@ -24,6 +24,7 @@ import com.moduplaylist.api.content.dto.SportDetail;
 import com.moduplaylist.api.content.dto.TvSeasonDetail;
 import com.moduplaylist.api.content.dto.WatchPartyDisplayStatus;
 import com.moduplaylist.api.content.service.ContentQueryService;
+import com.moduplaylist.api.content.service.ContentViewActivityService;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
 import com.moduplaylist.core.content.entity.Content;
@@ -81,6 +82,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	private final EpisodeRepository episodeRepository;
 	private final SportEventRepository sportEventRepository;
 	private final ContentRelationRepository contentRelationRepository;
+	private final ContentViewActivityService contentViewActivityService;
 	private final ObjectProvider<ContentKeywordSearchRepository> keywordSearchRepositoryProvider;
 
 	@Override
@@ -159,7 +161,15 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public ContentResponse findById(UUID contentId) {
+	public ContentResponse findById(UUID userId, UUID contentId) {
+		ContentResponse response = findByIdForCommand(contentId);
+		contentViewActivityService.record(userId, contentId);
+		return response;
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ContentResponse findByIdForCommand(UUID contentId) {
 		Content content = findVisibleContent(contentId);
 		if (content.getType() == ContentType.TV_SERIES) {
 			throw new ContentTypeNotViewableException(contentId, content.getType());
@@ -175,7 +185,9 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		if (content.getType() == ContentType.SPORT) {
 			sport = sportEventRepository.findWithSportTypeByContentId(contentId)
 				.map(this::toSportDetail)
-				.orElseThrow(() -> new ContentNotFoundException(contentId));
+				.orElseThrow(() -> new IllegalStateException(
+					"스포츠 콘텐츠에 경기 정보가 없습니다. contentId=" + contentId
+				));
 		} else {
 			genres = findGenres(contentId);
 			tags = findTags(contentId);

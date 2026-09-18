@@ -11,6 +11,7 @@ import com.moduplaylist.api.content.dto.ContentPlaylistResponse;
 import com.moduplaylist.api.content.dto.ContentWatchPartyResponse;
 import com.moduplaylist.api.content.service.ContentQueryService;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
+import com.moduplaylist.api.global.security.CustomUserDetails;
 import com.moduplaylist.core.content.exception.InvalidContentSearchException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -67,8 +69,11 @@ public class ContentQueryController {
 	}
 
 	@GetMapping("/{contentId}")
-	public ResponseEntity<ContentResponse> findById(@PathVariable UUID contentId) {
-		return ResponseEntity.ok(contentQueryService.findById(contentId));
+	public ResponseEntity<ContentResponse> findById(
+		@AuthenticationPrincipal CustomUserDetails userDetails,
+		@PathVariable UUID contentId
+	) {
+		return ResponseEntity.ok(contentQueryService.findById(userDetails.getUserId(), contentId));
 	}
 
 	@GetMapping("/{contentId}/ott")

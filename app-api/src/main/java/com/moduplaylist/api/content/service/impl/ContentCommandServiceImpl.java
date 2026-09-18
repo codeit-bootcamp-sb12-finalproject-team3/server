@@ -156,7 +156,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			}
 		}
 		contentRepository.flush();
-		return contentQueryService.findById(contentId);
+		return contentQueryService.findByIdForCommand(contentId);
 	}
 
 	@Override
