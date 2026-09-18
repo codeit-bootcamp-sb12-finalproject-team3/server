@@ -7,6 +7,7 @@ import com.moduplaylist.realtime.watchparty.WatchPartyJoinedRegistry;
 import com.moduplaylist.realtime.watchparty.WatchPartyKickedRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DataAccessException;
 import org.springframework.lang.NonNull;
 import org.springframework.messaging.Message;
@@ -47,7 +48,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             WatchPartyJoinedRegistry watchPartyJoinedRegistry,
             WatchPartyHostRegistry watchPartyHostRegistry,
             WatchPartyActivePartyRegistry watchPartyActivePartyRegistry,
-            SimpMessagingTemplate messagingTemplate
+            @Lazy SimpMessagingTemplate messagingTemplate
     ) {
         this.tokenVerifier = tokenVerifier;
         this.accessTokenSessionRegistry = accessTokenSessionRegistry;
