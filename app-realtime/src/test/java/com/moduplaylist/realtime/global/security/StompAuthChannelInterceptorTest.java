@@ -123,6 +123,20 @@ class StompAuthChannelInterceptorTest {
     }
 
     @Test
+    @DisplayName("Redis 조회 실패 시 fail-closed로 거부한다")
+    void redisFailure_throwsBadCredentials() {
+        Message<byte[]> message = createConnectMessage("Bearer valid-token");
+        when(tokenVerifier.verify(anyString()))
+                .thenReturn(new VerifiedAccessToken(USER_ID, TOKEN_ID));
+        when(accessTokenSessionRegistry.isAccessTokenActive(any(), any()))
+                .thenThrow(new DataAccessException("redis down") {});
+
+        assertThatThrownBy(() -> interceptor.preSend(message, null))
+                .isInstanceOf(BadCredentialsException.class)
+                .hasCauseInstanceOf(DataAccessException.class);
+    }
+
+    @Test
     @DisplayName("모든 검증 통과 시 Principal을 세팅한다")
     void validToken_setsPrincipal() {
         Message<byte[]> message = createConnectMessage("Bearer valid-token");
@@ -280,16 +294,30 @@ class StompAuthChannelInterceptorTest {
     }
 
     @Test
-    @DisplayName("Redis 조회 실패 시 fail-closed로 거부한다")
-    void redisFailure_throwsBadCredentials() {
-        Message<byte[]> message = createConnectMessage("Bearer valid-token");
-        when(tokenVerifier.verify(anyString()))
-                .thenReturn(new VerifiedAccessToken(USER_ID, TOKEN_ID));
-        when(accessTokenSessionRegistry.isAccessTokenActive(any(), any()))
-                .thenThrow(new DataAccessException("redis down") {});
+    @DisplayName("watch-party 경로인데 partyId가 UUID 형식이 아니면 SUBSCRIBE를 에러 응답 후 거부한다")
+    void invalidPartyIdFormat_subscribe_rejectedWithError() {
+        Message<byte[]> message = createMessage(StompCommand.SUBSCRIBE, "/sub/watch-parties/not-a-uuid/chat");
 
-        assertThatThrownBy(() -> interceptor.preSend(message, null))
-                .isInstanceOf(BadCredentialsException.class)
-                .hasCauseInstanceOf(DataAccessException.class);
+        Message<?> result = interceptor.preSend(message, null);
+
+        assertThat(result).isNull();
+        verify(messagingTemplate)
+                .convertAndSendToUser(eq(USER_ID.toString()), eq("/queue/errors"), any());
+        verifyNoInteractions(watchPartyKickedRegistry, watchPartyJoinedRegistry,
+                watchPartyHostRegistry, watchPartyActivePartyRegistry);
+    }
+
+    @Test
+    @DisplayName("watch-party 경로인데 partyId가 UUID 형식이 아니면 SEND를 에러 응답 후 거부한다")
+    void invalidPartyIdFormat_send_rejectedWithError() {
+        Message<byte[]> message = createMessage(StompCommand.SEND, "/pub/watch-parties/not-a-uuid/chat");
+
+        Message<?> result = interceptor.preSend(message, null);
+
+        assertThat(result).isNull();
+        verify(messagingTemplate)
+                .convertAndSendToUser(eq(USER_ID.toString()), eq("/queue/errors"), any());
+        verifyNoInteractions(watchPartyKickedRegistry, watchPartyJoinedRegistry,
+                watchPartyHostRegistry, watchPartyActivePartyRegistry);
     }
 }
