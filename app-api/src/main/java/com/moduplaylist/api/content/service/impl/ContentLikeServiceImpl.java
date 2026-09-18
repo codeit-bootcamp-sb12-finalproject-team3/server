@@ -4,9 +4,9 @@ import com.moduplaylist.api.content.dto.ContentLikeResponseDto;
 import com.moduplaylist.api.content.service.ContentLikeService;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentLike;
+import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
-import com.moduplaylist.core.content.exception.ContentNotLikeableException;
-import com.moduplaylist.core.content.exception.InvalidContentSearchException;
+import com.moduplaylist.core.content.exception.ContentTypeNotViewableException;
 import com.moduplaylist.core.content.repository.ContentLikeRepository;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.user.entity.User;
@@ -30,8 +30,8 @@ public class ContentLikeServiceImpl implements ContentLikeService {
 	public ContentLikeResponseDto get(UUID userId, UUID contentId) {
 		ContentLikeRepository.LikeStatus status = contentLikeRepository.findStatus(userId, contentId)
 			.orElseThrow(() -> new ContentNotFoundException(contentId));
-		if (!status.getContentType().isLikeable()) {
-			throw new ContentNotLikeableException(contentId);
+		if (status.getContentType() == ContentType.TV_SERIES) {
+			throw new ContentTypeNotViewableException(contentId, status.getContentType());
 		}
 		return response(status.getLiked(), status.getLikeCount());
 	}
@@ -39,11 +39,7 @@ public class ContentLikeServiceImpl implements ContentLikeService {
 	@Override
 	@Transactional
 	public ContentLikeResponseDto like(UUID userId, UUID contentId) {
-		Content content = lockContent(contentId);
-		if (content.isHidden()) {
-			throw new InvalidContentSearchException();
-		}
-		requireLikeable(content);
+		Content content = lockViewableContent(contentId);
 		if (contentLikeRepository.existsByUser_IdAndContent_Id(userId, contentId)) {
 			return response(true, content.getLikeCount());
 		}
@@ -57,8 +53,7 @@ public class ContentLikeServiceImpl implements ContentLikeService {
 	@Override
 	@Transactional
 	public ContentLikeResponseDto unlike(UUID userId, UUID contentId) {
-		Content content = lockContent(contentId);
-		requireLikeable(content);
+		Content content = lockViewableContent(contentId);
 		int deleted = contentLikeRepository.deleteByUserIdAndContentId(userId, contentId);
 		if (deleted == 0) {
 			return response(false, content.getLikeCount());
@@ -67,15 +62,16 @@ public class ContentLikeServiceImpl implements ContentLikeService {
 		return response(false, Math.max(0, content.getLikeCount() - 1));
 	}
 
-	private Content lockContent(UUID contentId) {
-		return contentRepository.findByIdForUpdate(contentId)
+	private Content lockViewableContent(UUID contentId) {
+		Content content = contentRepository.findByIdForUpdate(contentId)
 			.orElseThrow(() -> new ContentNotFoundException(contentId));
-	}
-
-	private void requireLikeable(Content content) {
-		if (!content.isLikeable()) {
-			throw new ContentNotLikeableException(content.getId());
+		if (content.isHidden()) {
+			throw new ContentNotFoundException(contentId);
 		}
+		if (content.getType() == ContentType.TV_SERIES) {
+			throw new ContentTypeNotViewableException(contentId, content.getType());
+		}
+		return content;
 	}
 
 	private ContentLikeResponseDto response(boolean liked, long likeCount) {

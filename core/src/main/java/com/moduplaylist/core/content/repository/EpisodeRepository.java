@@ -21,4 +21,6 @@ public interface EpisodeRepository extends JpaRepository<Episode, UUID> {
             Collection<Integer> externalIds);
 
     boolean existsBySeason_IdAndEpisodeNumber(UUID seasonId, Integer episodeNumber);
+
+    long countBySeason_Id(UUID seasonId);
 }
