@@ -6,4 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface PlaylistTagRepository extends JpaRepository<PlaylistTag, UUID> {
 
+  void deleteAllByPlaylist_Id(UUID playlistId);
+
+  UUID playlistId(UUID playlistId);
 }

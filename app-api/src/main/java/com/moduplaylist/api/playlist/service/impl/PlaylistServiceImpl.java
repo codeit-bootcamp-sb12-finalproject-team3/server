@@ -7,6 +7,7 @@ import com.moduplaylist.api.playlist.dto.PlaylistCreateRequest;
 import com.moduplaylist.api.playlist.dto.PlaylistResponse;
 import com.moduplaylist.api.playlist.dto.PlaylistSummaryResponse;
 import com.moduplaylist.api.playlist.dto.PlaylistUpdateRequest;
+import com.moduplaylist.api.playlist.event.PlaylistTagRecalculationEvent;
 import com.moduplaylist.api.playlist.service.PlaylistService;
 import com.moduplaylist.api.user.dto.UserSummary;
 import com.moduplaylist.core.content.entity.Content;
@@ -42,6 +43,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,6 +62,7 @@ public class PlaylistServiceImpl implements PlaylistService {
   private final PlaylistSubscriptionRepository playlistSubscriptionRepository;
   private final PlaylistQueryRepository playlistQueryRepository;
   private final PlaylistContentQueryRepository playlistContentQueryRepository;
+  private final ApplicationEventPublisher eventPublisher;
 
   @Override
   @Transactional
@@ -107,6 +110,10 @@ public class PlaylistServiceImpl implements PlaylistService {
         .toList();
 
     playlistContentRepository.saveAll(playlistContents);
+
+    eventPublisher.publishEvent(
+        new PlaylistTagRecalculationEvent(savedPlaylist.getId())
+    );
 
     return PlaylistResponse.builder()
         .id(savedPlaylist.getId())
@@ -304,6 +311,10 @@ public class PlaylistServiceImpl implements PlaylistService {
           e
       );
     }
+
+    eventPublisher.publishEvent(
+        new PlaylistTagRecalculationEvent(playlist.getId())
+    );
   }
 
   @Override
@@ -332,6 +343,10 @@ public class PlaylistServiceImpl implements PlaylistService {
     }
 
     playlistContentRepository.delete(playlistContent);
+
+    eventPublisher.publishEvent(
+        new PlaylistTagRecalculationEvent(playlist.getId())
+    );
   }
 
   private Map<UUID, List<ContentSummary>> findPreviewContentsByPlaylistId(List<UUID> playlistIds) {
