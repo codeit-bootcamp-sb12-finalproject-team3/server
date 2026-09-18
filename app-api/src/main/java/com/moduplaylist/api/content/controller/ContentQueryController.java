@@ -78,10 +78,9 @@ public class ContentQueryController {
 
 	@GetMapping("/{contentId}/ott")
 	public ResponseEntity<ContentPlatformResponse> findOtt(
-		@PathVariable UUID contentId,
-		@RequestParam(defaultValue = "KR") String regionCode
+		@PathVariable UUID contentId
 	) {
-		return ResponseEntity.ok(contentQueryService.findOtt(contentId, regionCode));
+		return ResponseEntity.ok(contentQueryService.findOtt(contentId));
 	}
 
 	@GetMapping("/{contentId}/playlists")

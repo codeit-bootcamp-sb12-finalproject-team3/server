@@ -96,11 +96,10 @@ public class ContentRelationRepository {
         return findRows("SELECT cc.name,cc.role_name,cc.profile_image_url,cc.display_order FROM contents c JOIN content_casts cc ON cc.content_id=c.id WHERE c.id=:id AND c.hidden=false ORDER BY cc.display_order", id)
                 .stream().map(r -> new Cast((String) r[0], (String) r[1], (String) r[2], ((Number) r[3]).intValue())).toList();
     }
-    public List<PlatformItem> platforms(UUID id, String regionCode) {
+    public List<PlatformItem> platforms(UUID id) {
         @SuppressWarnings("unchecked")
-        List<Object[]> rows = em.createNativeQuery("SELECT p.id,p.name,p.logo_url,cp.url FROM contents c JOIN content_platforms cp ON cp.content_id=c.id JOIN platforms p ON p.id=cp.platform_id WHERE c.id=:id AND c.hidden=false AND p.active=true AND cp.region_code=:regionCode ORDER BY p.name,p.id")
+        List<Object[]> rows = em.createNativeQuery("SELECT p.id,p.name,p.logo_url,cp.url FROM contents c JOIN content_platforms cp ON cp.content_id=c.id JOIN platforms p ON p.id=cp.platform_id WHERE c.id=:id AND c.hidden=false AND cp.region_code='KR' ORDER BY p.name,p.id")
                 .setParameter("id", bytes(id))
-                .setParameter("regionCode", regionCode)
                 .getResultList();
         return rows
                 .stream().map(r -> new PlatformItem(uuid(r[0]), (String) r[1], (String) r[2], (String) r[3])).toList();
@@ -116,7 +115,7 @@ public class ContentRelationRepository {
                 JOIN playlist_contents pc ON pc.content_id=c.id
                 JOIN playlists p ON p.id=pc.playlist_id
                 WHERE c.id=:id AND c.hidden=false
-                ORDER BY p.weekly_popularity_score DESC,p.id ASC
+                ORDER BY p.weekly_popularity_score DESC,p.id DESC
                 """).setParameter("id", bytes(id)).setMaxResults(PREVIEW_FETCH_LIMIT).getResultList();
         return values.stream().map(this::toPlaylist).toList();
     }
@@ -128,15 +127,12 @@ public class ContentRelationRepository {
                     w.status AS display_status,
                     (SELECT COUNT(*) FROM watch_party_participants participant
                         WHERE participant.watch_party_id=w.id AND participant.status='JOINED') AS participants,
-                    w.max_participants,
-                    (SELECT COUNT(*) FROM watch_party_reminders wr WHERE wr.watch_party_id=w.id) AS reminders
+                    w.max_participants
                 FROM contents c JOIN watch_parties w ON w.content_id=c.id
                 WHERE c.id=:id AND c.hidden=false AND w.status IN ('LIVE','SCHEDULED')
                 ORDER BY CASE WHEN w.status='LIVE' THEN 0 ELSE 1 END,
-                    CASE WHEN w.status='LIVE' THEN participants END DESC,
-                    CASE WHEN w.status='LIVE' THEN w.scheduled_at END DESC,
-                    CASE WHEN w.status='SCHEDULED' THEN w.scheduled_at END ASC,
-                    reminders DESC,w.id ASC
+                    w.scheduled_at ASC,
+                    w.id DESC
                 """).setParameter("id", bytes(id))
                 .setMaxResults(PREVIEW_FETCH_LIMIT)
                 .getResultList();

@@ -27,7 +27,7 @@ public interface ContentQueryService {
 
 	ContentResponse findByIdForCommand(UUID contentId);
 
-	ContentPlatformResponse findOtt(UUID contentId, String regionCode);
+	ContentPlatformResponse findOtt(UUID contentId);
 
 	ContentPlaylistResponse findPlaylists(UUID contentId);
 

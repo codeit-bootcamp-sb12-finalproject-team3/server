@@ -59,7 +59,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.Locale;
 import java.util.LinkedHashMap;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -230,11 +229,10 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public ContentPlatformResponse findOtt(UUID contentId, String regionCode) {
+	public ContentPlatformResponse findOtt(UUID contentId) {
 		Content content = requireMovieOrSeason(contentId);
-		String normalizedRegionCode = normalizeRegionCode(regionCode);
 		List<ContentPlatformItemResponse> otts = contentRelationRepository
-			.platforms(content.getId(), normalizedRegionCode).stream()
+			.platforms(content.getId()).stream()
 			.map(value -> ContentPlatformItemResponse.builder()
 				.platformId(value.getId())
 				.name(value.getName())
@@ -243,7 +241,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 				.build())
 			.toList();
 		return ContentPlatformResponse.builder()
-			.regionCode(normalizedRegionCode)
+			.regionCode("KR")
 			.otts(otts)
 			.build();
 	}
@@ -278,7 +276,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			.map(value -> ContentWatchPartyItemResponse.builder()
 				.id(value.getId())
 				.title(value.getTitle())
-				.displayStatus(WatchPartyDisplayStatus.valueOf(value.getDisplayStatus().name()))
+				.status(WatchPartyDisplayStatus.valueOf(value.getDisplayStatus().name()))
 				.scheduledAt(value.getScheduledAt())
 				.participantCount(value.getParticipantCount())
 				.maxParticipants(value.getMaxParticipants())
@@ -351,14 +349,6 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 				.profileImageUrl(value.getProfileImageUrl())
 				.build())
 			.toList();
-	}
-
-	private String normalizeRegionCode(String regionCode) {
-		String normalized = regionCode == null ? "KR" : regionCode.strip().toUpperCase(Locale.ROOT);
-		if (!normalized.matches("[A-Z]{2}")) {
-			throw new InvalidContentSearchException();
-		}
-		return normalized;
 	}
 
 	private SportDetail toSportDetail(SportEvent event) {

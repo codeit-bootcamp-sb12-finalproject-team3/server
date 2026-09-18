@@ -11,7 +11,7 @@ public class ContentWatchPartyItemResponse {
 
 	private UUID id;
 	private String title;
-	private WatchPartyDisplayStatus displayStatus;
+	private WatchPartyDisplayStatus status;
 	private Instant scheduledAt;
 	private int participantCount;
 	private int maxParticipants;
