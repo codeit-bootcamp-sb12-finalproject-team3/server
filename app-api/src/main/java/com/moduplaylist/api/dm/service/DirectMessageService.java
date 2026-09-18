@@ -23,6 +23,8 @@ public interface DirectMessageService {
             ConversationSearchRequest request
     );
 
+    ConversationResponse getConversation(UUID userId, UUID conversationId);
+
     CursorPageResponse<DirectMessageResponse> getMessages(
             UUID userId,
             UUID conversationId,

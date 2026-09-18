@@ -50,6 +50,17 @@ public class DirectMessageController {
         );
     }
 
+    @GetMapping("/{conversationId}")
+    public ResponseEntity<ConversationResponse> getConversation(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID conversationId
+    ) {
+        return ResponseEntity.ok(directMessageService.getConversation(
+                userDetails.getUserId(),
+                conversationId
+        ));
+    }
+
     @GetMapping("/{conversationId}/direct-messages")
     public ResponseEntity<CursorPageResponse<DirectMessageResponse>> getMessages(
             @AuthenticationPrincipal CustomUserDetails userDetails,

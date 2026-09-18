@@ -182,6 +182,36 @@ public class DirectMessageServiceImpl implements DirectMessageService {
 
     @Override
     @Transactional(readOnly = true)
+    public ConversationResponse getConversation(UUID userId, UUID conversationId) {
+        validateAuthenticatedUser(userId);
+        if (conversationId == null) {
+            throw new BaseException(ErrorCode.INVALID_REQUEST);
+        }
+
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new ConversationNotFoundException(conversationId));
+
+        if (!participantRepository.existsByConversation_IdAndUser_Id(
+                conversationId,
+                userId
+        )) {
+            throw new ConversationAccessDeniedException(conversationId);
+        }
+
+        List<User> peers = participantRepository.findPeers(conversationId, userId);
+        if (peers.size() != 1) {
+            throw new ConversationNotFoundException(conversationId);
+        }
+
+        DirectMessage latestMessage = directMessageRepository
+                .findFirstByConversation_IdOrderByCreatedAtDescIdDesc(conversationId)
+                .orElse(null);
+
+        return ConversationResponse.from(conversation, peers.get(0), latestMessage);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public CursorPageResponse<DirectMessageResponse> getMessages(
             UUID userId,
             UUID conversationId,
