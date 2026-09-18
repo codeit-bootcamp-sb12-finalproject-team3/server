@@ -25,6 +25,7 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.USER_ALREADY_EXISTS, HttpStatus.CONFLICT);
 
         STATUS_MAP.put(ErrorCode.CONTENT_NOT_FOUND, HttpStatus.NOT_FOUND);
+        STATUS_MAP.put(ErrorCode.CONTENT_TYPE_NOT_SUPPORTED, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.GENRE_NOT_FOUND, HttpStatus.NOT_FOUND);
         STATUS_MAP.put(ErrorCode.CONTENT_NOT_LIKEABLE, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.CONTENT_SEASON_ALREADY_EXISTS, HttpStatus.CONFLICT);

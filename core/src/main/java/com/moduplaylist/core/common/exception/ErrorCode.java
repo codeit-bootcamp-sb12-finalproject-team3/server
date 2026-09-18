@@ -19,6 +19,7 @@ public enum ErrorCode {
 
     // Content
     CONTENT_NOT_FOUND("존재하지 않는 콘텐츠입니다."),
+    CONTENT_TYPE_NOT_SUPPORTED("지원하지 않는 콘텐츠 타입입니다."),
     GENRE_NOT_FOUND("존재하지 않는 장르입니다."),
     CONTENT_NOT_LIKEABLE("좋아요 대상이 아닌 콘텐츠입니다."),
     CONTENT_SEASON_ALREADY_EXISTS("동일한 TV 시리즈에 해당 시즌이 이미 존재합니다."),

@@ -7,6 +7,7 @@ import com.moduplaylist.api.watchparty.dto.WatchPartyResponse;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
+import com.moduplaylist.core.content.exception.ContentTypeNotSupportedException;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.exception.UserNotFoundException;
@@ -45,6 +46,7 @@ public class WatchPartyService {
         Content content = contentRepository.findById(request.getContentId())
                 .orElseThrow(() -> new ContentNotFoundException(request.getContentId()));
 
+        validateWatchPartyContent(content);
         validateEpisodeRange(content, request.getStartEpisode(), request.getEndEpisode());
 
         WatchParty watchParty = WatchParty.builder()
@@ -70,6 +72,12 @@ public class WatchPartyService {
 
         if (hasEpisodeRange && !isEpisodicContent) {
             throw new WatchPartyInvalidEpisodeRangeException(content.getId());
+        }
+    }
+
+    private void validateWatchPartyContent(Content content) {
+        if (!content.getType().isPersonalizable()) {
+            throw new ContentTypeNotSupportedException(content.getId(), content.getType());
         }
     }
 

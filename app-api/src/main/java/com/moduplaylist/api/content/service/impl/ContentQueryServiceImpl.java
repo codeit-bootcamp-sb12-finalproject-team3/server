@@ -34,7 +34,7 @@ import com.moduplaylist.core.content.exception.ContentSearchUnavailableException
 import com.moduplaylist.core.content.exception.GenreNotFoundException;
 import com.moduplaylist.core.content.exception.InvalidContentSearchException;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
-import com.moduplaylist.core.content.exception.ContentNotLikeableException;
+import com.moduplaylist.core.content.exception.ContentTypeNotSupportedException;
 import com.moduplaylist.core.content.repository.ContentGenreRepository;
 import com.moduplaylist.core.content.repository.ContentLikeRepository;
 import com.moduplaylist.core.content.repository.ContentQueryRepository.SearchResult;
@@ -157,26 +157,23 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	public ContentResponse findById(UUID contentId) {
 		Content content = findVisibleContent(contentId);
 		if (content.getType() == ContentType.TV_SERIES) {
-			throw new ContentNotLikeableException(contentId);
+			throw new ContentTypeNotSupportedException(contentId, content.getType());
 		}
 
-		List<GenreResponse> genres = contentRelationRepository.genres(contentId).stream()
-			.map(value -> GenreResponse.builder().id(value.getId()).name(value.getName()).build())
-			.toList();
-		List<TagResponse> tags = contentRelationRepository.tags(contentId).stream()
-			.map(value -> TagResponse.builder()
-				.id(value.getId()).name(value.getName()).source(value.getSource()).build())
-			.toList();
-		List<CastResponse> cast = contentRelationRepository.casts(contentId).stream()
-			.map(value -> CastResponse.builder()
-				.name(value.getName())
-				.roleName(value.getRoleName())
-				.profileImageUrl(value.getProfileImageUrl())
-				.build())
-			.toList();
-		SportEventResponse sportEvent = sportEventRepository.findWithSportTypeByContentId(contentId)
-			.map(this::toSportEventResponse)
-			.orElse(null);
+		List<GenreResponse> genres = List.of();
+		List<TagResponse> tags = List.of();
+		List<CastResponse> cast = List.of();
+		SportEventResponse sportEvent = null;
+
+		if (content.getType() == ContentType.SPORT) {
+			sportEvent = sportEventRepository.findWithSportTypeByContentId(contentId)
+				.map(this::toSportEventResponse)
+				.orElseThrow(() -> new ContentNotFoundException(contentId));
+		} else {
+			genres = findGenres(contentId);
+			tags = findTags(contentId);
+			cast = findCast(contentId);
+		}
 
 		return ContentResponse.builder()
 			.id(content.getId())
@@ -300,9 +297,32 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	private Content requireMovieOrSeason(UUID contentId) {
 		Content content = findVisibleContent(contentId);
 		if (content.getType() != ContentType.MOVIE && content.getType() != ContentType.TV_SEASON) {
-			throw new ContentNotLikeableException(contentId);
+			throw new ContentTypeNotSupportedException(contentId, content.getType());
 		}
 		return content;
+	}
+
+	private List<GenreResponse> findGenres(UUID contentId) {
+		return contentRelationRepository.genres(contentId).stream()
+			.map(value -> GenreResponse.builder().id(value.getId()).name(value.getName()).build())
+			.toList();
+	}
+
+	private List<TagResponse> findTags(UUID contentId) {
+		return contentRelationRepository.tags(contentId).stream()
+			.map(value -> TagResponse.builder()
+				.id(value.getId()).name(value.getName()).source(value.getSource()).build())
+			.toList();
+	}
+
+	private List<CastResponse> findCast(UUID contentId) {
+		return contentRelationRepository.casts(contentId).stream()
+			.map(value -> CastResponse.builder()
+				.name(value.getName())
+				.roleName(value.getRoleName())
+				.profileImageUrl(value.getProfileImageUrl())
+				.build())
+			.toList();
 	}
 
 	private String normalizeRegionCode(String regionCode) {
