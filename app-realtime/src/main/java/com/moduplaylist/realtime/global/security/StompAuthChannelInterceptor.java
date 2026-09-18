@@ -61,15 +61,11 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     @Override
     public Message<?> preSend(@NonNull Message<?> message, @NonNull MessageChannel channel) {
-        // CONNECT 원본 accessor의 user-change callback이 WebSocket session Principal을 갱신한다.
-        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(
-                message,
-                StompHeaderAccessor.class
-        );
+        StompHeaderAccessor accessor =
+                MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
         if (accessor == null) {
             return message;
         }
-
         StompCommand command = accessor.getCommand();
         if (StompCommand.CONNECT.equals(command)) {
             return handleConnect(message, accessor);
