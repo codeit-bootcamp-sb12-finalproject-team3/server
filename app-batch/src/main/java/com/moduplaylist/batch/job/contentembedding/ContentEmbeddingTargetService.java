@@ -2,6 +2,7 @@ package com.moduplaylist.batch.job.contentembedding;
 
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentType;
+import com.moduplaylist.core.content.repository.ContentGenreRepository;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.content.repository.ContentTagRepository;
 import com.moduplaylist.infrastructure.embedding.EmbeddingGenerator;
@@ -24,6 +25,7 @@ public class ContentEmbeddingTargetService {
             List.of(ContentType.MOVIE, ContentType.TV_SEASON);
 
     private final ContentRepository contentRepository;
+    private final ContentGenreRepository contentGenreRepository;
     private final ContentTagRepository contentTagRepository;
     private final ContentVectorRepository vectorRepository;
     private final EmbeddingGenerator embeddingGenerator;
@@ -39,6 +41,12 @@ public class ContentEmbeddingTargetService {
         }
 
         List<UUID> contentIds = contents.stream().map(Content::getId).toList();
+        Map<UUID, List<String>> genresByContentId = contentGenreRepository
+                .findAllWithGenreByContentIdIn(contentIds).stream()
+                .collect(Collectors.groupingBy(
+                        relation -> relation.getContent().getId(),
+                        Collectors.mapping(relation -> relation.getGenre().getName(), Collectors.toList())
+                ));
         Map<UUID, List<String>> tagsByContentId = contentTagRepository
                 .findAllWithTagByContentIdIn(contentIds).stream()
                 .collect(Collectors.groupingBy(
@@ -49,6 +57,7 @@ public class ContentEmbeddingTargetService {
         return contents.stream()
                 .filter(content -> requiresEmbedding(
                         content,
+                        sortedDistinct(genresByContentId.get(content.getId())),
                         sortedDistinct(tagsByContentId.get(content.getId()))
                 ))
                 .map(Content::getId)
@@ -67,14 +76,15 @@ public class ContentEmbeddingTargetService {
                 .toList();
     }
 
-    private boolean requiresEmbedding(Content content, List<String> tags) {
+    private boolean requiresEmbedding(Content content, List<String> genres, List<String> tags) {
         return vectorRepository.findById(content.getId())
-                .map(document -> isOutdated(content, tags, document))
+                .map(document -> isOutdated(content, genres, tags, document))
                 .orElse(true);
     }
 
     private boolean isOutdated(
             Content content,
+            List<String> genres,
             List<String> tags,
             ContentVectorDocument document
     ) {
@@ -82,6 +92,7 @@ public class ContentEmbeddingTargetService {
                 || !Objects.equals(content.getType().getValue(), document.getType())
                 || !Objects.equals(content.getTitle(), document.getTitle())
                 || !Objects.equals(content.getDescription(), document.getDescription())
+                || !genres.equals(document.getGenres())
                 || !tags.equals(document.getTags());
     }
 }
