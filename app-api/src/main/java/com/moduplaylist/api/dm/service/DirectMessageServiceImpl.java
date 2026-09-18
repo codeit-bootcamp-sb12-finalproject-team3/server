@@ -1,5 +1,6 @@
 package com.moduplaylist.api.dm.service;
 
+import com.moduplaylist.api.dm.dto.ConversationListResponse;
 import com.moduplaylist.api.dm.dto.ConversationResponse;
 import com.moduplaylist.api.dm.dto.ConversationSearchRequest;
 import com.moduplaylist.api.dm.dto.DirectMessageCreateResult;
@@ -136,15 +137,18 @@ public class DirectMessageServiceImpl implements DirectMessageService {
 
     @Override
     @Transactional(readOnly = true)
-    public CursorPageResponse<ConversationResponse> getConversations(
+    public CursorPageResponse<ConversationListResponse> getConversations(
             UUID userId,
             ConversationSearchRequest request
     ) {
         validateAuthenticatedUser(userId);
+        if (request == null) {
+            throw new BaseException(ErrorCode.INVALID_REQUEST);
+        }
         validateCursorRequest(
-                request == null ? null : request.getCursor(),
-                request == null ? null : request.getIdAfter(),
-                request == null ? 0 : request.getLimit()
+                request.getCursor(),
+                request.getIdAfter(),
+                request.getLimit()
         );
 
         Instant cursor = parseCursor(request.getCursor());
@@ -157,11 +161,12 @@ public class DirectMessageServiceImpl implements DirectMessageService {
                 pageable
         );
 
-        List<ConversationResponse> data = slice.getContent().stream()
-                .map(item -> ConversationResponse.from(
+        List<ConversationListResponse> data = slice.getContent().stream()
+                .map(item -> ConversationListResponse.from(
                         item.getConversation(),
                         item.getPeer(),
-                        item.getLatestMessage()
+                        item.getLatestMessage(),
+                        Boolean.TRUE.equals(item.getHasUnread())
                 ))
                 .toList();
 
@@ -169,7 +174,7 @@ public class DirectMessageServiceImpl implements DirectMessageService {
                 ? slice.getContent().get(slice.getContent().size() - 1).getConversation()
                 : null;
 
-        return CursorPageResponse.<ConversationResponse>builder()
+        return CursorPageResponse.<ConversationListResponse>builder()
                 .data(data)
                 .nextCursor(last == null ? null : last.getUpdatedAt().toString())
                 .nextIdAfter(last == null ? null : last.getId())
@@ -178,6 +183,36 @@ public class DirectMessageServiceImpl implements DirectMessageService {
                 .sortBy(CONVERSATION_SORT_BY)
                 .sortDirection(SortDirection.DESCENDING)
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ConversationResponse getConversation(UUID userId, UUID conversationId) {
+        validateAuthenticatedUser(userId);
+        if (conversationId == null) {
+            throw new BaseException(ErrorCode.INVALID_REQUEST);
+        }
+
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new ConversationNotFoundException(conversationId));
+
+        if (!participantRepository.existsByConversation_IdAndUser_Id(
+                conversationId,
+                userId
+        )) {
+            throw new ConversationAccessDeniedException(conversationId);
+        }
+
+        List<User> peers = participantRepository.findPeers(conversationId, userId);
+        if (peers.size() != 1) {
+            throw new ConversationNotFoundException(conversationId);
+        }
+
+        DirectMessage latestMessage = directMessageRepository
+                .findFirstByConversation_IdOrderByCreatedAtDescIdDesc(conversationId)
+                .orElse(null);
+
+        return ConversationResponse.from(conversation, peers.get(0), latestMessage);
     }
 
     @Override
