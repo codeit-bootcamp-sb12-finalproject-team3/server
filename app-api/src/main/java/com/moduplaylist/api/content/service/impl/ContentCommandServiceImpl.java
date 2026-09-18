@@ -154,6 +154,9 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			if (request.getCasts().isPresent()) {
 				replaceCasts(content, request.getCasts().orElse(List.of()));
 			}
+			if (request.getGenreIds().isPresent() || request.getManualTags().isPresent()) {
+				content.markRelationsUpdated();
+			}
 		}
 		contentRepository.flush();
 		return contentQueryService.findByIdForCommand(contentId);

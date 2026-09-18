@@ -237,6 +237,10 @@ public class Content extends BaseEntity {
 		this.hidden = false;
 	}
 
+	public void markRelationsUpdated() {
+		touchUpdatedAt();
+	}
+
 	public boolean isReviewable() {
 		return type != null && type.isReviewable();
 	}

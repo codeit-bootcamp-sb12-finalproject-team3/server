@@ -38,4 +38,8 @@ public abstract class BaseEntity {
             this.id = UuidCreator.getTimeOrderedEpoch();
         }
     }
+
+    protected void touchUpdatedAt() {
+        this.updatedAt = Instant.now();
+    }
 }
