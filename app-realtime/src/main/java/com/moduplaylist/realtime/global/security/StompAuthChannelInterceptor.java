@@ -7,6 +7,7 @@ import com.moduplaylist.realtime.watchparty.WatchPartyJoinedRegistry;
 import com.moduplaylist.realtime.watchparty.WatchPartyKickedRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DataAccessException;
 import org.springframework.lang.NonNull;
 import org.springframework.messaging.Message;
@@ -15,7 +16,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
-import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -47,7 +48,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             WatchPartyJoinedRegistry watchPartyJoinedRegistry,
             WatchPartyHostRegistry watchPartyHostRegistry,
             WatchPartyActivePartyRegistry watchPartyActivePartyRegistry,
-            SimpMessagingTemplate messagingTemplate
+            @Lazy SimpMessagingTemplate messagingTemplate
     ) {
         this.tokenVerifier = tokenVerifier;
         this.accessTokenSessionRegistry = accessTokenSessionRegistry;
@@ -60,7 +61,11 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     @Override
     public Message<?> preSend(@NonNull Message<?> message, @NonNull MessageChannel channel) {
-        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+        StompHeaderAccessor accessor =
+                MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        if (accessor == null) {
+            return message;
+        }
         StompCommand command = accessor.getCommand();
 
         if (StompCommand.CONNECT.equals(command)) {
@@ -98,9 +103,8 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
         // 인증 성공 처리
         accessor.setUser(new RealtimePrincipal(verifiedToken.userId()));
-        accessor.setLeaveMutable(true);
 
-        return MessageBuilder.createMessage(message.getPayload(), accessor.getMessageHeaders());
+        return message;
     }
 
     // SUBSCRIBE: kicked 체크 + "이미 다른 방에 JOINED면 구경 차단" 체크
@@ -183,9 +187,9 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         throw new BadCredentialsException("Authenticated principal not found.");
     }
 
-    // 개인 에러 큐(/user/queue/errors)로 안내 메시지 전송
+    // 개인 에러 큐(/user/sub/errors)로 안내 메시지 전송
     private void sendError(UUID userId, String errorMessage) {
-        messagingTemplate.convertAndSendToUser(userId.toString(), "/queue/errors", errorMessage);
+        messagingTemplate.convertAndSendToUser(userId.toString(), "/sub/errors", errorMessage);
     }
 
     private String resolveToken(StompHeaderAccessor accessor) {

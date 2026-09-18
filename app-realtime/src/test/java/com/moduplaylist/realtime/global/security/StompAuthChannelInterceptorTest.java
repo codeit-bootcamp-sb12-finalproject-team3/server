@@ -44,6 +44,7 @@ class StompAuthChannelInterceptorTest {
         if (authorizationHeader != null) {
             accessor.setNativeHeader("Authorization", authorizationHeader);
         }
+        accessor.setLeaveMutable(true);
         return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
     }
 
@@ -186,7 +187,7 @@ class StompAuthChannelInterceptorTest {
 
         assertThat(result).isNull();
         verify(messagingTemplate)
-                .convertAndSendToUser(eq(USER_ID.toString()), eq("/queue/errors"), any());
+                .convertAndSendToUser(eq(USER_ID.toString()), eq("/sub/errors"), any());
     }
 
     @Test
@@ -246,7 +247,7 @@ class StompAuthChannelInterceptorTest {
 
         assertThat(result).isNull();
         verify(messagingTemplate)
-                .convertAndSendToUser(eq(USER_ID.toString()), eq("/queue/errors"), any());
+                .convertAndSendToUser(eq(USER_ID.toString()), eq("/sub/errors"), any());
     }
 
     @Test
@@ -302,7 +303,7 @@ class StompAuthChannelInterceptorTest {
 
         assertThat(result).isNull();
         verify(messagingTemplate)
-                .convertAndSendToUser(eq(USER_ID.toString()), eq("/queue/errors"), any());
+                .convertAndSendToUser(eq(USER_ID.toString()), eq("/sub/errors"), any());
         verifyNoInteractions(watchPartyKickedRegistry, watchPartyJoinedRegistry,
                 watchPartyHostRegistry, watchPartyActivePartyRegistry);
     }
@@ -316,7 +317,7 @@ class StompAuthChannelInterceptorTest {
 
         assertThat(result).isNull();
         verify(messagingTemplate)
-                .convertAndSendToUser(eq(USER_ID.toString()), eq("/queue/errors"), any());
+                .convertAndSendToUser(eq(USER_ID.toString()), eq("/sub/errors"), any());
         verifyNoInteractions(watchPartyKickedRegistry, watchPartyJoinedRegistry,
                 watchPartyHostRegistry, watchPartyActivePartyRegistry);
     }
