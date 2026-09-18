@@ -1,5 +1,7 @@
 package com.moduplaylist.api.content.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -31,6 +33,8 @@ public class ContentSearchRequest {
 	@Size(max = 2048)
 	private String cursor;
 
+	private UUID idAfter;
+
 	@Min(1)
 	@Max(100)
 	@NotNull
@@ -42,6 +46,35 @@ public class ContentSearchRequest {
 
 	public void setSportTypeEqual(String value) {
 		this.sportTypeEqual = normalize(value);
+	}
+
+	@JsonIgnore
+	@AssertTrue(message = "cursor와 idAfter는 함께 전달해야 합니다.")
+	public boolean isCursorValid() {
+		boolean cursorEmpty = cursor == null || cursor.isBlank();
+		return cursorEmpty == (idAfter == null);
+	}
+
+	@JsonIgnore
+	@AssertTrue(message = "콘텐츠 타입과 장르·스포츠 종목·검색어 조건의 조합이 올바르지 않습니다.")
+	public boolean isFilterCombinationValid() {
+		boolean hasKeyword = keywordLike != null && !keywordLike.isBlank();
+		boolean hasSportType = sportTypeEqual != null && !sportTypeEqual.isBlank();
+
+		if (likedByUserIdEqual != null && sortBy != null) {
+			return false;
+		}
+		if (hasKeyword && (genreIdEqual != null || hasSportType)) {
+			return false;
+		}
+		if (genreIdEqual != null) {
+			return typeEqual == ContentTypeFilter.MOVIE
+				|| typeEqual == ContentTypeFilter.TV_SERIES;
+		}
+		if (hasSportType) {
+			return typeEqual == ContentTypeFilter.SPORT;
+		}
+		return true;
 	}
 
 	private static String normalize(String value) {

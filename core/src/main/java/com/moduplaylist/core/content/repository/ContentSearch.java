@@ -22,7 +22,7 @@ public class ContentSearch {
     private final Instant cursorLikedAt;
     private final BigDecimal cursorRating;
     private final Long cursorReviewCount;
-    private final UUID cursorId;
+    private final UUID idAfter;
     private final int limit;
 
     public ContentSearch(
@@ -36,7 +36,7 @@ public class ContentSearch {
             Instant cursorLikedAt,
             BigDecimal cursorRating,
             Long cursorReviewCount,
-            UUID cursorId,
+            UUID idAfter,
             int limit) {
         validateSortAndCursors(
                 likedByUserId,
@@ -45,7 +45,7 @@ public class ContentSearch {
                 cursorLikedAt,
                 cursorRating,
                 cursorReviewCount,
-                cursorId);
+                idAfter);
         if (limit < 1 || limit > 100) {
             throw new InvalidContentSearchException();
         }
@@ -82,7 +82,7 @@ public class ContentSearch {
         this.cursorLikedAt = cursorLikedAt;
         this.cursorRating = cursorRating;
         this.cursorReviewCount = cursorReviewCount;
-        this.cursorId = cursorId;
+        this.idAfter = idAfter;
         this.limit = limit;
     }
 
@@ -101,12 +101,12 @@ public class ContentSearch {
             Instant cursorLikedAt,
             BigDecimal cursorRating,
             Long cursorReviewCount,
-            UUID cursorId) {
+            UUID idAfter) {
         if (likedByUserId != null) {
             if (sort != null) {
                 throw new InvalidContentSearchException();
             }
-            requirePair(cursorLikedAt, cursorId);
+            requirePair(cursorLikedAt, idAfter);
             if (cursorCreatedAt != null
                     || cursorRating != null
                     || cursorReviewCount != null) {
@@ -122,21 +122,21 @@ public class ContentSearch {
             throw new InvalidContentSearchException();
         }
         if (sort == Sort.LATEST) {
-            requirePair(cursorCreatedAt, cursorId);
+            requirePair(cursorCreatedAt, idAfter);
             if (cursorRating != null || cursorReviewCount != null) {
                 throw new InvalidContentSearchException();
             }
             return;
         }
 
-        requireRatingCursor(cursorRating, cursorReviewCount, cursorId);
+        requireRatingCursor(cursorRating, cursorReviewCount, idAfter);
         if (cursorCreatedAt != null) {
             throw new InvalidContentSearchException();
         }
     }
 
-    private static void requirePair(Object value, UUID cursorId) {
-        if ((value == null) != (cursorId == null)) {
+    private static void requirePair(Object value, UUID idAfter) {
+        if ((value == null) != (idAfter == null)) {
             throw new InvalidContentSearchException();
         }
     }
@@ -144,14 +144,14 @@ public class ContentSearch {
     private static void requireRatingCursor(
             BigDecimal cursorRating,
             Long cursorReviewCount,
-            UUID cursorId) {
+            UUID idAfter) {
         boolean absent = cursorRating == null
                 && cursorReviewCount == null
-                && cursorId == null;
+                && idAfter == null;
         boolean complete = cursorRating != null
                 && cursorReviewCount != null
                 && cursorReviewCount >= 0
-                && cursorId != null;
+                && idAfter != null;
         if (!absent && !complete) {
             throw new InvalidContentSearchException();
         }

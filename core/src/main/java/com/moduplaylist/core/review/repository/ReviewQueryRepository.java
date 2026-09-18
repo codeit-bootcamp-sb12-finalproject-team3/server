@@ -16,20 +16,20 @@ public interface ReviewQueryRepository {
         private final UUID contentId;
         private final UUID userId;
         private final Instant cursorCreatedAt;
-        private final UUID cursorId;
+        private final UUID idAfter;
         private final int limit;
 
         public SearchCondition(
                 UUID contentId,
                 UUID userId,
                 Instant cursorCreatedAt,
-                UUID cursorId,
+                UUID idAfter,
                 int limit) {
             if ((contentId == null) == (userId == null)) {
                 throw new IllegalArgumentException(
                         "콘텐츠 ID와 사용자 ID 중 하나만 지정해야 합니다.");
             }
-            if ((cursorCreatedAt == null) != (cursorId == null)) {
+            if ((cursorCreatedAt == null) != (idAfter == null)) {
                 throw new IllegalArgumentException(
                         "리뷰 작성 시각과 리뷰 ID는 함께 지정해야 합니다.");
             }
@@ -41,7 +41,7 @@ public interface ReviewQueryRepository {
             this.contentId = contentId;
             this.userId = userId;
             this.cursorCreatedAt = cursorCreatedAt;
-            this.cursorId = cursorId;
+            this.idAfter = idAfter;
             this.limit = limit;
         }
     }

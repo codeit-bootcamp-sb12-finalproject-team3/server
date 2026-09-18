@@ -160,15 +160,15 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
             StringBuilder filter,
             Map<String, Object> parameters,
             ContentSearch request) {
-        if (request.getCursorId() == null) {
+        if (request.getIdAfter() == null) {
             return;
         }
-        parameters.put("cursorId", request.getCursorId());
+        parameters.put("idAfter", request.getIdAfter());
 
         if (request.getSort() == ContentSearch.Sort.LATEST) {
             filter.append(" and (content.createdAt < :cursorCreatedAt")
                     .append(" or (content.createdAt = :cursorCreatedAt")
-                    .append(" and content.id < :cursorId))");
+                    .append(" and content.id < :idAfter))");
             parameters.put("cursorCreatedAt", request.getCursorCreatedAt());
             return;
         }
@@ -178,7 +178,7 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
                 .append(" and content.reviewCount < :cursorReviewCount)")
                 .append(" or (content.averageRating = :cursorRating")
                 .append(" and content.reviewCount = :cursorReviewCount")
-                .append(" and content.id < :cursorId))");
+                .append(" and content.id < :idAfter))");
         parameters.put("cursorRating", request.getCursorRating());
         parameters.put("cursorReviewCount", request.getCursorReviewCount());
     }
@@ -187,14 +187,14 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
             StringBuilder filter,
             Map<String, Object> parameters,
             ContentSearch request) {
-        if (request.getCursorId() == null) {
+        if (request.getIdAfter() == null) {
             return;
         }
         filter.append(" and (contentLike.createdAt < :cursorLikedAt")
                 .append(" or (contentLike.createdAt = :cursorLikedAt")
-                .append(" and content.id > :cursorId))");
+                .append(" and content.id > :idAfter))");
         parameters.put("cursorLikedAt", request.getCursorLikedAt());
-        parameters.put("cursorId", request.getCursorId());
+        parameters.put("idAfter", request.getIdAfter());
     }
 
     private <T> void setParameters(
