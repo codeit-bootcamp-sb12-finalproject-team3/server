@@ -57,6 +57,7 @@ mopl:
         enabled: ${EMBEDDING_SCHEDULER_ENABLED:false}
         content-cron: ${CONTENT_EMBEDDING_CRON:0 0 2 * * *} #실제 배치 실행 시간
 #        content-cron: "0 * * * * *" #테스트
+        playlist-cron: ${PLAYLIST_EMBEDDING_CRON:0 30 2 * * *}
         user-profile-cron: ${USER_PROFILE_EMBEDDING_CRON:0 0 3 * * *} #실제 배치 실행 시간
 #        user-profile-cron: "0 * * * * *" #테스트
         zone: ${EMBEDDING_SCHEDULER_ZONE:Asia/Seoul}

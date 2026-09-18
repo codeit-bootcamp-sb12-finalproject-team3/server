@@ -2,6 +2,7 @@ package com.moduplaylist.batch.job.contentembedding;
 
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.repository.ContentRepository;
+import com.moduplaylist.core.content.repository.ContentTagRepository;
 import com.moduplaylist.infrastructure.embedding.EmbeddingGenerator;
 import com.moduplaylist.infrastructure.opensearch.content.ContentVectorDocument;
 import com.moduplaylist.infrastructure.opensearch.content.ContentVectorRepository;
@@ -9,8 +10,10 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -19,16 +22,38 @@ import org.springframework.stereotype.Service;
 public class ContentEmbeddingTargetService {
 
     private final ContentRepository contentRepository;
+    private final ContentTagRepository contentTagRepository;
     private final ContentVectorRepository vectorRepository;
     private final EmbeddingGenerator embeddingGenerator;
 
     public List<UUID> findTargetContentIds() {
-        return contentRepository.findAll().stream()
+        List<Content> contents = contentRepository.findAll().stream()
                 .filter(content -> content.getType().isPersonalizable())
                 .sorted(Comparator.comparing(Content::getId))
-                .filter(this::requiresEmbedding)
+                .toList();
+        if (contents.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> contentIds = contents.stream().map(Content::getId).toList();
+        Map<UUID, List<String>> tagsByContentId = contentTagRepository
+                .findAllWithTagByContentIdIn(contentIds).stream()
+                .collect(Collectors.groupingBy(
+                        relation -> relation.getContent().getId(),
+                        Collectors.mapping(relation -> relation.getTag().getName(), Collectors.toList())
+                ));
+
+        return contents.stream()
+                .filter(content -> requiresEmbedding(
+                        content,
+                        sortedDistinct(tagsByContentId.get(content.getId()))
+                ))
                 .map(Content::getId)
                 .toList();
+    }
+
+    private List<String> sortedDistinct(List<String> names) {
+        return names == null ? List.of() : names.stream().distinct().sorted().toList();
     }
 
     public List<UUID> findDeletedContentIds() {
@@ -39,18 +64,21 @@ public class ContentEmbeddingTargetService {
                 .toList();
     }
 
-    private boolean requiresEmbedding(Content content) {
+    private boolean requiresEmbedding(Content content, List<String> tags) {
         return vectorRepository.findById(content.getId())
-                .map(document -> isOutdated(content, document))
+                .map(document -> isOutdated(content, tags, document))
                 .orElse(true);
     }
-    // TODO: 태그 변경 감지 개선 필요. (필수)
-    // 현재 임베딩 대상은 Content.updatedAt 기준이라 content_tags 추가/삭제를 감지하지 못한다.
-    // 추후 임베딩 소스 변경 시각을 별도로 관리하여 태그 변경도 재임베딩 대상으로 포함한다.
-    private boolean isOutdated(Content content, ContentVectorDocument document) {
+
+    private boolean isOutdated(
+            Content content,
+            List<String> tags,
+            ContentVectorDocument document
+    ) {
         Instant sourceUpdatedAt = document.getSourceUpdatedAt();
         return sourceUpdatedAt == null
                 || content.getUpdatedAt().isAfter(sourceUpdatedAt)
-                || !Objects.equals(embeddingGenerator.modelName(), document.getEmbeddingModel());
+                || !Objects.equals(embeddingGenerator.modelName(), document.getEmbeddingModel())
+                || !tags.equals(document.getTags());
     }
 }

@@ -24,17 +24,20 @@ public class EmbeddingJobScheduler {
     private final JobLauncher jobLauncher;
     private final JobExplorer jobExplorer;
     private final Job contentEmbeddingJob;
+    private final Job playlistEmbeddingJob;
     private final Job userProfileEmbeddingJob;
 
     public EmbeddingJobScheduler(
             JobLauncher jobLauncher,
             JobExplorer jobExplorer,
             @Qualifier("contentEmbeddingJob") Job contentEmbeddingJob,
+            @Qualifier("playlistEmbeddingJob") Job playlistEmbeddingJob,
             @Qualifier("userProfileEmbeddingJob") Job userProfileEmbeddingJob
     ) {
         this.jobLauncher = jobLauncher;
         this.jobExplorer = jobExplorer;
         this.contentEmbeddingJob = contentEmbeddingJob;
+        this.playlistEmbeddingJob = playlistEmbeddingJob;
         this.userProfileEmbeddingJob = userProfileEmbeddingJob;
     }
 
@@ -44,6 +47,14 @@ public class EmbeddingJobScheduler {
     )
     public void runContentEmbeddingJob() {
         launch(contentEmbeddingJob);
+    }
+
+    @Scheduled(
+            cron = "${mopl.batch.embedding.scheduler.playlist-cron}",
+            zone = "${mopl.batch.embedding.scheduler.zone}"
+    )
+    public void runPlaylistEmbeddingJob() {
+        launch(playlistEmbeddingJob);
     }
 
     @Scheduled(
