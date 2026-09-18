@@ -1,5 +1,8 @@
 package com.moduplaylist.api.watchparty.service;
 
+import com.moduplaylist.api.content.dto.ContentWatchPartyItemResponse;
+import com.moduplaylist.api.content.dto.ContentWatchPartyResponse;
+import com.moduplaylist.api.content.dto.WatchPartyDisplayStatus;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
 import com.moduplaylist.api.user.dto.UserSummary;
@@ -25,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -32,6 +36,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Transactional
 public class WatchPartyService {
+
+    private static final int CONTENT_WIDGET_LIMIT = 20;
 
     private final WatchPartyRepository watchPartyRepository;
     private final UserRepository userRepository;
@@ -123,6 +129,45 @@ public class WatchPartyService {
                 .totalCount(result.getTotalCount())
                 .sortBy("scheduledAt")
                 .sortDirection(sortDirection)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public ContentWatchPartyResponse getWatchPartiesForContentWidget(UUID contentId) {
+        Instant now = Instant.now();
+        Instant liveWindowStart = now.minus(1, ChronoUnit.HOURS);
+
+        List<WatchParty> fetched = watchPartyQueryRepository
+                .findContentWidgetItems(contentId, now, liveWindowStart, CONTENT_WIDGET_LIMIT + 1);
+
+        boolean hasMore = fetched.size() > CONTENT_WIDGET_LIMIT;
+        List<WatchParty> watchParties = hasMore ? fetched.subList(0, CONTENT_WIDGET_LIMIT) : fetched;
+
+        List<ContentWatchPartyItemResponse> items = watchParties.stream()
+                .map(w -> toWidgetItem(w, now))
+                .toList();
+
+        return ContentWatchPartyResponse.builder()
+                .data(items)
+                .hasMore(hasMore)
+                .build();
+    }
+
+    private ContentWatchPartyItemResponse toWidgetItem(WatchParty watchParty, Instant now) {
+        WatchPartyDisplayStatus displayStatus = watchParty.getScheduledAt().isAfter(now)
+                ? WatchPartyDisplayStatus.SCHEDULED
+                : WatchPartyDisplayStatus.LIVE;
+
+        int currentParticipants = (int) watchPartyParticipantRepository
+                .countByWatchParty_IdAndStatus(watchParty.getId(), ParticipantStatus.JOINED);
+
+        return ContentWatchPartyItemResponse.builder()
+                .id(watchParty.getId())
+                .title(watchParty.getTitle())
+                .displayStatus(displayStatus)
+                .scheduledAt(watchParty.getScheduledAt())
+                .participantCount(currentParticipants)
+                .maxParticipants(watchParty.getMaxParticipants())
                 .build();
     }
 
