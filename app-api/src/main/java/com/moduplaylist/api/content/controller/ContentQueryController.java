@@ -49,11 +49,12 @@ public class ContentQueryController {
 
 	@GetMapping
 	public ResponseEntity<CursorPageResponse<ContentSummaryResponse>> findAll(
+		@AuthenticationPrincipal CustomUserDetails userDetails,
 		@Valid @ModelAttribute ContentSearchRequest request,
 		HttpServletRequest httpRequest
 	) {
 		validateSearchParameters(httpRequest);
-		return ResponseEntity.ok(contentQueryService.findAll(request));
+		return ResponseEntity.ok(contentQueryService.findAll(userDetails.getUserId(), request));
 	}
 
 	@GetMapping("/genres")

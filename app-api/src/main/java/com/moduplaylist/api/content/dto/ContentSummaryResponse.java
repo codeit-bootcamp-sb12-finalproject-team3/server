@@ -14,15 +14,21 @@ public class ContentSummaryResponse {
 	private UUID id;
 	private UUID parentContentId;
 	private String title;
+	private String description;
 	private ContentSummaryType type;
 	private Integer seasonNumber;
+	private Integer episodeCount;
 	private String sportType;
+	private String league;
+	private String homeTeam;
+	private String awayTeam;
 	private String thumbnailUrl;
 	private LocalDate releaseDate;
 	private Integer runtime;
 	private BigDecimal averageRating;
 	private long reviewCount;
 	private long likeCount;
+	private boolean likedByMe;
 
 	@Builder.Default
 	private List<GenreResponse> genres = List.of();

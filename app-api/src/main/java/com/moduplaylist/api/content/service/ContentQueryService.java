@@ -17,7 +17,7 @@ import java.util.UUID;
 
 public interface ContentQueryService {
 
-	CursorPageResponse<ContentSummaryResponse> findAll(ContentSearchRequest request);
+	CursorPageResponse<ContentSummaryResponse> findAll(UUID userId, ContentSearchRequest request);
 
 	List<GenreResponse> findGenres(ContentTypeFilter type);
 

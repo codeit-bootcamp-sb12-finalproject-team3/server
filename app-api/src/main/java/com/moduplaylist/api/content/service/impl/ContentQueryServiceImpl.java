@@ -21,6 +21,7 @@ import com.moduplaylist.api.content.dto.MovieDetail;
 import com.moduplaylist.api.content.dto.SportDetail;
 import com.moduplaylist.api.content.dto.TvSeasonDetail;
 import com.moduplaylist.api.content.service.ContentQueryService;
+import com.moduplaylist.api.content.service.ContentSummaryResponseAssembler;
 import com.moduplaylist.api.content.service.ContentViewActivityService;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
@@ -28,7 +29,6 @@ import com.moduplaylist.api.playlist.dto.PlaylistSummaryResponse;
 import com.moduplaylist.api.playlist.service.PlaylistService;
 import com.moduplaylist.api.watchparty.service.WatchPartyService;
 import com.moduplaylist.core.content.entity.Content;
-import com.moduplaylist.core.content.entity.ContentTag;
 import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.core.content.entity.Genre;
 import com.moduplaylist.core.content.entity.SportEvent;
@@ -39,12 +39,10 @@ import com.moduplaylist.core.content.exception.InvalidContentSearchException;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.exception.ContentTypeNotSupportedException;
 import com.moduplaylist.core.content.exception.ContentTypeNotViewableException;
-import com.moduplaylist.core.content.repository.ContentGenreRepository;
 import com.moduplaylist.core.content.repository.ContentLikeRepository;
 import com.moduplaylist.core.content.repository.ContentQueryRepository.SearchResult;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.content.repository.ContentSearch;
-import com.moduplaylist.core.content.repository.ContentTagRepository;
 import com.moduplaylist.core.content.repository.ContentRelationRepository;
 import com.moduplaylist.core.content.repository.EpisodeRepository;
 import com.moduplaylist.core.content.repository.GenreRepository;
@@ -76,9 +74,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	private final ContentRepository contentRepository;
 	private final GenreRepository genreRepository;
 	private final SportTypeRepository sportTypeRepository;
-	private final ContentGenreRepository contentGenreRepository;
 	private final ContentLikeRepository contentLikeRepository;
-	private final ContentTagRepository contentTagRepository;
 	private final EpisodeRepository episodeRepository;
 	private final SportEventRepository sportEventRepository;
 	private final ContentRelationRepository contentRelationRepository;
@@ -86,10 +82,14 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	private final PlaylistService playlistService;
 	private final WatchPartyService watchPartyService;
 	private final ObjectProvider<ContentKeywordSearchRepository> keywordSearchRepositoryProvider;
+	private final ContentSummaryResponseAssembler contentSummaryResponseAssembler;
 
 	@Override
 	@Transactional(readOnly = true)
-	public CursorPageResponse<ContentSummaryResponse> findAll(ContentSearchRequest request) {
+	public CursorPageResponse<ContentSummaryResponse> findAll(
+		UUID userId,
+		ContentSearchRequest request
+	) {
 		ContentType contentType = request.getTypeEqual() == null
 			? null
 			: request.getTypeEqual().toQueryType();
@@ -126,7 +126,8 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		);
 
 		SearchResult result = contentRepository.search(search);
-		List<ContentSummaryResponse> data = toResponses(result.getContents());
+		List<ContentSummaryResponse> data = contentSummaryResponseAssembler
+			.toResponses(result.getContents(), userId);
 		Content lastContent = result.getContents().isEmpty()
 			? null
 			: result.getContents().get(result.getContents().size() - 1);
@@ -462,77 +463,10 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			+ lastContent.getReviewCount();
 	}
 
-	private List<ContentSummaryResponse> toResponses(List<Content> contents) {
-		if (contents.isEmpty()) {
-			return List.of();
-		}
-		List<UUID> contentIds = contents.stream().map(Content::getId).toList();
-		Map<UUID, List<GenreResponse>> genresByContentId = contentGenreRepository
-			.findAllWithGenreByContentIdIn(contentIds).stream()
-			.collect(Collectors.groupingBy(
-				contentGenre -> contentGenre.getContent().getId(),
-				Collectors.mapping(
-					contentGenre -> toGenreResponse(contentGenre.getGenre()),
-					Collectors.toList()
-				)
-			));
-		Map<UUID, List<TagResponse>> tagsByContentId = contentTagRepository
-			.findAllWithTagByContentIdIn(contentIds).stream()
-			.collect(Collectors.groupingBy(
-				contentTag -> contentTag.getContent().getId(),
-				Collectors.mapping(this::toTagResponse, Collectors.toList())
-			));
-		Map<UUID, SportEvent> sportEventByContentId = sportEventRepository
-			.findAllWithSportTypeByContentIdIn(contentIds).stream()
-			.collect(Collectors.toMap(SportEvent::getContentId, Function.identity()));
-
-		return contents.stream()
-			.map(content -> toResponse(
-				content,
-				genresByContentId.getOrDefault(content.getId(), List.of()),
-				tagsByContentId.getOrDefault(content.getId(), List.of()),
-				sportEventByContentId.get(content.getId())
-			))
-			.toList();
-	}
-
-	private ContentSummaryResponse toResponse(
-		Content content,
-		List<GenreResponse> genres,
-		List<TagResponse> tags,
-		SportEvent sportEvent
-	) {
-		return ContentSummaryResponse.builder()
-			.id(content.getId())
-			.parentContentId(content.getParentContent() == null
-				? null
-				: content.getParentContent().getId())
-			.title(content.getTitle())
-			.type(ContentSummaryType.from(content.getType()))
-			.seasonNumber(content.getSeasonNumber())
-			.sportType(sportEvent == null ? null : sportEvent.getSportType().getCode())
-			.thumbnailUrl(content.getThumbnailUrl())
-			.releaseDate(content.getReleaseDate())
-			.runtime(content.getType() == ContentType.MOVIE ? content.getRuntime() : null)
-			.averageRating(content.getAverageRating())
-			.reviewCount(content.getReviewCount())
-			.likeCount(content.getLikeCount())
-			.genres(genres)
-			.tags(tags)
-			.build();
-	}
-
 	private GenreResponse toGenreResponse(Genre genre) {
 		return GenreResponse.builder()
 			.id(genre.getId())
 			.name(genre.getName())
-			.build();
-	}
-
-	private TagResponse toTagResponse(ContentTag contentTag) {
-		return TagResponse.builder()
-			.id(contentTag.getTag().getId())
-			.name(contentTag.getTag().getName())
 			.build();
 	}
 

@@ -2,6 +2,7 @@ package com.moduplaylist.core.content.repository;
 
 import com.moduplaylist.core.content.entity.ContentLike;
 import com.moduplaylist.core.content.entity.ContentType;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,6 +21,17 @@ public interface ContentLikeRepository extends JpaRepository<ContentLike, UUID> 
             where contentLike.user.id = :userId
             """)
     List<UUID> findContentIdsByUserId(@Param("userId") UUID userId);
+
+    @Query("""
+            select contentLike.content.id
+            from ContentLike contentLike
+            where contentLike.user.id = :userId
+              and contentLike.content.id in :contentIds
+              and contentLike.content.hidden = false
+            """)
+    List<UUID> findContentIdsByUserIdAndContentIdIn(
+            @Param("userId") UUID userId,
+            @Param("contentIds") Collection<UUID> contentIds);
 
     @Query("""
             select
