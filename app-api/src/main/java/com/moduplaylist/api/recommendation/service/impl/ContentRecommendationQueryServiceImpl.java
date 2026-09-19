@@ -85,7 +85,9 @@ public class ContentRecommendationQueryServiceImpl
         return contentIds.stream()
                 .map(contentById::get)
                 .filter(content ->
-                        content != null && content.getType().isPersonalizable())
+                        content != null
+                                && !content.isHidden()
+                                && content.getType().isPersonalizable())
                 .map(this::toResponse)
                 .toList();
     }
