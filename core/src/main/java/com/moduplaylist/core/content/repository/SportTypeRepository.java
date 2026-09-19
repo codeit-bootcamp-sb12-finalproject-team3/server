@@ -8,9 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface SportTypeRepository extends JpaRepository<SportType, UUID> {
 
-	Optional<SportType> findByIdAndActiveTrue(UUID id);
+	Optional<SportType> findByCode(String code);
 
-	Optional<SportType> findByCodeAndActiveTrue(String code);
-
-	List<SportType> findAllByActiveTrueOrderByNameAsc();
+	List<SportType> findAllByOrderByNameAsc();
 }

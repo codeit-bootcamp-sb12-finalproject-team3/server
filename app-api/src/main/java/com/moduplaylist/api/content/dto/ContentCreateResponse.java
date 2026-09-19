@@ -1,7 +1,7 @@
 package com.moduplaylist.api.content.dto;
 
-import com.moduplaylist.core.content.entity.ContentType;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import lombok.Builder;
 import lombok.Getter;
@@ -10,8 +10,7 @@ import lombok.Getter;
 @Builder
 public class ContentCreateResponse {
 
-	private UUID id;
-	private String title;
-	private ContentType type;
+	private UUID seriesId;
+	private List<UUID> contentIds;
 	private Instant createdAt;
 }

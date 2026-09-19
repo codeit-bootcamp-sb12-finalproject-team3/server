@@ -16,6 +16,8 @@ public class WatchPartySearch {
 
     private Instant cursorScheduledAt;
     private UUID cursorId;
+    private WatchPartyStatus cursorStatus;
+    private Instant contentScheduledAtFrom;
 
     @Builder.Default
     private boolean ascending = true;

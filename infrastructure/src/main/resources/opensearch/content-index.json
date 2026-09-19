@@ -18,8 +18,14 @@
         }
       },
       "description": { "type": "text" },
+      "hidden": { "type": "boolean" },
       "genres": { "type": "keyword" },
       "tags": { "type": "keyword" },
+      "sportType": { "type": "text" },
+      "leagueName": { "type": "text" },
+      "homeTeamName": { "type": "text" },
+      "awayTeamName": { "type": "text" },
+      "venue": { "type": "text" },
       "embedding": {
         "type": "knn_vector",
         "dimension": 1536,

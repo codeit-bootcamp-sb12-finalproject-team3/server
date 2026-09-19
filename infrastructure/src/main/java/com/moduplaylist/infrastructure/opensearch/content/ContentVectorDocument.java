@@ -18,8 +18,14 @@ public class ContentVectorDocument {
     private String type;
     private String title;
     private String description;
+    private Boolean hidden;
     private List<String> genres;
     private List<String> tags;
+    private String sportType;
+    private String leagueName;
+    private String homeTeamName;
+    private String awayTeamName;
+    private String venue;
     private float[] embedding;
     private String embeddingModel;
     private Instant sourceUpdatedAt;

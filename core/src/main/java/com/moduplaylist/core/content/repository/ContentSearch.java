@@ -66,7 +66,9 @@ public class ContentSearch {
                 || sportType != null && !sportType.isBlank())) {
             throw new InvalidContentSearchException();
         }
-        if (matchedContentIds != null && matchedContentIds.size() > 100) {
+        if (likedByUserId == null
+                && matchedContentIds != null
+                && matchedContentIds.size() > 100) {
             throw new InvalidContentSearchException();
         }
 

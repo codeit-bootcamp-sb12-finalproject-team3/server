@@ -237,12 +237,12 @@ public class Content extends BaseEntity {
 		this.hidden = false;
 	}
 
-	public boolean isReviewable() {
-		return type != null && type.isReviewable();
+	public void markRelationsUpdated() {
+		touchUpdatedAt();
 	}
 
-	public boolean isLikeable() {
-		return type != null && type.isLikeable();
+	public boolean isReviewable() {
+		return type != null && type.isReviewable();
 	}
 
 	public void updateReviewStatistics(BigDecimal averageRating, long reviewCount) {

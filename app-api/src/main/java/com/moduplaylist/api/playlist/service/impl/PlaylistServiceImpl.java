@@ -12,6 +12,7 @@ import com.moduplaylist.api.playlist.service.PlaylistService;
 import com.moduplaylist.api.user.dto.UserSummary;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
+import com.moduplaylist.core.content.exception.ContentTypeNotSupportedException;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.playlist.entity.Playlist;
 import com.moduplaylist.core.playlist.entity.PlaylistContent;
@@ -96,6 +97,8 @@ public class PlaylistServiceImpl implements PlaylistService {
 
       throw new ContentNotFoundException(missingContentId);
     }
+
+    contents.forEach(this::validatePlaylistContent);
 
     Playlist playlist = Playlist.create(
         owner,
@@ -293,6 +296,8 @@ public class PlaylistServiceImpl implements PlaylistService {
     Content content = contentRepository.findById(contentId)
         .orElseThrow(() -> new ContentNotFoundException(contentId));
 
+    validatePlaylistContent(content);
+
     if (playlistContentRepository.existsByPlaylist_IdAndContent_Id(
         playlistId,
         contentId
@@ -315,6 +320,12 @@ public class PlaylistServiceImpl implements PlaylistService {
     eventPublisher.publishEvent(
         new PlaylistTagRecalculationEvent(playlist.getId())
     );
+  }
+
+  private void validatePlaylistContent(Content content) {
+    if (!content.getType().isPersonalizable()) {
+      throw new ContentTypeNotSupportedException(content.getId(), content.getType());
+    }
   }
 
   @Override

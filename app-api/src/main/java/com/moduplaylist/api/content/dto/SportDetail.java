@@ -6,7 +6,7 @@ import lombok.Getter;
 
 @Getter
 @Builder
-public class SportEventResponse {
+public class SportDetail {
 
 	private SportTypeResponse sportType;
 	private Instant scheduledAt;
