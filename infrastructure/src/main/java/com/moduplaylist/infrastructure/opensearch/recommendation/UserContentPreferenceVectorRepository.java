@@ -12,17 +12,17 @@ import org.springframework.stereotype.Repository;
 @Repository
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "mopl.opensearch", name = "enabled", havingValue = "true")
-public class UserPreferenceVectorRepository {
+public class UserContentPreferenceVectorRepository {
 
     private final OpenSearchClient openSearchClient;
     private final OpenSearchProperties properties;
 
-    public Optional<UserPreferenceVectorDocument> findById(UUID userId) {
+    public Optional<UserContentPreferenceVectorDocument> findById(UUID userId) {
         try {
             var response = openSearchClient.get(request -> request
-                            .index(properties.getUserPreferenceIndex())
+                            .index(properties.getUserContentPreferenceIndex())
                             .id(userId.toString()),
-                    UserPreferenceVectorDocument.class);
+                    UserContentPreferenceVectorDocument.class);
             if (!response.found()) {
                 return Optional.empty();
             }
@@ -36,10 +36,10 @@ public class UserPreferenceVectorRepository {
         }
     }
 
-    public void upsert(UserPreferenceVectorDocument document) {
+    public void upsert(UserContentPreferenceVectorDocument document) {
         try {
             openSearchClient.index(request -> request
-                    .index(properties.getUserPreferenceIndex())
+                    .index(properties.getUserContentPreferenceIndex())
                     .id(document.getUserId().toString())
                     .document(document));
         } catch (IOException exception) {
@@ -54,7 +54,7 @@ public class UserPreferenceVectorRepository {
     public void deleteById(UUID userId) {
         try {
             openSearchClient.delete(request -> request
-                    .index(properties.getUserPreferenceIndex())
+                    .index(properties.getUserContentPreferenceIndex())
                     .id(userId.toString()));
         } catch (IOException exception) {
             throw new IllegalStateException(

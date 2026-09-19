@@ -1,11 +1,10 @@
 package com.moduplaylist.api.recommendation.service.impl;
 
-import com.moduplaylist.api.recommendation.service.UserContentGenrePreferenceService;
-import com.moduplaylist.core.activity.enums.ContentActivityType;
+import com.moduplaylist.api.recommendation.service.UserPlaylistGenrePreferenceService;
 import com.moduplaylist.core.content.entity.ContentGenre;
 import com.moduplaylist.core.content.repository.ContentGenreRepository;
-import com.moduplaylist.core.recommendation.policy.ContentRecommendationScorePolicy;
-import com.moduplaylist.core.recommendation.repository.ContentPreferenceScoreRepository;
+import com.moduplaylist.core.recommendation.policy.PlaylistRecommendationScorePolicy;
+import com.moduplaylist.core.recommendation.repository.PlaylistPreferenceScoreRepository;
 import com.moduplaylist.core.user.entity.User;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -18,11 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class UserContentGenrePreferenceServiceImpl
-        implements UserContentGenrePreferenceService {
+public class UserPlaylistGenrePreferenceServiceImpl implements UserPlaylistGenrePreferenceService {
 
     private final ContentGenreRepository contentGenreRepository;
-    private final ContentPreferenceScoreRepository contentPreferenceScoreRepository;
+    private final PlaylistPreferenceScoreRepository preferenceScoreRepository;
 
     @Override
     @Transactional
@@ -33,18 +31,20 @@ public class UserContentGenrePreferenceServiceImpl
             return;
         }
 
-        double initialWeight = ContentRecommendationScorePolicy.calculate(
-                ContentActivityType.INITIAL_PREFERENCE
-        );
-        Map<UUID, Double> scoreByGenreId = new LinkedHashMap<>();
+        double initialWeight = PlaylistRecommendationScorePolicy.initialPreferenceWeight();
+        Map<UUID, Double> scoresByGenreId = new LinkedHashMap<>();
 
         for (ContentGenre contentGenre : contentGenres) {
-            scoreByGenreId.merge(contentGenre.getGenre().getId(), initialWeight, Double::sum);
+            scoresByGenreId.merge(
+                    contentGenre.getGenre().getId(),
+                    initialWeight,
+                    Double::sum
+            );
         }
 
-        scoreByGenreId.entrySet().stream()
+        scoresByGenreId.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
-                .forEach(entry -> contentPreferenceScoreRepository.addGenreScore(
+                .forEach(entry -> preferenceScoreRepository.addGenreScore(
                         user.getId(), entry.getKey(), entry.getValue()));
     }
 }

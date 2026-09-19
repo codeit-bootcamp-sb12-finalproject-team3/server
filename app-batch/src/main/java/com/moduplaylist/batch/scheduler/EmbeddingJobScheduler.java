@@ -1,5 +1,6 @@
 package com.moduplaylist.batch.scheduler;
 
+import com.moduplaylist.infrastructure.embedding.EmbeddingGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
@@ -23,18 +24,24 @@ public class EmbeddingJobScheduler {
 
     private final JobLauncher jobLauncher;
     private final JobExplorer jobExplorer;
+    private final EmbeddingGenerator embeddingGenerator;
     private final Job contentEmbeddingJob;
+    private final Job playlistEmbeddingJob;
     private final Job userProfileEmbeddingJob;
 
     public EmbeddingJobScheduler(
             JobLauncher jobLauncher,
             JobExplorer jobExplorer,
+            EmbeddingGenerator embeddingGenerator,
             @Qualifier("contentEmbeddingJob") Job contentEmbeddingJob,
+            @Qualifier("playlistEmbeddingJob") Job playlistEmbeddingJob,
             @Qualifier("userProfileEmbeddingJob") Job userProfileEmbeddingJob
     ) {
         this.jobLauncher = jobLauncher;
         this.jobExplorer = jobExplorer;
+        this.embeddingGenerator = embeddingGenerator;
         this.contentEmbeddingJob = contentEmbeddingJob;
+        this.playlistEmbeddingJob = playlistEmbeddingJob;
         this.userProfileEmbeddingJob = userProfileEmbeddingJob;
     }
 
@@ -47,6 +54,22 @@ public class EmbeddingJobScheduler {
     }
 
     @Scheduled(
+            cron = "${mopl.batch.embedding.scheduler.content-reconcile-cron}",
+            zone = "${mopl.batch.embedding.scheduler.zone}"
+    )
+    public void runContentEmbeddingReconciliation() {
+        launch(contentEmbeddingJob, true);
+    }
+
+    @Scheduled(
+            cron = "${mopl.batch.embedding.scheduler.playlist-cron}",
+            zone = "${mopl.batch.embedding.scheduler.zone}"
+    )
+    public void runPlaylistEmbeddingJob() {
+        launch(playlistEmbeddingJob);
+    }
+
+    @Scheduled(
             cron = "${mopl.batch.embedding.scheduler.user-profile-cron}",
             zone = "${mopl.batch.embedding.scheduler.zone}"
     )
@@ -55,14 +78,22 @@ public class EmbeddingJobScheduler {
     }
 
     private void launch(Job job) {
+        launch(job, false);
+    }
+
+    private void launch(Job job, boolean fullScan) {
         if (!jobExplorer.findRunningJobExecutions(job.getName()).isEmpty()) {
             log.warn("이미 실행 중인 배치 Job을 건너뜁니다. job={}", job.getName());
             return;
         }
 
-        JobParameters parameters = new JobParametersBuilder()
+        JobParametersBuilder parametersBuilder = new JobParametersBuilder()
                 .addLong("requestedAt", System.currentTimeMillis())
-                .toJobParameters();
+                .addString("embeddingModel", embeddingGenerator.modelName());
+        if (fullScan) {
+            parametersBuilder.addString("fullScan", "true");
+        }
+        JobParameters parameters = parametersBuilder.toJobParameters();
         try {
             JobExecution execution = jobLauncher.run(job, parameters);
             log.info(

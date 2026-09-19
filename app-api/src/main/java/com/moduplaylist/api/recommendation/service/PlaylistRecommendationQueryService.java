@@ -1,12 +1,12 @@
 package com.moduplaylist.api.recommendation.service;
 
-import com.moduplaylist.api.content.dto.ContentSummaryResponse;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
+import com.moduplaylist.api.playlist.dto.PlaylistSummaryResponse;
 import java.util.UUID;
 
-public interface ContentRecommendationQueryService {
+public interface PlaylistRecommendationQueryService {
 
-    CursorPageResponse<ContentSummaryResponse> findRecommendations(
+    CursorPageResponse<PlaylistSummaryResponse> findRecommendations(
             UUID userId,
             String cursor,
             int limit

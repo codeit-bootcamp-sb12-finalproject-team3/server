@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class UserPreferenceVectorDocument {
+public class UserPlaylistPreferenceVectorDocument {
 
     private UUID userId;
     private List<GenreScoreDocument> genreScores;

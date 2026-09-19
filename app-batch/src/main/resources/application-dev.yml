@@ -57,6 +57,9 @@ mopl:
         enabled: ${EMBEDDING_SCHEDULER_ENABLED:false}
         content-cron: ${CONTENT_EMBEDDING_CRON:0 0 2 * * *} #실제 배치 실행 시간
 #        content-cron: "0 * * * * *" #테스트
+        content-reconcile-cron: ${CONTENT_EMBEDDING_RECONCILE_CRON:0 0 1 * * SUN} #콘텐츠 배치 누락을 고려한 주배치
+        playlist-cron: ${PLAYLIST_EMBEDDING_CRON:0 30 2 * * *}
+#        playlist-cron: "0 * * * * *" #테스트
         user-profile-cron: ${USER_PROFILE_EMBEDDING_CRON:0 0 3 * * *} #실제 배치 실행 시간
 #        user-profile-cron: "0 * * * * *" #테스트
         zone: ${EMBEDDING_SCHEDULER_ZONE:Asia/Seoul}
@@ -79,5 +82,7 @@ mopl:
     uris: ${OPENSEARCH_URIS:http://localhost:9200}
     username: ${OPENSEARCH_USERNAME:}
     password: ${OPENSEARCH_PASSWORD:}
-    user-preference-index: user-preference-index
+    user-content-preference-index: user-content-preference-index
+    user-playlist-preference-index: user-playlist-preference-index
     content-index: content-index
+    playlist-index: playlist-index

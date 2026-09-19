@@ -2,7 +2,7 @@ package com.moduplaylist.batch.job.userprofileembedding.tasklet;
 
 import com.moduplaylist.batch.job.userprofileembedding.UserProfileEmbeddingTargetService;
 import com.moduplaylist.batch.job.userprofileembedding.UserProfileRecommendationCleanupService;
-import com.moduplaylist.infrastructure.recommendation.embedding.UserProfileEmbeddingService;
+import com.moduplaylist.infrastructure.recommendation.embedding.UserContentProfileEmbeddingService;
 import com.moduplaylist.infrastructure.recommendation.embedding.dto.UserProfileEmbeddingResult;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class UserProfileEmbeddingTasklet implements Tasklet {
 
-    private final UserProfileEmbeddingService embeddingService;
+    private final UserContentProfileEmbeddingService embeddingService;
     private final UserProfileEmbeddingTargetService targetService;
     private final UserProfileRecommendationCleanupService cleanupService;
 

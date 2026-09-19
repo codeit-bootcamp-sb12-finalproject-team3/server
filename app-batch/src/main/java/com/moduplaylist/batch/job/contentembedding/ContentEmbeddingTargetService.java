@@ -1,16 +1,19 @@
 package com.moduplaylist.batch.job.contentembedding;
 
 import com.moduplaylist.core.content.entity.Content;
+import com.moduplaylist.core.content.entity.ContentType;
+import com.moduplaylist.core.content.repository.ContentGenreRepository;
 import com.moduplaylist.core.content.repository.ContentRepository;
+import com.moduplaylist.core.content.repository.ContentTagRepository;
 import com.moduplaylist.infrastructure.embedding.EmbeddingGenerator;
 import com.moduplaylist.infrastructure.opensearch.content.ContentVectorDocument;
 import com.moduplaylist.infrastructure.opensearch.content.ContentVectorRepository;
-import java.time.Instant;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -18,17 +21,51 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ContentEmbeddingTargetService {
 
+    private static final List<ContentType> EMBEDDABLE_TYPES =
+            List.of(ContentType.MOVIE, ContentType.TV_SEASON);
+
     private final ContentRepository contentRepository;
+    private final ContentGenreRepository contentGenreRepository;
+    private final ContentTagRepository contentTagRepository;
     private final ContentVectorRepository vectorRepository;
     private final EmbeddingGenerator embeddingGenerator;
 
-    public List<UUID> findTargetContentIds() {
-        return contentRepository.findAll().stream()
-                .filter(content -> content.getType().isPersonalizable())
-                .sorted(Comparator.comparing(Content::getId))
-                .filter(this::requiresEmbedding)
+    public List<UUID> findTargetContentIds(ContentEmbeddingRunWindow window) {
+        List<Content> contents = window.fullScan()
+                ? contentRepository.findEmbeddingSourcesThrough(
+                        EMBEDDABLE_TYPES, window.through())
+                : contentRepository.findModifiedEmbeddingSources(
+                        EMBEDDABLE_TYPES, window.after(), window.through());
+        if (contents.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> contentIds = contents.stream().map(Content::getId).toList();
+        Map<UUID, List<String>> genresByContentId = contentGenreRepository
+                .findAllWithGenreByContentIdIn(contentIds).stream()
+                .collect(Collectors.groupingBy(
+                        relation -> relation.getContent().getId(),
+                        Collectors.mapping(relation -> relation.getGenre().getName(), Collectors.toList())
+                ));
+        Map<UUID, List<String>> tagsByContentId = contentTagRepository
+                .findAllWithTagByContentIdIn(contentIds).stream()
+                .collect(Collectors.groupingBy(
+                        relation -> relation.getContent().getId(),
+                        Collectors.mapping(relation -> relation.getTag().getName(), Collectors.toList())
+                ));
+
+        return contents.stream()
+                .filter(content -> requiresEmbedding(
+                        content,
+                        sortedDistinct(genresByContentId.get(content.getId())),
+                        sortedDistinct(tagsByContentId.get(content.getId()))
+                ))
                 .map(Content::getId)
                 .toList();
+    }
+
+    private List<String> sortedDistinct(List<String> names) {
+        return names == null ? List.of() : names.stream().distinct().sorted().toList();
     }
 
     public List<UUID> findDeletedContentIds() {
@@ -39,18 +76,23 @@ public class ContentEmbeddingTargetService {
                 .toList();
     }
 
-    private boolean requiresEmbedding(Content content) {
+    private boolean requiresEmbedding(Content content, List<String> genres, List<String> tags) {
         return vectorRepository.findById(content.getId())
-                .map(document -> isOutdated(content, document))
+                .map(document -> isOutdated(content, genres, tags, document))
                 .orElse(true);
     }
-    // TODO: 태그 변경 감지 개선 필요. (필수)
-    // 현재 임베딩 대상은 Content.updatedAt 기준이라 content_tags 추가/삭제를 감지하지 못한다.
-    // 추후 임베딩 소스 변경 시각을 별도로 관리하여 태그 변경도 재임베딩 대상으로 포함한다.
-    private boolean isOutdated(Content content, ContentVectorDocument document) {
-        Instant sourceUpdatedAt = document.getSourceUpdatedAt();
-        return sourceUpdatedAt == null
-                || content.getUpdatedAt().isAfter(sourceUpdatedAt)
-                || !Objects.equals(embeddingGenerator.modelName(), document.getEmbeddingModel());
+
+    private boolean isOutdated(
+            Content content,
+            List<String> genres,
+            List<String> tags,
+            ContentVectorDocument document
+    ) {
+        return !Objects.equals(embeddingGenerator.modelName(), document.getEmbeddingModel())
+                || !Objects.equals(content.getType().getValue(), document.getType())
+                || !Objects.equals(content.getTitle(), document.getTitle())
+                || !Objects.equals(content.getDescription(), document.getDescription())
+                || !genres.equals(document.getGenres())
+                || !tags.equals(document.getTags());
     }
 }
