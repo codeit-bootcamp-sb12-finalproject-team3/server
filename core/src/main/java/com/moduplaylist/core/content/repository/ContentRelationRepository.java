@@ -3,8 +3,6 @@ package com.moduplaylist.core.content.repository;
 import com.moduplaylist.core.content.entity.TagSource;
 import jakarta.persistence.EntityManager;
 import java.nio.ByteBuffer;
-import java.sql.Timestamp;
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import lombok.Getter;
@@ -14,14 +12,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 @RequiredArgsConstructor
 public class ContentRelationRepository {
-    private static final int PREVIEW_FETCH_LIMIT = 21;
-
     private final EntityManager em;
-
-    public enum DisplayStatus {
-        LIVE,
-        SCHEDULED
-    }
 
     @Getter
     @RequiredArgsConstructor
@@ -56,17 +47,6 @@ public class ContentRelationRepository {
         private final String url;
     }
 
-    @Getter
-    @RequiredArgsConstructor
-    public static class WatchParty {
-        private final UUID id;
-        private final String title;
-        private final Instant scheduledAt;
-        private final DisplayStatus displayStatus;
-        private final int participantCount;
-        private final int maxParticipants;
-    }
-
     @SuppressWarnings("unchecked")
     private List<Object[]> findRows(String sql, UUID contentId) {
         return em.createNativeQuery(sql).setParameter("id", bytes(contentId)).getResultList();
@@ -93,37 +73,8 @@ public class ContentRelationRepository {
                 .stream().map(r -> new PlatformItem(uuid(r[0]), (String) r[1], (String) r[2], (String) r[3])).toList();
     }
 
-    @SuppressWarnings("unchecked")
-    public List<WatchParty> findWatchParties(UUID id) {
-        List<Object[]> values = em.createNativeQuery("""
-                SELECT w.id,w.title,w.scheduled_at,
-                    w.status AS display_status,
-                    (SELECT COUNT(*) FROM watch_party_participants participant
-                        WHERE participant.watch_party_id=w.id AND participant.status='JOINED') AS participants,
-                    w.max_participants
-                FROM contents c JOIN watch_parties w ON w.content_id=c.id
-                WHERE c.id=:id AND c.hidden=false AND w.status IN ('LIVE','SCHEDULED')
-                ORDER BY CASE WHEN w.status='LIVE' THEN 0 ELSE 1 END,
-                    w.scheduled_at ASC,
-                    w.id DESC
-                """).setParameter("id", bytes(id))
-                .setMaxResults(PREVIEW_FETCH_LIMIT)
-                .getResultList();
-        return values.stream().map(this::toWatchParty).toList();
-    }
-
     private Tag toTag(Object[] row) {
         return new Tag(uuid(row[0]), (String) row[1], TagSource.valueOf((String) row[2]));
-    }
-
-    private WatchParty toWatchParty(Object[] row) {
-        return new WatchParty(
-                uuid(row[0]),
-                (String) row[1],
-                ((Timestamp) row[2]).toInstant(),
-                DisplayStatus.valueOf((String) row[3]),
-                ((Number) row[4]).intValue(),
-                ((Number) row[5]).intValue());
     }
 
     private byte[] bytes(UUID id) {

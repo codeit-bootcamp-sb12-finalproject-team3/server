@@ -16,18 +16,17 @@ import com.moduplaylist.api.content.dto.ContentPlatformResponse;
 import com.moduplaylist.api.content.dto.ContentPlaylistResponse;
 import com.moduplaylist.api.content.dto.ContentResponse;
 import com.moduplaylist.api.content.dto.ContentSuggestionResponse;
-import com.moduplaylist.api.content.dto.ContentWatchPartyItemResponse;
 import com.moduplaylist.api.content.dto.ContentWatchPartyResponse;
 import com.moduplaylist.api.content.dto.MovieDetail;
 import com.moduplaylist.api.content.dto.SportDetail;
 import com.moduplaylist.api.content.dto.TvSeasonDetail;
-import com.moduplaylist.api.content.dto.WatchPartyDisplayStatus;
 import com.moduplaylist.api.content.service.ContentQueryService;
 import com.moduplaylist.api.content.service.ContentViewActivityService;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
 import com.moduplaylist.api.playlist.dto.PlaylistSummaryResponse;
 import com.moduplaylist.api.playlist.service.PlaylistService;
+import com.moduplaylist.api.watchparty.service.WatchPartyService;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentTag;
 import com.moduplaylist.core.content.entity.ContentType;
@@ -85,6 +84,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	private final ContentRelationRepository contentRelationRepository;
 	private final ContentViewActivityService contentViewActivityService;
 	private final PlaylistService playlistService;
+	private final WatchPartyService watchPartyService;
 	private final ObjectProvider<ContentKeywordSearchRepository> keywordSearchRepositoryProvider;
 
 	@Override
@@ -275,20 +275,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	@Transactional(readOnly = true)
 	public ContentWatchPartyResponse findWatchParties(UUID contentId) {
 		requireMovieOrSeason(contentId);
-		List<ContentRelationRepository.WatchParty> values = contentRelationRepository
-			.findWatchParties(contentId);
-		boolean hasMore = values.size() > 20;
-		List<ContentWatchPartyItemResponse> data = values.stream().limit(20)
-			.map(value -> ContentWatchPartyItemResponse.builder()
-				.id(value.getId())
-				.title(value.getTitle())
-				.status(WatchPartyDisplayStatus.valueOf(value.getDisplayStatus().name()))
-				.scheduledAt(value.getScheduledAt())
-				.participantCount(value.getParticipantCount())
-				.maxParticipants(value.getMaxParticipants())
-				.build())
-			.toList();
-		return ContentWatchPartyResponse.builder().data(data).hasMore(hasMore).build();
+		return watchPartyService.getWatchPartiesForContentWidget(contentId);
 	}
 
 	@Override
