@@ -9,7 +9,6 @@ import com.moduplaylist.infrastructure.opensearch.recommendation.UserPlaylistPre
 import com.moduplaylist.infrastructure.opensearch.recommendation.UserPlaylistPreferenceVectorRepository;
 import java.time.Instant;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.TreeSet;
@@ -35,18 +34,6 @@ public class UserPlaylistProfileEmbeddingTargetService {
         return candidateIds.stream()
                 .filter(this::requiresEmbedding)
                 .toList();
-    }
-
-    public List<UUID> findUserIdsWithoutPositivePreference() {
-        TreeSet<UUID> allUserIds = new TreeSet<>();
-        allUserIds.addAll(tagPreferenceRepository.findDistinctUserIds());
-        allUserIds.addAll(genrePreferenceRepository.findDistinctUserIds());
-
-        HashSet<UUID> positiveUserIds = new HashSet<>();
-        positiveUserIds.addAll(tagPreferenceRepository.findDistinctUserIdsWithPositiveScore());
-        positiveUserIds.addAll(genrePreferenceRepository.findDistinctUserIdsWithPositiveScore());
-        allUserIds.removeAll(positiveUserIds);
-        return List.copyOf(allUserIds);
     }
 
     private boolean requiresEmbedding(UUID userId) {
