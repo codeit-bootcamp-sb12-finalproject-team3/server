@@ -28,6 +28,10 @@ public class CreateWatchPartyRequest {
     @Positive
     private Integer maxParticipants;
 
+    @NotNull
+    @Positive
+    private Integer sessionDurationMinutes;
+
     @PositiveOrZero
     private Integer startEpisode;
 

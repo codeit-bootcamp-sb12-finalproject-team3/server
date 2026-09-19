@@ -1,6 +1,7 @@
 package com.moduplaylist.api.dm.controller;
 
 import com.moduplaylist.api.dm.dto.ConversationCreateRequest;
+import com.moduplaylist.api.dm.dto.ConversationListResponse;
 import com.moduplaylist.api.dm.dto.ConversationResponse;
 import com.moduplaylist.api.dm.dto.ConversationSearchRequest;
 import com.moduplaylist.api.dm.dto.DirectMessageReadRequest;
@@ -41,13 +42,24 @@ public class DirectMessageController {
     }
 
     @GetMapping
-    public ResponseEntity<CursorPageResponse<ConversationResponse>> getConversations(
+    public ResponseEntity<CursorPageResponse<ConversationListResponse>> getConversations(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @ModelAttribute ConversationSearchRequest request
     ) {
         return ResponseEntity.ok(
                 directMessageService.getConversations(userDetails.getUserId(), request)
         );
+    }
+
+    @GetMapping("/{conversationId}")
+    public ResponseEntity<ConversationResponse> getConversation(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID conversationId
+    ) {
+        return ResponseEntity.ok(directMessageService.getConversation(
+                userDetails.getUserId(),
+                conversationId
+        ));
     }
 
     @GetMapping("/{conversationId}/direct-messages")

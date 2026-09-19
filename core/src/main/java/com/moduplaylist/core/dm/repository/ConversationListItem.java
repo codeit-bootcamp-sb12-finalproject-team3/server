@@ -11,4 +11,6 @@ public interface ConversationListItem {
     User getPeer();
 
     DirectMessage getLatestMessage();
+
+    Boolean getHasUnread();
 }

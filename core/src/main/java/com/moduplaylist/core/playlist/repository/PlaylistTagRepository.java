@@ -16,4 +16,7 @@ public interface PlaylistTagRepository extends JpaRepository<PlaylistTag, UUID> 
       where playlistTag.playlist.id = :playlistId
       """)
   List<PlaylistTag> findAllWithTagByPlaylistId(@Param("playlistId") UUID playlistId);
+         
+  void deleteAllByPlaylist_Id(UUID playlistId);
+  
 }
