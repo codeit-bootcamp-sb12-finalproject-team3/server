@@ -2,6 +2,8 @@ package com.moduplaylist.batch.job.contentembedding.tasklet;
 
 import com.moduplaylist.batch.job.contentembedding.ContentEmbeddingService;
 import com.moduplaylist.batch.job.contentembedding.ContentEmbeddingTargetService;
+import com.moduplaylist.batch.job.contentembedding.ContentEmbeddingRunWindow;
+import com.moduplaylist.batch.job.contentembedding.ContentEmbeddingRunWindowService;
 import com.moduplaylist.batch.job.contentembedding.dto.ContentEmbeddingResult;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +25,7 @@ public class ContentEmbeddingTasklet implements Tasklet {
 
     private final ContentEmbeddingService embeddingService;
     private final ContentEmbeddingTargetService targetService;
+    private final ContentEmbeddingRunWindowService runWindowService;
 
     @Override
     public RepeatStatus execute(
@@ -44,7 +47,10 @@ public class ContentEmbeddingTasklet implements Tasklet {
             }
         }
 
-        List<UUID> targetIds = targetService.findTargetContentIds();
+        ContentEmbeddingRunWindow window = runWindowService.forExecution(
+                chunkContext.getStepContext().getStepExecution().getJobExecution()
+        );
+        List<UUID> targetIds = targetService.findTargetContentIds(window);
         List<UUID> failedIds = new ArrayList<>();
 
         for (UUID contentId : targetIds) {
