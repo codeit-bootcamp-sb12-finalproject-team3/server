@@ -57,6 +57,9 @@ public interface ContentLikeRepository extends JpaRepository<ContentLike, UUID> 
             """)
     int incrementLikeCount(@Param("contentId") UUID contentId);
 
+    @Query("select content.likeCount from Content content where content.id = :contentId")
+    Optional<Long> findLikeCountByContentId(@Param("contentId") UUID contentId);
+
     @Modifying
     @Query("""
             update Content content

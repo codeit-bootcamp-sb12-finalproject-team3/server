@@ -5,6 +5,7 @@ import com.moduplaylist.api.content.service.ContentLikeService;
 import com.moduplaylist.api.global.security.CustomUserDetails;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -26,7 +27,9 @@ public class ContentLikeController {
 		@AuthenticationPrincipal CustomUserDetails userDetails,
 		@PathVariable UUID contentId
 	) {
-		return ResponseEntity.ok(contentLikeService.get(userDetails.getUserId(), contentId));
+		return ResponseEntity.ok()
+			.header(HttpHeaders.CACHE_CONTROL, "private, no-store")
+			.body(contentLikeService.get(userDetails.getUserId(), contentId));
 	}
 
 	@PutMapping
