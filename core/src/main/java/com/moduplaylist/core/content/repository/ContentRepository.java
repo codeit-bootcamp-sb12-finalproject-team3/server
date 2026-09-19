@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Pageable;
 
 
 public interface ContentRepository extends JpaRepository<Content, UUID>, ContentQueryRepository {
@@ -66,4 +67,23 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
             UUID parentContentId,
             Integer seasonNumber,
             UUID contentId);
+
+    boolean existsByTypeAndTitleAndReleaseDate(
+            ContentType type,
+            String title,
+            java.time.LocalDate releaseDate);
+
+    boolean existsByTypeAndTitle(ContentType type, String title);
+
+    @Query("""
+            select content
+            from Content content
+            where content.type = :type
+              and lower(content.title) like lower(concat('%', :query, '%'))
+            order by content.title asc, content.id asc
+            """)
+    List<Content> searchSeriesForAdmin(
+            @Param("type") ContentType type,
+            @Param("query") String query,
+            Pageable pageable);
 }

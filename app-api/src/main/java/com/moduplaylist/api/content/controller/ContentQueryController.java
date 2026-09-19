@@ -5,6 +5,7 @@ import com.moduplaylist.api.content.dto.ContentSummaryResponse;
 import com.moduplaylist.api.content.dto.ContentTypeFilter;
 import com.moduplaylist.api.content.dto.GenreResponse;
 import com.moduplaylist.api.content.dto.SportTypeResponse;
+import com.moduplaylist.api.content.dto.PlatformResponse;
 import com.moduplaylist.api.content.dto.ContentResponse;
 import com.moduplaylist.api.content.dto.ContentPlatformResponse;
 import com.moduplaylist.api.content.dto.ContentPlaylistResponse;
@@ -67,6 +68,11 @@ public class ContentQueryController {
 	@GetMapping("/sport-types")
 	public ResponseEntity<List<SportTypeResponse>> findSportTypes() {
 		return ResponseEntity.ok(contentQueryService.findSportTypes());
+	}
+
+	@GetMapping("/platforms")
+	public ResponseEntity<List<PlatformResponse>> findPlatforms() {
+		return ResponseEntity.ok(contentQueryService.findPlatforms());
 	}
 
 	@GetMapping("/{contentId}")

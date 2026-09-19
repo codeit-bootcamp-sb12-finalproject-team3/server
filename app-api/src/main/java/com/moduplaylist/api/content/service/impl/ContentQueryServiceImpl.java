@@ -7,6 +7,9 @@ import com.moduplaylist.api.content.dto.ContentSummaryType;
 import com.moduplaylist.api.content.dto.ContentTypeFilter;
 import com.moduplaylist.api.content.dto.GenreResponse;
 import com.moduplaylist.api.content.dto.SportTypeResponse;
+import com.moduplaylist.api.content.dto.PlatformResponse;
+import com.moduplaylist.api.content.dto.ContentSeriesSearchResponse;
+import com.moduplaylist.api.content.dto.ContentSeriesSuggestionResponse;
 import com.moduplaylist.api.content.dto.TagResponse;
 import com.moduplaylist.api.content.dto.CastResponse;
 import com.moduplaylist.api.content.dto.ContentAutocompleteRequest;
@@ -33,6 +36,7 @@ import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.core.content.entity.Genre;
 import com.moduplaylist.core.content.entity.SportEvent;
 import com.moduplaylist.core.content.entity.SportType;
+import com.moduplaylist.core.content.entity.Platform;
 import com.moduplaylist.core.content.exception.ContentSearchUnavailableException;
 import com.moduplaylist.core.content.exception.GenreNotFoundException;
 import com.moduplaylist.core.content.exception.InvalidContentSearchException;
@@ -48,6 +52,7 @@ import com.moduplaylist.core.content.repository.EpisodeRepository;
 import com.moduplaylist.core.content.repository.GenreRepository;
 import com.moduplaylist.core.content.repository.SportEventRepository;
 import com.moduplaylist.core.content.repository.SportTypeRepository;
+import com.moduplaylist.core.content.repository.PlatformRepository;
 import com.moduplaylist.core.playlist.repository.PlaylistSearch;
 import com.moduplaylist.infrastructure.opensearch.content.ContentKeywordSearchRepository;
 import java.math.BigDecimal;
@@ -63,6 +68,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
 
 @Service
 @RequiredArgsConstructor
@@ -70,10 +76,12 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 
 	private static final ContentSort DEFAULT_SORT = ContentSort.LATEST;
 	private static final int AUTOCOMPLETE_LIMIT = 10;
+	private static final int ADMIN_SERIES_SEARCH_LIMIT = 10;
 
 	private final ContentRepository contentRepository;
 	private final GenreRepository genreRepository;
 	private final SportTypeRepository sportTypeRepository;
+	private final PlatformRepository platformRepository;
 	private final ContentLikeRepository contentLikeRepository;
 	private final EpisodeRepository episodeRepository;
 	private final SportEventRepository sportEventRepository;
@@ -149,7 +157,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		if (type != ContentTypeFilter.MOVIE && type != ContentTypeFilter.TV_SERIES) {
 			throw new InvalidContentSearchException();
 		}
-		return genreRepository.findAllUsedByContentType(type.toQueryType()).stream()
+		return genreRepository.findAllByOrderByNameAsc().stream()
 			.map(this::toGenreResponse)
 			.toList();
 	}
@@ -160,6 +168,37 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		return sportTypeRepository.findAllByOrderByNameAsc().stream()
 			.map(this::toSportTypeResponse)
 			.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<PlatformResponse> findPlatforms() {
+		return platformRepository.findAllByTmdbProviderIdNotNullOrderByNameAsc().stream()
+			.map(this::toPlatformResponse)
+			.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ContentSeriesSearchResponse searchSeriesForAdmin(String query) {
+		String normalized = query == null ? "" : query.strip();
+		if (normalized.isEmpty() || normalized.length() > 255) {
+			throw new InvalidContentSearchException();
+		}
+		List<Content> matches = contentRepository.searchSeriesForAdmin(
+			ContentType.TV_SERIES,
+			normalized,
+			PageRequest.of(0, ADMIN_SERIES_SEARCH_LIMIT)
+		);
+		List<ContentSeriesSuggestionResponse> data = matches.stream()
+			.map(content -> ContentSeriesSuggestionResponse.builder()
+				.id(content.getId())
+				.title(content.getTitle())
+				.build())
+			.toList();
+		return ContentSeriesSearchResponse.builder()
+			.data(data)
+			.build();
 	}
 
 	@Override
@@ -475,6 +514,14 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			.id(sportType.getId())
 			.code(sportType.getCode())
 			.name(sportType.getName())
+			.build();
+	}
+
+	private PlatformResponse toPlatformResponse(Platform platform) {
+		return PlatformResponse.builder()
+			.id(platform.getId())
+			.name(platform.getName())
+			.logoUrl(platform.getLogoUrl())
 			.build();
 	}
 

@@ -1,7 +1,10 @@
 package com.moduplaylist.api.content.dto;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.moduplaylist.core.content.entity.ContentType;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -9,8 +12,10 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -32,20 +37,23 @@ public class ContentCreateRequest {
 	private Integer seasonNumber;
 
 	@PositiveOrZero
-	private Integer seasonCount;
-
-	@PositiveOrZero
 	private Integer episodeCount;
 
-	@Size(max = 50)
-	private String sportType;
+	private UUID sportTypeId;
 	private Instant scheduledAt;
+	@Size(max = 255)
 	private String league;
+	@Size(max = 100)
 	private String season;
+	@Size(max = 100)
 	private String round;
+	@Size(max = 255)
 	private String homeTeam;
+	@Size(max = 255)
 	private String awayTeam;
+	@Size(max = 255)
 	private String venue;
+	@Size(max = 100)
 	private String country;
 	@PositiveOrZero
 	private Integer homeScore;
@@ -63,9 +71,20 @@ public class ContentCreateRequest {
 
 	private List<@NotNull UUID> genreIds;
 
+	@JsonProperty("tags")
 	private List<@NotBlank @Size(max = 100) String> manualTags;
 
 	private List<@NotNull @Valid ContentCastRequest> casts;
+
+	private List<@NotNull @Valid ContentPlatformCreateRequest> platforms;
+
+	@Valid
+	@Size(min = 1, max = 15)
+	private List<@NotNull SeasonCreateRequest> seasons;
+
+	private boolean duplicateConfirmed;
+
+	private final Set<String> unknownFields = new HashSet<>();
 
 	public void setTitle(String title) {
 		this.title = strip(title);
@@ -83,16 +102,12 @@ public class ContentCreateRequest {
 		this.seasonNumber = seasonNumber;
 	}
 
-	public void setSeasonCount(Integer seasonCount) {
-		this.seasonCount = seasonCount;
-	}
-
 	public void setEpisodeCount(Integer episodeCount) {
 		this.episodeCount = episodeCount;
 	}
 
-	public void setSportType(String sportType) {
-		this.sportType = strip(sportType);
+	public void setSportTypeId(UUID sportTypeId) {
+		this.sportTypeId = sportTypeId;
 	}
 
 	public void setScheduledAt(Instant scheduledAt) { this.scheduledAt = scheduledAt; }
@@ -107,7 +122,7 @@ public class ContentCreateRequest {
 	public void setAwayScore(Integer awayScore) { this.awayScore = awayScore; }
 
 	public void setDescription(String description) {
-		this.description = description;
+		this.description = strip(description);
 	}
 
 	public void setReleaseDate(LocalDate releaseDate) {
@@ -126,6 +141,7 @@ public class ContentCreateRequest {
 		this.genreIds = genreIds;
 	}
 
+	@JsonProperty("tags")
 	public void setManualTags(List<String> manualTags) {
 		this.manualTags = manualTags == null
 			? null
@@ -136,6 +152,26 @@ public class ContentCreateRequest {
 
 	public void setCasts(List<ContentCastRequest> casts) {
 		this.casts = casts;
+	}
+
+	public void setPlatforms(List<ContentPlatformCreateRequest> platforms) {
+		this.platforms = platforms;
+	}
+
+	public void setSeasons(List<SeasonCreateRequest> seasons) { this.seasons = seasons; }
+
+	public void setDuplicateConfirmed(boolean duplicateConfirmed) {
+		this.duplicateConfirmed = duplicateConfirmed;
+	}
+
+	@JsonAnySetter
+	public void addUnknownField(String name, Object value) {
+		unknownFields.add(name);
+	}
+
+	@AssertTrue(message = "허용되지 않은 필드가 포함되어 있습니다.")
+	public boolean isKnownFieldsOnly() {
+		return unknownFields.isEmpty();
 	}
 
 	private static String strip(String value) {
