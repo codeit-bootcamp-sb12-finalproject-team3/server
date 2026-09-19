@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.opensearch.client.opensearch.OpenSearchClient;
@@ -30,8 +31,79 @@ public class ContentKeywordSearchRepository {
 		return search(keyword, contentType, null, MAX_RESULTS);
 	}
 
-	public List<UUID> findAutocompleteIds(String query, int limit) {
-		return search(query, null, null, limit);
+	public List<ContentAutocompleteCandidate> findAutocompleteCandidates(String query, int limit) {
+		String normalizedQuery = query.toLowerCase(Locale.ROOT);
+		Query exactMatch = Query.of(q -> q.term(term -> term
+			.field("suggestions.text.normalized")
+			.value(FieldValue.of(normalizedQuery))));
+		Query prefixMatch = Query.of(q -> q.prefix(prefix -> prefix
+			.field("suggestions.text.normalized")
+			.value(normalizedQuery)));
+		Query containsMatch = Query.of(q -> q.match(match -> match
+			.field("suggestions.text.autocomplete")
+			.query(FieldValue.of(normalizedQuery))));
+		Query autocompleteQuery = Query.of(q -> q.bool(bool -> bool
+			.should(should -> should.constantScore(score -> score
+				.filter(exactMatch)
+				.boost(100.0f)))
+			.should(should -> should.constantScore(score -> score
+				.filter(prefixMatch)
+				.boost(10.0f)))
+			.should(should -> should.constantScore(score -> score
+				.filter(containsMatch)
+				.boost(1.0f)))
+			.minimumShouldMatch("1")
+			.mustNot(mustNot -> mustNot.term(term -> term
+				.field("hidden")
+				.value(FieldValue.of(true))))
+			.mustNot(mustNot -> mustNot.term(term -> term
+				.field("type")
+				.value(FieldValue.of(TV_SERIES_TYPE))))));
+
+		try {
+			return openSearchClient.search(request -> request
+					.index(properties.getContentAutocompleteIndex())
+					.size(limit)
+					.query(autocompleteQuery)
+					.sort(sort -> sort.score(score -> score.order(
+						org.opensearch.client.opensearch._types.SortOrder.Desc)))
+					.sort(sort -> sort.field(field -> field
+						.field("contentId")
+						.order(org.opensearch.client.opensearch._types.SortOrder.Asc))),
+				ContentAutocompleteDocument.class)
+				.hits().hits().stream()
+				.flatMap(hit -> {
+					ContentAutocompleteDocument document = hit.source();
+					if (document == null || document.getSuggestions() == null) {
+						return java.util.stream.Stream.empty();
+					}
+					UUID contentId = document.getContentId() == null
+						? UUID.fromString(hit.id())
+						: document.getContentId();
+					return document.getSuggestions().stream()
+						.map(term -> toCandidate(contentId, term, normalizedQuery))
+						.filter(java.util.Objects::nonNull);
+				})
+				.toList();
+		} catch (IOException | IllegalArgumentException exception) {
+			throw new ContentSearchUnavailableException(exception);
+		}
+	}
+
+	private ContentAutocompleteCandidate toCandidate(
+		UUID contentId,
+		ContentAutocompleteTerm term,
+		String query
+	) {
+		if (term == null || term.text() == null) {
+			return null;
+		}
+		String text = term.text().toLowerCase(Locale.ROOT);
+		if (!text.contains(query)) {
+			return null;
+		}
+		int matchRank = text.equals(query) ? 1 : text.startsWith(query) ? 2 : 3;
+		return new ContentAutocompleteCandidate(contentId, term.text(), term.type(), matchRank);
 	}
 
 	public List<UUID> findContentIdsWithin(

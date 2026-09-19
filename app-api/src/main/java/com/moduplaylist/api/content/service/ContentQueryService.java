@@ -39,5 +39,5 @@ public interface ContentQueryService {
 
 	ContentWatchPartyResponse findWatchParties(UUID contentId);
 
-	ContentAutocompleteResponse autocomplete(ContentAutocompleteRequest request);
+	ContentAutocompleteResponse autocomplete(UUID userId, ContentAutocompleteRequest request);
 }

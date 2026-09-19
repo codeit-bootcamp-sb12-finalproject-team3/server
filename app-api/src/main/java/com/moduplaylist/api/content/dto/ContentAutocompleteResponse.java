@@ -9,5 +9,5 @@ import lombok.Getter;
 public class ContentAutocompleteResponse {
 
 	@Builder.Default
-	private List<ContentSuggestionResponse> suggestions = List.of();
+	private List<ContentSearchSuggestionResponse> suggestions = List.of();
 }

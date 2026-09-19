@@ -1,5 +1,6 @@
 package com.moduplaylist.api.content.event;
 
+import com.moduplaylist.api.content.service.ContentAutocompleteIndexService;
 import com.moduplaylist.infrastructure.kafka.KafkaTopics;
 import com.moduplaylist.infrastructure.kafka.event.ContentDeleted;
 import com.moduplaylist.infrastructure.kafka.event.ContentUpserted;
@@ -16,6 +17,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class ContentLifecycleEventListener {
 
 	private final KafkaTemplate<String, Object> kafkaTemplate;
+	private final ContentAutocompleteIndexService autocompleteIndexService;
 
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	public void handle(ContentLifecycleEvent event) {
@@ -40,6 +42,14 @@ public class ContentLifecycleEventListener {
 		} catch (RuntimeException exception) {
 			log.warn(
 				"콘텐츠 생명주기 이벤트 발행 요청에 실패했습니다. eventId={}, type={}, contentId={}",
+				event.eventId(), event.type(), event.contentId(), exception);
+		}
+
+		try {
+			autocompleteIndexService.synchronize(event.contentId());
+		} catch (RuntimeException exception) {
+			log.warn(
+				"자동완성 인덱스 동기화에 실패했습니다. eventId={}, type={}, contentId={}",
 				event.eventId(), event.type(), event.contentId(), exception);
 		}
 	}

@@ -3,7 +3,6 @@ package com.moduplaylist.api.content.service.impl;
 import com.moduplaylist.api.content.dto.ContentSearchRequest;
 import com.moduplaylist.api.content.dto.ContentSort;
 import com.moduplaylist.api.content.dto.ContentSummaryResponse;
-import com.moduplaylist.api.content.dto.ContentSummaryType;
 import com.moduplaylist.api.content.dto.ContentTypeFilter;
 import com.moduplaylist.api.content.dto.GenreResponse;
 import com.moduplaylist.api.content.dto.SportTypeResponse;
@@ -18,7 +17,7 @@ import com.moduplaylist.api.content.dto.ContentPlatformItemResponse;
 import com.moduplaylist.api.content.dto.ContentPlatformResponse;
 import com.moduplaylist.api.content.dto.ContentPlaylistResponse;
 import com.moduplaylist.api.content.dto.ContentResponse;
-import com.moduplaylist.api.content.dto.ContentSuggestionResponse;
+import com.moduplaylist.api.content.dto.ContentSearchSuggestionResponse;
 import com.moduplaylist.api.content.dto.ContentWatchPartyResponse;
 import com.moduplaylist.api.content.dto.MovieDetail;
 import com.moduplaylist.api.content.dto.SportDetail;
@@ -26,6 +25,7 @@ import com.moduplaylist.api.content.dto.TvSeasonDetail;
 import com.moduplaylist.api.content.service.ContentQueryService;
 import com.moduplaylist.api.content.service.ContentSummaryResponseAssembler;
 import com.moduplaylist.api.content.service.ContentViewActivityService;
+import com.moduplaylist.api.content.service.ContentAutocompletePopularityScoreProvider;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
 import com.moduplaylist.api.playlist.dto.PlaylistSummaryResponse;
@@ -55,16 +55,22 @@ import com.moduplaylist.core.content.repository.SportTypeRepository;
 import com.moduplaylist.core.content.repository.PlatformRepository;
 import com.moduplaylist.core.playlist.repository.PlaylistSearch;
 import com.moduplaylist.infrastructure.opensearch.content.ContentKeywordSearchRepository;
+import com.moduplaylist.infrastructure.opensearch.content.ContentAutocompleteCandidate;
+import com.moduplaylist.infrastructure.redis.recommendation.ContentRecommendationRedisRepository;
+import com.moduplaylist.infrastructure.redis.recommendation.RecommendationCachePage;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.LinkedHashMap;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -72,10 +78,12 @@ import org.springframework.data.domain.PageRequest;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ContentQueryServiceImpl implements ContentQueryService {
 
 	private static final ContentSort DEFAULT_SORT = ContentSort.LATEST;
 	private static final int AUTOCOMPLETE_LIMIT = 10;
+	private static final int AUTOCOMPLETE_CANDIDATE_LIMIT = 30;
 	private static final int ADMIN_SERIES_SEARCH_LIMIT = 10;
 
 	private final ContentRepository contentRepository;
@@ -90,6 +98,9 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	private final PlaylistService playlistService;
 	private final WatchPartyService watchPartyService;
 	private final ObjectProvider<ContentKeywordSearchRepository> keywordSearchRepositoryProvider;
+	private final ObjectProvider<ContentAutocompletePopularityScoreProvider>
+		popularityScoreProvider;
+	private final ContentRecommendationRedisRepository recommendationRedisRepository;
 	private final ContentSummaryResponseAssembler contentSummaryResponseAssembler;
 
 	@Override
@@ -320,32 +331,82 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public ContentAutocompleteResponse autocomplete(ContentAutocompleteRequest request) {
+	public ContentAutocompleteResponse autocomplete(UUID userId, ContentAutocompleteRequest request) {
 		ContentKeywordSearchRepository repository = keywordSearchRepositoryProvider.getIfAvailable();
 		if (repository == null) {
 			throw new ContentSearchUnavailableException();
 		}
-		List<UUID> candidateIds = repository.findAutocompleteIds(request.getQuery(), AUTOCOMPLETE_LIMIT);
-		if (candidateIds.isEmpty()) {
+		List<ContentAutocompleteCandidate> candidates = repository.findAutocompleteCandidates(
+			request.getQuery(),
+			AUTOCOMPLETE_CANDIDATE_LIMIT
+		);
+		if (candidates.isEmpty()) {
 			return ContentAutocompleteResponse.builder().build();
 		}
-		Map<UUID, Content> visibleById = contentRepository.findAllById(candidateIds).stream()
+		List<UUID> candidateIds = candidates.stream()
+			.map(ContentAutocompleteCandidate::contentId)
+			.distinct()
+			.toList();
+		Map<UUID, Integer> personalizedRankById = findPersonalizedRanks(userId);
+		Map<UUID, Double> popularityScoreById = findPopularityScores(candidateIds);
+		Set<UUID> visibleContentIds = contentRepository.findAllById(candidateIds).stream()
 			.filter(content -> !content.isHidden() && content.getType() != ContentType.TV_SERIES)
-			.collect(Collectors.toMap(Content::getId, Function.identity(), (left, right) -> left,
-				LinkedHashMap::new));
-		List<ContentSuggestionResponse> suggestions = candidateIds.stream()
-			.map(visibleById::get)
-			.filter(java.util.Objects::nonNull)
+			.map(Content::getId)
+			.collect(java.util.stream.Collectors.toSet());
+		Set<String> seenTexts = new HashSet<>();
+
+		List<ContentSearchSuggestionResponse> suggestions = candidates.stream()
+			.filter(candidate -> visibleContentIds.contains(candidate.contentId()))
+			.sorted(Comparator
+				.comparingInt(ContentAutocompleteCandidate::matchRank)
+				.thenComparingInt(candidate -> personalizedRankById.getOrDefault(
+					candidate.contentId(), Integer.MAX_VALUE))
+				.thenComparing(Comparator.comparingDouble(
+					(ContentAutocompleteCandidate candidate) -> popularityScoreById
+						.getOrDefault(candidate.contentId(), 0.0)).reversed())
+				.thenComparing(ContentAutocompleteCandidate::text, String.CASE_INSENSITIVE_ORDER)
+				.thenComparing(ContentAutocompleteCandidate::contentId))
+			.filter(candidate -> seenTexts.add(candidate.text().toLowerCase(Locale.ROOT)))
 			.limit(AUTOCOMPLETE_LIMIT)
-			.map(content -> ContentSuggestionResponse.builder()
-				.contentId(content.getId())
-				.title(content.getTitle())
-				.type(ContentSummaryType.from(content.getType()))
-				.thumbnailUrl(content.getThumbnailUrl())
-				.matchedText(content.getTitle())
+			.map(candidate -> ContentSearchSuggestionResponse.builder()
+				.text(candidate.text())
+				.type(candidate.type())
 				.build())
 			.toList();
 		return ContentAutocompleteResponse.builder().suggestions(suggestions).build();
+	}
+
+	private Map<UUID, Integer> findPersonalizedRanks(UUID userId) {
+		try {
+			RecommendationCachePage page = recommendationRedisRepository.findPage(
+				userId,
+				0,
+				AUTOCOMPLETE_CANDIDATE_LIMIT
+			);
+			Map<UUID, Integer> ranks = new HashMap<>();
+			for (int index = 0; index < page.contentIds().size(); index++) {
+				ranks.putIfAbsent(page.contentIds().get(index), index);
+			}
+			return ranks;
+		} catch (RuntimeException exception) {
+			log.warn("자동완성 개인화 순위를 조회하지 못했습니다. userId={}", userId, exception);
+			return Map.of();
+		}
+	}
+
+	private Map<UUID, Double> findPopularityScores(List<UUID> contentIds) {
+		ContentAutocompletePopularityScoreProvider provider = popularityScoreProvider.getIfAvailable();
+		if (provider == null) {
+			// TODO: 트렌딩 도메인의 Redis ZSet 구현이 완료되면 ZMSCORE 기반 provider를 연결한다.
+			return Map.of();
+		}
+		try {
+			return provider.findScores(contentIds);
+		} catch (RuntimeException exception) {
+			// 트렌딩 장애가 자동완성 실패로 이어지지 않도록 제목 정렬로 대체한다.
+			log.warn("자동완성 트렌딩 점수를 조회하지 못했습니다.", exception);
+			return Map.of();
+		}
 	}
 
 	private Content findVisibleContent(UUID contentId) {
