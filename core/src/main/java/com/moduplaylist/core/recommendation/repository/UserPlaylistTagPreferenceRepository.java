@@ -15,6 +15,16 @@ public interface UserPlaylistTagPreferenceRepository
 
     List<UserPlaylistTagPreference> findAllByUser_Id(UUID userId);
 
+    @Query("select distinct preference.user.id from UserPlaylistTagPreference preference")
+    List<UUID> findDistinctUserIds();
+
+    @Query("""
+            select distinct preference.user.id
+            from UserPlaylistTagPreference preference
+            where preference.score > 0
+            """)
+    List<UUID> findDistinctUserIdsWithPositiveScore();
+
     @Query("""
             select preference
             from UserPlaylistTagPreference preference
