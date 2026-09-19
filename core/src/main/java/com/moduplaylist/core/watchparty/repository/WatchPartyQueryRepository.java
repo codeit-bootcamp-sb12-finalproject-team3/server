@@ -1,15 +1,18 @@
 package com.moduplaylist.core.watchparty.repository;
 
 import com.moduplaylist.core.watchparty.entity.WatchParty;
+import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
@@ -64,5 +67,20 @@ public class WatchPartyQueryRepository {
         List<WatchParty> result = hasNext ? fetched.subList(0, request.getLimit()) : fetched;
 
         return new SearchResult(result, totalCount, hasNext);
+    }
+
+    public List<WatchParty> findContentWidgetItems(UUID contentId, Instant now, Instant liveWindowStart, int limit) {
+        String jpql = "select w from WatchParty w" +
+                " where w.contentId = :contentId and w.status <> :ended and w.scheduledAt >= :liveWindowStart" +
+                " order by case when w.scheduledAt <= :now then 0 else 1 end asc," +
+                " w.scheduledAt asc, w.id desc";
+
+        return em.createQuery(jpql, WatchParty.class)
+                .setParameter("contentId", contentId)
+                .setParameter("ended", WatchPartyStatus.ENDED)
+                .setParameter("liveWindowStart", liveWindowStart)
+                .setParameter("now", now)
+                .setMaxResults(limit)
+                .getResultList();
     }
 }

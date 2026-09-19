@@ -21,6 +21,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.messaging.support.MessageHeaderAccessor;
 
 import org.springframework.security.authentication.BadCredentialsException;
 
@@ -44,6 +45,7 @@ class StompAuthChannelInterceptorTest {
         if (authorizationHeader != null) {
             accessor.setNativeHeader("Authorization", authorizationHeader);
         }
+        accessor.setLeaveMutable(true);
         return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
     }
 
@@ -123,6 +125,20 @@ class StompAuthChannelInterceptorTest {
     }
 
     @Test
+    @DisplayName("Redis 조회 실패 시 fail-closed로 거부한다")
+    void redisFailure_throwsBadCredentials() {
+        Message<byte[]> message = createConnectMessage("Bearer valid-token");
+        when(tokenVerifier.verify(anyString()))
+                .thenReturn(new VerifiedAccessToken(USER_ID, TOKEN_ID));
+        when(accessTokenSessionRegistry.isAccessTokenActive(any(), any()))
+                .thenThrow(new DataAccessException("redis down") {});
+
+        assertThatThrownBy(() -> interceptor.preSend(message, null))
+                .isInstanceOf(BadCredentialsException.class)
+                .hasCauseInstanceOf(DataAccessException.class);
+    }
+
+    @Test
     @DisplayName("모든 검증 통과 시 Principal을 세팅한다")
     void validToken_setsPrincipal() {
         Message<byte[]> message = createConnectMessage("Bearer valid-token");
@@ -132,7 +148,12 @@ class StompAuthChannelInterceptorTest {
 
         Message<?> result = interceptor.preSend(message, null);
 
-        StompHeaderAccessor resultAccessor = StompHeaderAccessor.wrap(result);
+        assertThat(result).isSameAs(message);
+        StompHeaderAccessor resultAccessor = MessageHeaderAccessor.getAccessor(
+                result,
+                StompHeaderAccessor.class
+        );
+        assertThat(resultAccessor).isNotNull();
         assertThat(resultAccessor.getUser()).isEqualTo(new RealtimePrincipal(USER_ID));
     }
 
@@ -149,7 +170,7 @@ class StompAuthChannelInterceptorTest {
     void kickedUser_subscribe_silentlyRejected() {
         UUID partyId = UUID.randomUUID();
         Message<byte[]> message = createMessage
-                    (StompCommand.SUBSCRIBE, "/sub/watch-parties/" + partyId + "/chat");
+                (StompCommand.SUBSCRIBE, "/sub/watch-parties/" + partyId + "/chat");
         when(watchPartyKickedRegistry.isKicked(partyId, USER_ID)).thenReturn(true);
 
         Message<?> result = interceptor.preSend(message, null);
@@ -164,7 +185,7 @@ class StompAuthChannelInterceptorTest {
         UUID partyId = UUID.randomUUID();
         UUID otherPartyId = UUID.randomUUID();
         Message<byte[]> message = createMessage
-                    (StompCommand.SUBSCRIBE, "/sub/watch-parties/" + partyId + "/chat");
+                (StompCommand.SUBSCRIBE, "/sub/watch-parties/" + partyId + "/chat");
         when(watchPartyKickedRegistry.isKicked(partyId, USER_ID)).thenReturn(false);
         when(watchPartyActivePartyRegistry.findJoinedPartyId(USER_ID)).thenReturn(Optional.of(otherPartyId));
 
@@ -180,7 +201,7 @@ class StompAuthChannelInterceptorTest {
     void noActiveParty_subscribe_passesThrough() {
         UUID partyId = UUID.randomUUID();
         Message<byte[]> message = createMessage
-                    (StompCommand.SUBSCRIBE, "/sub/watch-parties/" + partyId + "/chat");
+                (StompCommand.SUBSCRIBE, "/sub/watch-parties/" + partyId + "/chat");
         when(watchPartyKickedRegistry.isKicked(partyId, USER_ID)).thenReturn(false);
         when(watchPartyActivePartyRegistry.findJoinedPartyId(USER_ID)).thenReturn(Optional.empty());
 
@@ -195,7 +216,7 @@ class StompAuthChannelInterceptorTest {
     void activePartyMatchesRequested_subscribe_passesThrough() {
         UUID partyId = UUID.randomUUID();
         Message<byte[]> message = createMessage
-                    (StompCommand.SUBSCRIBE, "/sub/watch-parties/" + partyId + "/chat");
+                (StompCommand.SUBSCRIBE, "/sub/watch-parties/" + partyId + "/chat");
         when(watchPartyKickedRegistry.isKicked(partyId, USER_ID)).thenReturn(false);
         when(watchPartyActivePartyRegistry.findJoinedPartyId(USER_ID)).thenReturn(Optional.of(partyId));
 
@@ -209,7 +230,7 @@ class StompAuthChannelInterceptorTest {
     void kickedUser_send_silentlyRejected() {
         UUID partyId = UUID.randomUUID();
         Message<byte[]> message = createMessage
-                    (StompCommand.SEND, "/pub/watch-parties/" + partyId + "/chat");
+                (StompCommand.SEND, "/pub/watch-parties/" + partyId + "/chat");
         when(watchPartyKickedRegistry.isKicked(partyId, USER_ID)).thenReturn(true);
 
         Message<?> result = interceptor.preSend(message, null);
@@ -223,7 +244,7 @@ class StompAuthChannelInterceptorTest {
     void notJoinedNorHost_send_rejectedWithError() {
         UUID partyId = UUID.randomUUID();
         Message<byte[]> message = createMessage
-                    (StompCommand.SEND, "/pub/watch-parties/" + partyId + "/chat");
+                (StompCommand.SEND, "/pub/watch-parties/" + partyId + "/chat");
         when(watchPartyKickedRegistry.isKicked(partyId, USER_ID)).thenReturn(false);
         when(watchPartyJoinedRegistry.isJoined(partyId, USER_ID)).thenReturn(false);
         when(watchPartyHostRegistry.isHost(partyId, USER_ID)).thenReturn(false);
@@ -240,7 +261,7 @@ class StompAuthChannelInterceptorTest {
     void joinedUser_send_passesThrough() {
         UUID partyId = UUID.randomUUID();
         Message<byte[]> message = createMessage
-                    (StompCommand.SEND, "/pub/watch-parties/" + partyId + "/chat");
+                (StompCommand.SEND, "/pub/watch-parties/" + partyId + "/chat");
         when(watchPartyKickedRegistry.isKicked(partyId, USER_ID)).thenReturn(false);
         when(watchPartyJoinedRegistry.isJoined(partyId, USER_ID)).thenReturn(true);
         when(watchPartyHostRegistry.isHost(partyId, USER_ID)).thenReturn(false);
@@ -256,7 +277,7 @@ class StompAuthChannelInterceptorTest {
     void hostUser_send_passesThrough() {
         UUID partyId = UUID.randomUUID();
         Message<byte[]> message = createMessage
-                    (StompCommand.SEND, "/pub/watch-parties/" + partyId + "/chat");
+                (StompCommand.SEND, "/pub/watch-parties/" + partyId + "/chat");
         when(watchPartyKickedRegistry.isKicked(partyId, USER_ID)).thenReturn(false);
         when(watchPartyJoinedRegistry.isJoined(partyId, USER_ID)).thenReturn(false);
         when(watchPartyHostRegistry.isHost(partyId, USER_ID)).thenReturn(true);
@@ -270,26 +291,40 @@ class StompAuthChannelInterceptorTest {
     @DisplayName("watch-party가 아닌 destination의 SUBSCRIBE/SEND는 인가 체크 없이 통과한다")
     void nonWatchPartyDestination_passesThroughWithoutCheck() {
         Message<byte[]> subscribe = createMessage
-                    (StompCommand.SUBSCRIBE, "/sub/conversations/1");
+                (StompCommand.SUBSCRIBE, "/sub/conversations/1");
         Message<byte[]> send = createMessage(StompCommand.SEND, "/pub/conversations/1");
 
         assertThat(interceptor.preSend(subscribe, null)).isEqualTo(subscribe);
         assertThat(interceptor.preSend(send, null)).isEqualTo(send);
         verifyNoInteractions(watchPartyKickedRegistry, watchPartyJoinedRegistry,
-                                watchPartyHostRegistry, watchPartyActivePartyRegistry);
+                watchPartyHostRegistry, watchPartyActivePartyRegistry);
     }
 
     @Test
-    @DisplayName("Redis 조회 실패 시 fail-closed로 거부한다")
-    void redisFailure_throwsBadCredentials() {
-        Message<byte[]> message = createConnectMessage("Bearer valid-token");
-        when(tokenVerifier.verify(anyString()))
-                .thenReturn(new VerifiedAccessToken(USER_ID, TOKEN_ID));
-        when(accessTokenSessionRegistry.isAccessTokenActive(any(), any()))
-                .thenThrow(new DataAccessException("redis down") {});
+    @DisplayName("watch-party 경로인데 partyId가 UUID 형식이 아니면 SUBSCRIBE를 에러 응답 후 거부한다")
+    void invalidPartyIdFormat_subscribe_rejectedWithError() {
+        Message<byte[]> message = createMessage(StompCommand.SUBSCRIBE, "/sub/watch-parties/not-a-uuid/chat");
 
-        assertThatThrownBy(() -> interceptor.preSend(message, null))
-                .isInstanceOf(BadCredentialsException.class)
-                .hasCauseInstanceOf(DataAccessException.class);
+        Message<?> result = interceptor.preSend(message, null);
+
+        assertThat(result).isNull();
+        verify(messagingTemplate)
+                .convertAndSendToUser(eq(USER_ID.toString()), eq("/queue/errors"), any());
+        verifyNoInteractions(watchPartyKickedRegistry, watchPartyJoinedRegistry,
+                watchPartyHostRegistry, watchPartyActivePartyRegistry);
+    }
+
+    @Test
+    @DisplayName("watch-party 경로인데 partyId가 UUID 형식이 아니면 SEND를 에러 응답 후 거부한다")
+    void invalidPartyIdFormat_send_rejectedWithError() {
+        Message<byte[]> message = createMessage(StompCommand.SEND, "/pub/watch-parties/not-a-uuid/chat");
+
+        Message<?> result = interceptor.preSend(message, null);
+
+        assertThat(result).isNull();
+        verify(messagingTemplate)
+                .convertAndSendToUser(eq(USER_ID.toString()), eq("/queue/errors"), any());
+        verifyNoInteractions(watchPartyKickedRegistry, watchPartyJoinedRegistry,
+                watchPartyHostRegistry, watchPartyActivePartyRegistry);
     }
 }

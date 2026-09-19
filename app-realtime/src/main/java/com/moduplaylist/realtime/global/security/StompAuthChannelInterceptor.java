@@ -7,6 +7,7 @@ import com.moduplaylist.realtime.watchparty.WatchPartyJoinedRegistry;
 import com.moduplaylist.realtime.watchparty.WatchPartyKickedRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DataAccessException;
 import org.springframework.lang.NonNull;
 import org.springframework.messaging.Message;
@@ -15,7 +16,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
-import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -47,7 +48,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             WatchPartyJoinedRegistry watchPartyJoinedRegistry,
             WatchPartyHostRegistry watchPartyHostRegistry,
             WatchPartyActivePartyRegistry watchPartyActivePartyRegistry,
-            SimpMessagingTemplate messagingTemplate
+            @Lazy SimpMessagingTemplate messagingTemplate
     ) {
         this.tokenVerifier = tokenVerifier;
         this.accessTokenSessionRegistry = accessTokenSessionRegistry;
@@ -60,9 +61,12 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     @Override
     public Message<?> preSend(@NonNull Message<?> message, @NonNull MessageChannel channel) {
-        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+        StompHeaderAccessor accessor =
+                MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        if (accessor == null) {
+            return message;
+        }
         StompCommand command = accessor.getCommand();
-
         if (StompCommand.CONNECT.equals(command)) {
             return handleConnect(message, accessor);
         }
@@ -98,18 +102,21 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
         // 인증 성공 처리
         accessor.setUser(new RealtimePrincipal(verifiedToken.userId()));
-        accessor.setLeaveMutable(true);
-
-        return MessageBuilder.createMessage(message.getPayload(), accessor.getMessageHeaders());
+        return message;
     }
 
     // SUBSCRIBE: kicked 체크 + "이미 다른 방에 JOINED면 구경 차단" 체크
     private Message<?> handleSubscribe(Message<?> message, StompHeaderAccessor accessor) {
-        UUID partyId = extractPartyId(accessor.getDestination());
-        if (partyId == null) {
+        String destination = accessor.getDestination();
+        if (!isWatchPartyDestination(destination)) {
             return message;
         }
         UUID userId = resolveUserId(accessor);
+        UUID partyId = parsePartyId(destination);
+        if (partyId == null) {
+            sendError(userId, "잘못된 요청입니다.");
+            return null;
+        }
 
         if (watchPartyKickedRegistry.isKicked(partyId, userId)) {
             return null;
@@ -126,11 +133,16 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     // SEND: kicked 체크 + "JOINED 또는 host만 채팅 가능" 체크
     private Message<?> handleSend(Message<?> message, StompHeaderAccessor accessor) {
-        UUID partyId = extractPartyId(accessor.getDestination());
-        if (partyId == null) {
+        String destination = accessor.getDestination();
+        if (!isWatchPartyDestination(destination)) {
             return message;
         }
         UUID userId = resolveUserId(accessor);
+        UUID partyId = parsePartyId(destination);
+        if (partyId == null) {
+            sendError(userId, "잘못된 요청입니다.");
+            return null;
+        }
 
         if (watchPartyKickedRegistry.isKicked(partyId, userId)) {
             return null;
@@ -146,11 +158,13 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         return message;
     }
 
-    // destination에서 partyId(UUID) 추출, watch-party 관련 아니면 null
-    private UUID extractPartyId(String destination) {
-        if (destination == null) {
-            return null;
-        }
+    // destination이 watch-party 관련 경로인지 여부만 판단 (패턴 매칭)
+    private boolean isWatchPartyDestination(String destination) {
+        return destination != null && WATCH_PARTY_DESTINATION_PATTERN.matcher(destination).matches();
+    }
+
+    // watch-party 경로에서 partyId(UUID)를 파싱. 경로는 맞지만 형식이 UUID가 아니면 null
+    private UUID parsePartyId(String destination) {
         Matcher matcher = WATCH_PARTY_DESTINATION_PATTERN.matcher(destination);
         if (!matcher.matches()) {
             return null;
@@ -161,6 +175,8 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             return null;
         }
     }
+
+
     // CONNECT 때 심어둔 RealtimePrincipal에서 userId 꺼내기
     private UUID resolveUserId(StompHeaderAccessor accessor) {
         if (accessor.getUser() instanceof RealtimePrincipal principal) {

@@ -1,9 +1,15 @@
 package com.moduplaylist.api.watchparty.service;
 
+import com.moduplaylist.api.content.dto.ContentWatchPartyItemResponse;
+import com.moduplaylist.api.content.dto.ContentWatchPartyResponse;
+import com.moduplaylist.api.content.dto.WatchPartyDisplayStatus;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
+import com.moduplaylist.api.user.dto.UserSummary;
 import com.moduplaylist.api.watchparty.dto.CreateWatchPartyRequest;
+import com.moduplaylist.api.watchparty.dto.WatchPartyContentSummary;
 import com.moduplaylist.api.watchparty.dto.WatchPartyResponse;
+import com.moduplaylist.api.watchparty.dto.WatchPartySummaryResponse;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
@@ -23,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,6 +37,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Transactional
 public class WatchPartyService {
+
+    private static final int CONTENT_WIDGET_LIMIT = 20;
 
     private final WatchPartyRepository watchPartyRepository;
     private final UserRepository userRepository;
@@ -56,6 +65,7 @@ public class WatchPartyService {
                 .description(request.getDescription())
                 .scheduledAt(request.getScheduledAt())
                 .maxParticipants(request.getMaxParticipants())
+                .sessionDurationMinutes(request.getSessionDurationMinutes())
                 .startEpisode(request.getStartEpisode())
                 .endEpisode(request.getEndEpisode())
                 .build();
@@ -89,7 +99,7 @@ public class WatchPartyService {
     }
 
     @Transactional(readOnly = true)
-    public CursorPageResponse<WatchPartyResponse> getWatchParties(
+    public CursorPageResponse<WatchPartySummaryResponse> getWatchParties(
             WatchPartyStatus statusEqual, UUID contentIdEqual,
             String cursor, UUID idAfter, int limit, SortDirection sortDirection) {
 
@@ -107,8 +117,8 @@ public class WatchPartyService {
 
         WatchPartyQueryRepository.SearchResult result = watchPartyQueryRepository.search(search);
 
-        List<WatchPartyResponse> data = result.getWatchParties().stream()
-                .map(this::toResponse)
+        List<WatchPartySummaryResponse> data = result.getWatchParties().stream()
+                .map(this::toSummaryResponse)
                 .toList();
 
         String nextCursor = null;
@@ -119,7 +129,7 @@ public class WatchPartyService {
             nextIdAfter = last.getId();
         }
 
-        return CursorPageResponse.<WatchPartyResponse>builder()
+        return CursorPageResponse.<WatchPartySummaryResponse>builder()
                 .data(data)
                 .nextCursor(nextCursor)
                 .nextIdAfter(nextIdAfter)
@@ -127,6 +137,45 @@ public class WatchPartyService {
                 .totalCount(result.getTotalCount())
                 .sortBy("scheduledAt")
                 .sortDirection(sortDirection)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public ContentWatchPartyResponse getWatchPartiesForContentWidget(UUID contentId) {
+        Instant now = Instant.now();
+        Instant liveWindowStart = now.minus(1, ChronoUnit.HOURS);
+
+        List<WatchParty> fetched = watchPartyQueryRepository
+                .findContentWidgetItems(contentId, now, liveWindowStart, CONTENT_WIDGET_LIMIT + 1);
+
+        boolean hasMore = fetched.size() > CONTENT_WIDGET_LIMIT;
+        List<WatchParty> watchParties = hasMore ? fetched.subList(0, CONTENT_WIDGET_LIMIT) : fetched;
+
+        List<ContentWatchPartyItemResponse> items = watchParties.stream()
+                .map(w -> toWidgetItem(w, now))
+                .toList();
+
+        return ContentWatchPartyResponse.builder()
+                .data(items)
+                .hasMore(hasMore)
+                .build();
+    }
+
+    private ContentWatchPartyItemResponse toWidgetItem(WatchParty watchParty, Instant now) {
+        WatchPartyDisplayStatus displayStatus = watchParty.getScheduledAt().isAfter(now)
+                ? WatchPartyDisplayStatus.SCHEDULED
+                : WatchPartyDisplayStatus.LIVE;
+
+        int currentParticipants = (int) watchPartyParticipantRepository
+                .countByWatchParty_IdAndStatus(watchParty.getId(), ParticipantStatus.JOINED);
+
+        return ContentWatchPartyItemResponse.builder()
+                .id(watchParty.getId())
+                .title(watchParty.getTitle())
+                .displayStatus(displayStatus)
+                .scheduledAt(watchParty.getScheduledAt())
+                .participantCount(currentParticipants)
+                .maxParticipants(watchParty.getMaxParticipants())
                 .build();
     }
 
@@ -138,23 +187,17 @@ public class WatchPartyService {
         return toResponse(watchParty, watchParty.getHost(), content, currentParticipants);
     }
 
-
     private WatchPartyResponse toResponse(WatchParty watchParty, User host, Content content, int currentParticipants) {
-        WatchPartyResponse.HostSummary hostSummary = new WatchPartyResponse.HostSummary(
-                host.getId(), host.getName(), host.getProfileImageUrl());
-
-        WatchPartyResponse.ContentSummary contentSummary = new WatchPartyResponse.ContentSummary(
-                content.getId(), content.getType().getValue(), content.getTitle(), content.getThumbnailUrl());
-
         return new WatchPartyResponse(
                 watchParty.getId(),
-                hostSummary,
-                contentSummary,
+                toHostSummary(host),
+                toContentSummary(content),
                 watchParty.getTitle(),
                 watchParty.getDescription(),
                 watchParty.getScheduledAt(),
                 watchParty.getStatus(),
                 watchParty.getMaxParticipants(),
+                watchParty.getSessionDurationMinutes(),
                 currentParticipants,
                 watchParty.getStartEpisode(),
                 watchParty.getEndEpisode(),
@@ -162,4 +205,44 @@ public class WatchPartyService {
                 watchParty.getEndedAt()
         );
     }
+<<<<<<< HEAD
 }
+=======
+
+    private WatchPartySummaryResponse toSummaryResponse(WatchParty watchParty) {
+        Content content = contentRepository.findById(watchParty.getContentId())
+                .orElseThrow(() -> new ContentNotFoundException(watchParty.getContentId()));
+        int currentParticipants = (int) watchPartyParticipantRepository
+                .countByWatchParty_IdAndStatus(watchParty.getId(), ParticipantStatus.JOINED);
+
+        return WatchPartySummaryResponse.builder()
+                .id(watchParty.getId())
+                .host(toHostSummary(watchParty.getHost()))
+                .content(toContentSummary(content))
+                .title(watchParty.getTitle())
+                .scheduledAt(watchParty.getScheduledAt())
+                .status(watchParty.getStatus())
+                .maxParticipants(watchParty.getMaxParticipants())
+                .currentParticipantCount(currentParticipants)
+                .createdAt(watchParty.getCreatedAt())
+                .build();
+    }
+
+    private UserSummary toHostSummary(User host) {
+        return UserSummary.builder()
+                .userId(host.getId())
+                .name(host.getName())
+                .profileImageUrl(host.getProfileImageUrl())
+                .build();
+    }
+
+    private WatchPartyContentSummary toContentSummary(Content content) {
+        return WatchPartyContentSummary.builder()
+                .id(content.getId())
+                .type(content.getType().getValue())
+                .title(content.getTitle())
+                .thumbnailUrl(content.getThumbnailUrl())
+                .build();
+    }
+}
+>>>>>>> origin/int
