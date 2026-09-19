@@ -1,10 +1,10 @@
 package com.moduplaylist.api.watchparty.service;
 
-import com.moduplaylist.api.content.dto.ContentWatchPartyItemResponse;
 import com.moduplaylist.api.content.dto.ContentWatchPartyResponse;
-import com.moduplaylist.api.content.dto.WatchPartyDisplayStatus;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
+import com.moduplaylist.core.common.exception.BaseException;
+import com.moduplaylist.core.common.exception.ErrorCode;
 import com.moduplaylist.api.user.dto.UserSummary;
 import com.moduplaylist.api.watchparty.dto.CreateWatchPartyRequest;
 import com.moduplaylist.api.watchparty.dto.WatchPartyContentSummary;
@@ -103,14 +103,28 @@ public class WatchPartyService {
             WatchPartyStatus statusEqual, UUID contentIdEqual,
             String cursor, UUID idAfter, int limit, SortDirection sortDirection) {
 
+        if (contentIdEqual != null && statusEqual != null) {
+            throw new BaseException(ErrorCode.INVALID_REQUEST);
+        }
+
+        boolean contentSearch = contentIdEqual != null;
         boolean ascending = sortDirection == SortDirection.ASCENDING;
-        Instant cursorScheduledAt = (cursor != null) ? Instant.parse(cursor) : null;
+        ContentCursor contentCursor = contentSearch ? parseContentCursor(cursor, idAfter) : null;
+        Instant cursorScheduledAt = contentSearch
+                ? contentCursor.scheduledAt()
+                : (cursor != null ? Instant.parse(cursor) : null);
+
+        if (contentSearch) {
+            validateContentForWatchParty(contentIdEqual);
+        }
 
         WatchPartySearch search = WatchPartySearch.builder()
                 .statusEqual(statusEqual)
                 .contentIdEqual(contentIdEqual)
                 .cursorScheduledAt(cursorScheduledAt)
                 .cursorId(idAfter)
+                .cursorStatus(contentSearch ? contentCursor.status() : null)
+                .contentScheduledAtFrom(contentSearch ? Instant.now().minus(1, ChronoUnit.HOURS) : null)
                 .ascending(ascending)
                 .limit(limit)
                 .build();
@@ -125,7 +139,9 @@ public class WatchPartyService {
         UUID nextIdAfter = null;
         if (!result.getWatchParties().isEmpty()) {
             WatchParty last = result.getWatchParties().get(result.getWatchParties().size() - 1);
-            nextCursor = last.getScheduledAt().toString();
+            nextCursor = contentSearch
+                    ? formatContentCursor(last)
+                    : last.getScheduledAt().toString();
             nextIdAfter = last.getId();
         }
 
@@ -136,48 +152,61 @@ public class WatchPartyService {
                 .hasNext(result.isHasNext())
                 .totalCount(result.getTotalCount())
                 .sortBy("scheduledAt")
-                .sortDirection(sortDirection)
+                .sortDirection(contentSearch ? SortDirection.ASCENDING : sortDirection)
                 .build();
     }
 
     @Transactional(readOnly = true)
     public ContentWatchPartyResponse getWatchPartiesForContentWidget(UUID contentId) {
-        Instant now = Instant.now();
-        Instant liveWindowStart = now.minus(1, ChronoUnit.HOURS);
-
-        List<WatchParty> fetched = watchPartyQueryRepository
-                .findContentWidgetItems(contentId, now, liveWindowStart, CONTENT_WIDGET_LIMIT + 1);
-
-        boolean hasMore = fetched.size() > CONTENT_WIDGET_LIMIT;
-        List<WatchParty> watchParties = hasMore ? fetched.subList(0, CONTENT_WIDGET_LIMIT) : fetched;
-
-        List<ContentWatchPartyItemResponse> items = watchParties.stream()
-                .map(w -> toWidgetItem(w, now))
+        WatchPartySearch search = WatchPartySearch.builder()
+                .contentIdEqual(contentId)
+                .contentScheduledAtFrom(Instant.now().minus(1, ChronoUnit.HOURS))
+                .limit(CONTENT_WIDGET_LIMIT)
+                .build();
+        WatchPartyQueryRepository.SearchResult result = watchPartyQueryRepository.search(search);
+        List<WatchPartySummaryResponse> items = result.getWatchParties().stream()
+                .map(this::toSummaryResponse)
                 .toList();
 
         return ContentWatchPartyResponse.builder()
                 .data(items)
-                .hasMore(hasMore)
+                .hasMore(result.isHasNext())
                 .build();
     }
 
-    private ContentWatchPartyItemResponse toWidgetItem(WatchParty watchParty, Instant now) {
-        WatchPartyDisplayStatus displayStatus = watchParty.getScheduledAt().isAfter(now)
-                ? WatchPartyDisplayStatus.SCHEDULED
-                : WatchPartyDisplayStatus.LIVE;
-
-        int currentParticipants = (int) watchPartyParticipantRepository
-                .countByWatchParty_IdAndStatus(watchParty.getId(), ParticipantStatus.JOINED);
-
-        return ContentWatchPartyItemResponse.builder()
-                .id(watchParty.getId())
-                .title(watchParty.getTitle())
-                .displayStatus(displayStatus)
-                .scheduledAt(watchParty.getScheduledAt())
-                .participantCount(currentParticipants)
-                .maxParticipants(watchParty.getMaxParticipants())
-                .build();
+    private void validateContentForWatchParty(UUID contentId) {
+        Content content = contentRepository.findByIdAndHiddenFalse(contentId)
+                .orElseThrow(() -> new ContentNotFoundException(contentId));
+        validateWatchPartyContent(content);
     }
+
+    private ContentCursor parseContentCursor(String cursor, UUID idAfter) {
+        if (cursor == null && idAfter == null) {
+            return new ContentCursor(null, null);
+        }
+        if (cursor == null || idAfter == null) {
+            throw new BaseException(ErrorCode.INVALID_REQUEST);
+        }
+        try {
+            int separator = cursor.indexOf('|');
+            if (separator <= 0 || separator == cursor.length() - 1) {
+                throw new IllegalArgumentException("Invalid content watch party cursor");
+            }
+            WatchPartyStatus status = WatchPartyStatus.valueOf(cursor.substring(0, separator));
+            if (status != WatchPartyStatus.LIVE && status != WatchPartyStatus.SCHEDULED) {
+                throw new IllegalArgumentException("Invalid content watch party cursor status");
+            }
+            return new ContentCursor(status, Instant.parse(cursor.substring(separator + 1)));
+        } catch (IllegalArgumentException e) {
+            throw new BaseException(ErrorCode.INVALID_REQUEST, e);
+        }
+    }
+
+    private String formatContentCursor(WatchParty watchParty) {
+        return watchParty.getStatus().name() + "|" + watchParty.getScheduledAt();
+    }
+
+    private record ContentCursor(WatchPartyStatus status, Instant scheduledAt) {}
 
     private WatchPartyResponse toResponse(WatchParty watchParty) {
         Content content = contentRepository.findById(watchParty.getContentId())
@@ -205,9 +234,6 @@ public class WatchPartyService {
                 watchParty.getEndedAt()
         );
     }
-<<<<<<< HEAD
-}
-=======
 
     private WatchPartySummaryResponse toSummaryResponse(WatchParty watchParty) {
         Content content = contentRepository.findById(watchParty.getContentId())
@@ -245,4 +271,3 @@ public class WatchPartyService {
                 .build();
     }
 }
->>>>>>> origin/int
