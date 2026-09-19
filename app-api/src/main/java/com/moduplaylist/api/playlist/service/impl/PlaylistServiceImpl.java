@@ -9,7 +9,9 @@ import com.moduplaylist.api.playlist.dto.PlaylistSummaryResponse;
 import com.moduplaylist.api.playlist.dto.PlaylistUpdateRequest;
 import com.moduplaylist.api.playlist.event.PlaylistTagRecalculationEvent;
 import com.moduplaylist.api.playlist.service.PlaylistService;
+import com.moduplaylist.api.recommendation.service.PlaylistPreferenceUpdateService;
 import com.moduplaylist.api.user.dto.UserSummary;
+import com.moduplaylist.core.activity.enums.PlaylistActivityType;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.exception.ContentTypeNotSupportedException;
@@ -63,6 +65,7 @@ public class PlaylistServiceImpl implements PlaylistService {
   private final PlaylistSubscriptionRepository playlistSubscriptionRepository;
   private final PlaylistQueryRepository playlistQueryRepository;
   private final PlaylistContentQueryRepository playlistContentQueryRepository;
+  private final PlaylistPreferenceUpdateService playlistPreferenceUpdateService;
   private final ApplicationEventPublisher eventPublisher;
 
   @Override
@@ -251,6 +254,12 @@ public class PlaylistServiceImpl implements PlaylistService {
     } catch (DataIntegrityViolationException e) {
       throw new PlaylistAlreadySubscribedException(userId, playlistId, e);
     }
+
+    playlistPreferenceUpdateService.applyActivity(
+        userId,
+        playlistId,
+        PlaylistActivityType.PLAYLIST_SUBSCRIBED
+    );
   }
 
   @Override
@@ -264,6 +273,11 @@ public class PlaylistServiceImpl implements PlaylistService {
             .findByUser_IdAndPlaylist_Id(userId, playlistId)
             .orElseThrow(() -> new PlaylistSubscriptionNotFoundException(userId, playlistId));
 
+    playlistPreferenceUpdateService.applyActivity(
+        userId,
+        playlistId,
+        PlaylistActivityType.PLAYLIST_UNSUBSCRIBED
+    );
     playlistSubscriptionRepository.delete(subscription);
   }
 

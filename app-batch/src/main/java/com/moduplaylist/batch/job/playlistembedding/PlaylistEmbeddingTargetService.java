@@ -5,7 +5,6 @@ import com.moduplaylist.core.playlist.repository.PlaylistRepository;
 import com.moduplaylist.infrastructure.embedding.EmbeddingGenerator;
 import com.moduplaylist.infrastructure.opensearch.playlist.PlaylistVectorDocument;
 import com.moduplaylist.infrastructure.opensearch.playlist.PlaylistVectorRepository;
-import java.time.Instant;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -45,9 +44,8 @@ public class PlaylistEmbeddingTargetService {
     }
 
     private boolean isOutdated(Playlist playlist, PlaylistVectorDocument document) {
-        Instant sourceUpdatedAt = document.getSourceUpdatedAt();
-        return sourceUpdatedAt == null
-                || playlist.getUpdatedAt().isAfter(sourceUpdatedAt)
-                || !Objects.equals(embeddingGenerator.modelName(), document.getEmbeddingModel());
+        return !Objects.equals(embeddingGenerator.modelName(), document.getEmbeddingModel())
+                || !Objects.equals(playlist.getTitle(), document.getTitle())
+                || !Objects.equals(playlist.getDescription(), document.getDescription());
     }
 }
