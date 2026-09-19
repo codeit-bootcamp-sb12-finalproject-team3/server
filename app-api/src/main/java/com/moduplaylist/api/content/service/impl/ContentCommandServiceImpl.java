@@ -58,6 +58,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -264,10 +265,40 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		ContentUpdateRequest request,
 		MultipartFile thumbnail
 	) {
-		requireImageStorageAbsent(thumbnail);
 		Content content = contentRepository.findByIdForUpdate(contentId)
 			.orElseThrow(() -> new ContentNotFoundException(contentId));
+		validateUpdateFields(content.getType(), request);
+		if (content.getType() == ContentType.TV_SERIES) {
+			if (thumbnail != null) {
+				throw new InvalidContentSearchException();
+			}
+			return updateSeries(content, request);
+		}
+		if (thumbnail != null && request.isRemoveThumbnail()) {
+			throw new InvalidContentSearchException();
+		}
 
+		String previousThumbnailUrl = content.getThumbnailUrl();
+		String thumbnailUrl = previousThumbnailUrl;
+		boolean thumbnailChanged = false;
+		if (thumbnail != null) {
+			validateImage(thumbnail);
+			List<String> uploadedKeys = new ArrayList<>();
+			registerImageRollbackCleanup(uploadedKeys);
+			thumbnailUrl = uploadImage(thumbnail, uploadedKeys);
+			thumbnailChanged = true;
+		} else if (request.isRemoveThumbnail() && thumbnailUrl != null) {
+			thumbnailUrl = null;
+			thumbnailChanged = true;
+		}
+		if (thumbnailChanged && previousThumbnailUrl != null) {
+			registerPreviousImageCleanup(previousThumbnailUrl);
+		}
+		if (content.getType() == ContentType.SPORT) {
+			return updateSport(content, request, thumbnailUrl, thumbnailChanged);
+		}
+		boolean embeddingSourceChanged = isEmbeddingSourceChanged(content, request);
+		boolean searchSourceChanged = embeddingSourceChanged || isCastChanged(content, request);
 		String title = value(request.getTitle(), content.getTitle());
 		String description = value(request.getDescription(), content.getDescription());
 		content.updateCommonDetails(
@@ -280,26 +311,19 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			content.updateMovieDetails(request.getRuntime().orElse(null));
 		}
 		if (content.getType() == ContentType.TV_SEASON) {
-			Content parent = content.getParentContent();
-			if (request.getParentContentId().isPresent()) {
-				UUID parentId = request.getParentContentId().orElse(null);
-				parent = requireSeries(parentId);
-			}
-			Integer seasonNumber = value(request.getSeasonNumber(), content.getSeasonNumber());
-			if (contentRepository.existsByParentContent_IdAndSeasonNumberAndIdNot(
-				parent.getId(), seasonNumber, contentId)) {
-				throw new ContentSeasonAlreadyExistsException(parent.getId(), seasonNumber);
-			}
 			content.updateTvSeasonDetails(
-				parent,
-				seasonNumber,
+				content.getParentContent(),
+				content.getSeasonNumber(),
 				value(request.getEpisodeCount(), content.getEpisodeCount()),
 				null
 			);
 		}
+		if (thumbnailChanged) {
+			content.replaceThumbnailUrl(thumbnailUrl);
+		}
 
 		if (request.getGenreIds().isPresent() || request.getManualTags().isPresent()
-			|| request.getCasts().isPresent()) {
+			|| request.getCasts().isPresent() || request.getPlatforms().isPresent()) {
 			if (content.getType() != ContentType.MOVIE && content.getType() != ContentType.TV_SEASON) {
 				throw new InvalidContentSearchException();
 			}
@@ -312,14 +336,222 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			if (request.getCasts().isPresent()) {
 				replaceCasts(content, request.getCasts().orElse(List.of()));
 			}
-			if (request.getGenreIds().isPresent() || request.getManualTags().isPresent()) {
-				content.markRelationsUpdated();
+			if (request.getPlatforms().isPresent()) {
+				List<ContentPlatformCreateRequest> platforms = request.getPlatforms().orElse(List.of());
+				validatePlatforms(platforms);
+				replacePlatforms(content, platforms);
 			}
+		}
+		if (embeddingSourceChanged) {
+			content.markEmbeddingSourceUpdated();
 		}
 		contentRepository.flush();
 		ContentResponse response = contentQueryService.findByIdForCommand(contentId);
-		publishContentLifecycleEvent(contentId, ContentLifecycleEvent.Type.UPSERTED);
+		if (searchSourceChanged) {
+			publishContentLifecycleEvent(contentId, ContentLifecycleEvent.Type.UPSERTED);
+		}
 		return response;
+	}
+
+	private ContentResponse updateSeries(Content content, ContentUpdateRequest request) {
+		String title = value(request.getTitle(), content.getTitle());
+		boolean titleChanged = !Objects.equals(title, content.getTitle());
+		content.updateCommonDetails(title, null, null, null);
+		contentRepository.flush();
+		if (titleChanged) {
+			publishContentLifecycleEvent(content.getId(), ContentLifecycleEvent.Type.UPSERTED);
+		}
+		return ContentResponse.builder()
+			.id(content.getId())
+			.type(content.getType())
+			.title(content.getTitle())
+			.createdAt(content.getCreatedAt())
+			.updatedAt(content.getUpdatedAt())
+			.build();
+	}
+
+	private boolean isCastChanged(Content content, ContentUpdateRequest request) {
+		if ((content.getType() != ContentType.MOVIE
+			&& content.getType() != ContentType.TV_SEASON)
+			|| !request.getCasts().isPresent()) {
+			return false;
+		}
+		List<ContentCastRequest> requested = request.getCasts().orElse(List.of());
+		List<ContentCast> current = contentCastRepository
+			.findAllByContent_IdOrderByDisplayOrderAsc(content.getId());
+		if (requested.size() != current.size()) {
+			return true;
+		}
+		for (int index = 0; index < requested.size(); index++) {
+			ContentCastRequest requestedCast = requested.get(index);
+			ContentCast currentCast = current.get(index);
+			if (!Objects.equals(requestedCast.getName(), currentCast.getName())
+				|| !Objects.equals(requestedCast.getRoleName(), currentCast.getRoleName())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private boolean isEmbeddingSourceChanged(Content content, ContentUpdateRequest request) {
+		if (content.getType() != ContentType.MOVIE
+			&& content.getType() != ContentType.TV_SEASON) {
+			return false;
+		}
+		if (!Objects.equals(value(request.getTitle(), content.getTitle()), content.getTitle())
+			|| !Objects.equals(
+				value(request.getDescription(), content.getDescription()), content.getDescription())) {
+			return true;
+		}
+		if (request.getGenreIds().isPresent()) {
+			Set<UUID> requestedGenreIds = new HashSet<>(request.getGenreIds().orElse(List.of()));
+			Set<UUID> currentGenreIds = contentGenreRepository
+				.findAllWithGenreByContentIdIn(List.of(content.getId())).stream()
+				.map(relation -> relation.getGenre().getId())
+				.collect(java.util.stream.Collectors.toSet());
+			if (!requestedGenreIds.equals(currentGenreIds)) {
+				return true;
+			}
+		}
+		if (request.getManualTags().isPresent()) {
+			Set<String> requestedTagNames = request.getManualTags().orElse(List.of()).stream()
+				.map(String::strip)
+				.collect(java.util.stream.Collectors.toSet());
+			Set<String> currentTagNames = contentTagRepository
+				.findAllWithTagByContentIdIn(List.of(content.getId())).stream()
+				.map(relation -> relation.getTag().getName())
+				.collect(java.util.stream.Collectors.toSet());
+			if (!requestedTagNames.equals(currentTagNames)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private void validateUpdateFields(ContentType type, ContentUpdateRequest request) {
+		boolean invalid = switch (type) {
+			case MOVIE -> request.getSeasonCount().isPresent()
+				|| request.getEpisodeCount().isPresent()
+				|| hasSportUpdateFields(request);
+			case TV_SERIES -> request.getDescription().isPresent()
+				|| request.getReleaseDate().isPresent()
+				|| request.getRuntime().isPresent()
+				|| request.getSeasonCount().isPresent()
+				|| request.getEpisodeCount().isPresent()
+				|| request.getMetadata().isPresent()
+				|| request.getGenreIds().isPresent()
+				|| request.getManualTags().isPresent()
+				|| request.getCasts().isPresent()
+				|| request.getPlatforms().isPresent()
+				|| request.isRemoveThumbnail()
+				|| hasSportUpdateFields(request);
+			case TV_SEASON -> request.getRuntime().isPresent()
+				|| request.getSeasonCount().isPresent()
+				|| hasSportUpdateFields(request);
+			case SPORT -> request.getReleaseDate().isPresent()
+				|| request.getRuntime().isPresent()
+				|| request.getSeasonCount().isPresent()
+				|| request.getEpisodeCount().isPresent()
+				|| request.getMetadata().isPresent()
+				|| request.getGenreIds().isPresent()
+				|| request.getManualTags().isPresent()
+				|| request.getCasts().isPresent()
+				|| request.getPlatforms().isPresent();
+		};
+		if (invalid) {
+			throw new InvalidContentSearchException();
+		}
+	}
+
+	private ContentResponse updateSport(
+		Content content,
+		ContentUpdateRequest request,
+		String thumbnailUrl,
+		boolean thumbnailChanged
+	) {
+		SportEvent sportEvent = sportEventRepository.findById(content.getId())
+			.orElseThrow(() -> new IllegalStateException(
+				"스포츠 콘텐츠에 경기 정보가 없습니다. contentId=" + content.getId()));
+
+		SportType sportType = sportEvent.getSportType();
+		if (request.getSportTypeId().isPresent()) {
+			UUID sportTypeId = request.getSportTypeId().orElse(null);
+			if (sportTypeId == null) {
+				throw new InvalidContentSearchException();
+			}
+			sportType = sportTypeRepository.findById(sportTypeId)
+				.orElseThrow(() -> new SportTypeNotFoundException(sportTypeId));
+		}
+
+		String title = value(request.getTitle(), content.getTitle());
+		String description = value(request.getDescription(), content.getDescription());
+		String homeTeam = value(request.getHomeTeam(), sportEvent.getHomeTeamName());
+		String awayTeam = value(request.getAwayTeam(), sportEvent.getAwayTeamName());
+		if (title == null || title.isBlank() || description == null || description.isBlank()
+			|| homeTeam == null || homeTeam.isBlank() || awayTeam == null || awayTeam.isBlank()) {
+			throw new InvalidContentSearchException();
+		}
+
+		Integer homeScore = value(request.getHomeScore(), sportEvent.getHomeScore());
+		Integer awayScore = value(request.getAwayScore(), sportEvent.getAwayScore());
+		if ((homeScore == null) != (awayScore == null)) {
+			throw new InvalidContentSearchException();
+		}
+
+		boolean changed = thumbnailChanged
+			|| !Objects.equals(title, content.getTitle())
+			|| !Objects.equals(description, content.getDescription())
+			|| !Objects.equals(sportType.getId(), sportEvent.getSportType().getId())
+			|| !Objects.equals(value(request.getScheduledAt(), sportEvent.getScheduledAt()), sportEvent.getScheduledAt())
+			|| !Objects.equals(value(request.getLeague(), sportEvent.getLeagueName()), sportEvent.getLeagueName())
+			|| !Objects.equals(value(request.getSeason(), sportEvent.getSeason()), sportEvent.getSeason())
+			|| !Objects.equals(value(request.getRound(), sportEvent.getRound()), sportEvent.getRound())
+			|| !Objects.equals(homeTeam, sportEvent.getHomeTeamName())
+			|| !Objects.equals(awayTeam, sportEvent.getAwayTeamName())
+			|| !Objects.equals(value(request.getVenue(), sportEvent.getVenue()), sportEvent.getVenue())
+			|| !Objects.equals(value(request.getCountry(), sportEvent.getCountry()), sportEvent.getCountry())
+			|| !Objects.equals(homeScore, sportEvent.getHomeScore())
+			|| !Objects.equals(awayScore, sportEvent.getAwayScore());
+		boolean searchSourceChanged = !Objects.equals(title, content.getTitle())
+			|| !Objects.equals(description, content.getDescription())
+			|| !Objects.equals(sportType.getId(), sportEvent.getSportType().getId())
+			|| !Objects.equals(value(request.getLeague(), sportEvent.getLeagueName()), sportEvent.getLeagueName())
+			|| !Objects.equals(value(request.getSeason(), sportEvent.getSeason()), sportEvent.getSeason())
+			|| !Objects.equals(homeTeam, sportEvent.getHomeTeamName())
+			|| !Objects.equals(awayTeam, sportEvent.getAwayTeamName())
+			|| !Objects.equals(value(request.getCountry(), sportEvent.getCountry()), sportEvent.getCountry());
+
+		if (changed) {
+			sportEvent.updateDetails(
+				sportType,
+				value(request.getLeague(), sportEvent.getLeagueName()),
+				value(request.getSeason(), sportEvent.getSeason()),
+				value(request.getRound(), sportEvent.getRound()),
+				homeTeam,
+				awayTeam,
+				value(request.getVenue(), sportEvent.getVenue()),
+				value(request.getCountry(), sportEvent.getCountry()),
+				value(request.getScheduledAt(), sportEvent.getScheduledAt()),
+				homeScore,
+				awayScore
+			);
+			sportEventRepository.flush();
+			contentRepository.updateSportCommonDetails(
+				content.getId(), title, description, thumbnailUrl);
+			if (searchSourceChanged) {
+				publishContentLifecycleEvent(content.getId(), ContentLifecycleEvent.Type.UPSERTED);
+			}
+		}
+		return contentQueryService.findByIdForCommand(content.getId());
+	}
+
+	private boolean hasSportUpdateFields(ContentUpdateRequest request) {
+		return request.getSportTypeId().isPresent() || request.getScheduledAt().isPresent()
+			|| request.getLeague().isPresent() || request.getSeason().isPresent()
+			|| request.getRound().isPresent() || request.getHomeTeam().isPresent()
+			|| request.getAwayTeam().isPresent() || request.getVenue().isPresent()
+			|| request.getCountry().isPresent() || request.getHomeScore().isPresent()
+			|| request.getAwayScore().isPresent();
 	}
 
 	@Override
@@ -393,6 +625,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		publishContentLifecycleEvent(contentId, ContentLifecycleEvent.Type.DELETED);
 		if (hideParent) {
 			parent.hide();
+			publishContentLifecycleEvent(parent.getId(), ContentLifecycleEvent.Type.DELETED);
 		}
 	}
 
@@ -574,6 +807,21 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		);
 	}
 
+	private void registerPreviousImageCleanup(String previousThumbnailUrl) {
+		TransactionSynchronizationManager.registerSynchronization(
+			new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					try {
+						contentImageStorage.deleteByUrl(previousThumbnailUrl);
+					} catch (RuntimeException ignored) {
+						// 커밋된 콘텐츠 수정을 유지하고 S3 lifecycle 정리에 맡긴다.
+					}
+				}
+			}
+		);
+	}
+
 	private void publishContentLifecycleEvent(UUID contentId, ContentLifecycleEvent.Type type) {
 		eventPublisher.publishEvent(new ContentLifecycleEvent(
 			UuidCreator.getTimeOrderedEpoch(),
@@ -655,6 +903,14 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			.toList());
 	}
 
+	private void replacePlatforms(
+		Content content,
+		List<ContentPlatformCreateRequest> platformRequests
+	) {
+		contentPlatformRepository.deleteAllByContentId(content.getId());
+		createPlatforms(content, platformRequests);
+	}
+
 	private void replaceGenres(Content content, List<UUID> genreIds) {
 		Set<UUID> uniqueIds = new HashSet<>(genreIds);
 		if (uniqueIds.isEmpty() || uniqueIds.size() != genreIds.size()) {
@@ -676,12 +932,26 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		if (normalized.size() > 3) {
 			throw new InvalidContentSearchException();
 		}
-		contentTagRepository.deleteAllByContentId(content.getId());
-		List<ContentTag> relations = normalized.stream().map(name -> {
-			Tag tag = tagRepository.findByName(name).orElseGet(() -> tagRepository.save(Tag.create(name)));
-			return ContentTag.create(content, tag, TagSource.MANUAL);
-		}).toList();
-		contentTagRepository.saveAll(relations);
+		Map<String, ContentTag> existingByName = contentTagRepository
+			.findAllWithTagByContentIdIn(List.of(content.getId())).stream()
+			.collect(java.util.stream.Collectors.toMap(
+				relation -> relation.getTag().getName(),
+				relation -> relation
+			));
+		Set<String> requestedNames = new HashSet<>(normalized);
+		List<ContentTag> removedRelations = existingByName.values().stream()
+			.filter(relation -> !requestedNames.contains(relation.getTag().getName()))
+			.toList();
+		contentTagRepository.deleteAll(removedRelations);
+		List<ContentTag> newRelations = normalized.stream()
+			.filter(name -> !existingByName.containsKey(name))
+			.map(name -> {
+				Tag tag = tagRepository.findByName(name)
+					.orElseGet(() -> tagRepository.save(Tag.create(name)));
+				return ContentTag.create(content, tag, TagSource.MANUAL);
+			})
+			.toList();
+		contentTagRepository.saveAll(newRelations);
 	}
 
 	private void replaceCasts(Content content, List<ContentCastRequest> casts) {
@@ -693,13 +963,6 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 				cast.getRoleName(), cast.getProfileImageUrl()));
 		}
 		contentCastRepository.saveAll(relations);
-	}
-
-	private void requireImageStorageAbsent(MultipartFile thumbnail) {
-		if (thumbnail != null && !thumbnail.isEmpty()) {
-			throw new ContentStorageUnavailableException(
-				new IllegalStateException("콘텐츠 이미지 저장 서비스가 구성되지 않았습니다."));
-		}
 	}
 
 	private static <T> T value(JsonNullable<T> wrapper, T current) {

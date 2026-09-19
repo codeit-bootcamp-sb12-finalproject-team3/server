@@ -5,6 +5,7 @@ import com.moduplaylist.core.common.BaseEntity;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
 import lombok.AccessLevel;
@@ -116,6 +117,14 @@ public class Content extends BaseEntity {
 
 	@Column(name = "review_count", nullable = false, columnDefinition = "INT UNSIGNED")
 	private long reviewCount = 0;
+
+	@Transient
+	@Getter(AccessLevel.NONE)
+	private Instant persistedUpdatedAt;
+
+	@Transient
+	@Getter(AccessLevel.NONE)
+	private boolean embeddingSourceChanged;
 
 	@Builder
 	private Content(
@@ -237,8 +246,28 @@ public class Content extends BaseEntity {
 		this.hidden = false;
 	}
 
-	public void markRelationsUpdated() {
+	public void markEmbeddingSourceUpdated() {
+		this.embeddingSourceChanged = true;
 		touchUpdatedAt();
+	}
+
+	@PostLoad
+	@PostPersist
+	private void rememberUpdatedAt() {
+		this.persistedUpdatedAt = getUpdatedAt();
+		this.embeddingSourceChanged = false;
+	}
+
+	@PreUpdate
+	private void preserveUpdatedAtForNonEmbeddingChanges() {
+		if (!embeddingSourceChanged && persistedUpdatedAt != null) {
+			restoreUpdatedAt(persistedUpdatedAt);
+		}
+	}
+
+	@PostUpdate
+	private void rememberUpdatedAtAfterUpdate() {
+		rememberUpdatedAt();
 	}
 
 	public boolean isReviewable() {

@@ -42,4 +42,8 @@ public abstract class BaseEntity {
     protected void touchUpdatedAt() {
         this.updatedAt = Instant.now();
     }
+
+    protected void restoreUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
+    }
 }

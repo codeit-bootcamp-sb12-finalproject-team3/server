@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Pageable;
@@ -50,6 +51,16 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
     @Query("select content from Content content where content.id = :contentId")
     Optional<Content> findByIdForUpdate(@Param("contentId") UUID contentId);
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update Content content set content.title = :title, content.description = :description, "
+            + "content.thumbnailUrl = :thumbnailUrl "
+            + "where content.id = :contentId")
+    int updateSportCommonDetails(
+            @Param("contentId") UUID contentId,
+            @Param("title") String title,
+            @Param("description") String description,
+            @Param("thumbnailUrl") String thumbnailUrl);
+
     Optional<Content> findByExternalSourceAndTypeAndExternalId(
             String externalSource, ContentType type, Integer externalId);
 
@@ -62,11 +73,6 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
             UUID parentContentId);
 
     boolean existsByParentContent_IdAndSeasonNumber(UUID parentContentId, Integer seasonNumber);
-
-    boolean existsByParentContent_IdAndSeasonNumberAndIdNot(
-            UUID parentContentId,
-            Integer seasonNumber,
-            UUID contentId);
 
     boolean existsByTypeAndTitleAndReleaseDate(
             ContentType type,
