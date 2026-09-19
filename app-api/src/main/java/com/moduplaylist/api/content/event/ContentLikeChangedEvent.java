@@ -1,10 +1,10 @@
-package com.moduplaylist.infrastructure.kafka.event;
+package com.moduplaylist.api.content.event;
 
 import com.moduplaylist.core.activity.enums.ContentActivityType;
 import java.time.Instant;
 import java.util.UUID;
 
-public record ContentViewed(
+public record ContentLikeChangedEvent(
 	UUID eventId,
 	ContentActivityType eventType,
 	UUID userId,

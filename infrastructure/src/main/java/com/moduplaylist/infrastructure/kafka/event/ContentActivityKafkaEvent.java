@@ -4,7 +4,7 @@ import com.moduplaylist.core.activity.enums.ContentActivityType;
 import java.time.Instant;
 import java.util.UUID;
 
-public record ContentViewed(
+public record ContentActivityKafkaEvent(
 	UUID eventId,
 	ContentActivityType eventType,
 	UUID userId,
