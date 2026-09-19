@@ -12,7 +12,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.Getter;
@@ -40,7 +39,7 @@ public class ContentUpdateRequest {
 	private JsonNullable<@Size(max = 100) String> country = JsonNullable.undefined();
 	private JsonNullable<@PositiveOrZero Integer> homeScore = JsonNullable.undefined();
 	private JsonNullable<@PositiveOrZero Integer> awayScore = JsonNullable.undefined();
-	private JsonNullable<Map<String, Object>> metadata = JsonNullable.undefined();
+	private JsonNullable<@Size(max = 255) String> originalTitle = JsonNullable.undefined();
 	private JsonNullable<@NotNull List<@NotNull UUID>> genreIds = JsonNullable.undefined();
 	private JsonNullable<@NotNull List<@NotBlank @Size(max = 100) String>> manualTags = JsonNullable.undefined();
 	private JsonNullable<@NotNull List<@NotNull @Valid ContentCastRequest>> casts = JsonNullable.undefined();
@@ -117,8 +116,8 @@ public class ContentUpdateRequest {
 		this.awayScore = requireWrapper(awayScore);
 	}
 
-	public void setMetadata(JsonNullable<Map<String, Object>> metadata) {
-		this.metadata = requireWrapper(metadata);
+	public void setOriginalTitle(JsonNullable<String> originalTitle) {
+		this.originalTitle = map(originalTitle, ContentUpdateRequest::strip);
 	}
 
 	public void setGenreIds(JsonNullable<List<UUID>> genreIds) {

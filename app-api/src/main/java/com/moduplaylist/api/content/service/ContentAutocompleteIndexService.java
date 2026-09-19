@@ -22,8 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ContentAutocompleteIndexService {
 
-	private static final String ORIGINAL_TITLE_METADATA_KEY = "originalTitle";
-
 	private final ContentRepository contentRepository;
 	private final SportEventRepository sportEventRepository;
 	private final ContentRelationRepository contentRelationRepository;
@@ -53,7 +51,11 @@ public class ContentAutocompleteIndexService {
 	private List<ContentAutocompleteTerm> buildSuggestions(Content content) {
 		Map<String, ContentAutocompleteTerm> suggestions = new LinkedHashMap<>();
 		addSuggestion(suggestions, content.getTitle(), "title");
-		addSuggestion(suggestions, findOriginalTitle(content), "title");
+		if (content.getType() == ContentType.TV_SEASON) {
+			addTvSeasonTitleSuggestions(suggestions, content);
+		} else {
+			addSuggestion(suggestions, content.getOriginalTitle(), "title");
+		}
 		contentRelationRepository.casts(content.getId())
 			.forEach(cast -> addSuggestion(suggestions, cast.getName(), "cast"));
 		contentRelationRepository.genres(content.getId())
@@ -76,17 +78,23 @@ public class ContentAutocompleteIndexService {
 		return List.copyOf(suggestions.values());
 	}
 
-	private String findOriginalTitle(Content content) {
-		Map<String, Object> metadata = content.getMetadata();
-		if (metadata == null) {
-			return null;
+	private void addTvSeasonTitleSuggestions(
+		Map<String, ContentAutocompleteTerm> suggestions,
+		Content season
+	) {
+		Content series = season.getParentContent();
+		addSuggestion(suggestions, series.getTitle(), "title");
+		addSuggestion(suggestions, series.getTitle() + " " + season.getTitle(), "title");
+
+		String originalTitle = series.getOriginalTitle();
+		addSuggestion(suggestions, originalTitle, "title");
+		if (originalTitle != null) {
+			addSuggestion(
+				suggestions,
+				originalTitle + " Season " + season.getSeasonNumber(),
+				"title"
+			);
 		}
-		Object value = metadata.get(ORIGINAL_TITLE_METADATA_KEY);
-		if (!(value instanceof String title)) {
-			return null;
-		}
-		String normalized = title.strip();
-		return normalized.isEmpty() ? null : normalized;
 	}
 
 	private void addSuggestion(

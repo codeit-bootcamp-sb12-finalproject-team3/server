@@ -9,7 +9,6 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -37,8 +36,6 @@ public class SeasonCreateRequest {
 	@PositiveOrZero
 	private Integer episodeCount;
 
-	private Map<String, Object> metadata;
-
 	private List<@NotNull @Valid ContentCastRequest> casts;
 
 	@NotNull
@@ -56,7 +53,6 @@ public class SeasonCreateRequest {
 	public void setThumbnailKey(String thumbnailKey) { this.thumbnailKey = strip(thumbnailKey); }
 	public void setReleaseDate(LocalDate releaseDate) { this.releaseDate = releaseDate; }
 	public void setEpisodeCount(Integer episodeCount) { this.episodeCount = episodeCount; }
-	public void setMetadata(Map<String, Object> metadata) { this.metadata = metadata; }
 	public void setCasts(List<ContentCastRequest> casts) { this.casts = casts; }
 	public void setGenreIds(List<UUID> genreIds) { this.genreIds = genreIds; }
 	@JsonProperty("tags")

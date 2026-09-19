@@ -269,7 +269,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			.averageRating(content.getAverageRating())
 			.reviewCount(content.getReviewCount())
 			.likeCount(content.getLikeCount())
-			.metadata(content.getMetadata())
+			.originalTitle(findOriginalTitle(content))
 			.genres(genres)
 			.tags(tags)
 			.cast(cast)
@@ -279,6 +279,13 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			.createdAt(content.getCreatedAt())
 			.updatedAt(content.getUpdatedAt())
 			.build();
+	}
+
+	private String findOriginalTitle(Content content) {
+		if (content.getType() == ContentType.TV_SEASON) {
+			return content.getParentContent().getOriginalTitle();
+		}
+		return content.getOriginalTitle();
 	}
 
 	@Override

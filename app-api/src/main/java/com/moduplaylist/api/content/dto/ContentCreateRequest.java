@@ -14,7 +14,6 @@ import java.time.LocalDate;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.Getter;
@@ -67,7 +66,8 @@ public class ContentCreateRequest {
 	@Positive
 	private Integer runtime;
 
-	private Map<String, Object> metadata;
+	@Size(max = 255)
+	private String originalTitle;
 
 	private List<@NotNull UUID> genreIds;
 
@@ -133,8 +133,8 @@ public class ContentCreateRequest {
 		this.runtime = runtime;
 	}
 
-	public void setMetadata(Map<String, Object> metadata) {
-		this.metadata = metadata;
+	public void setOriginalTitle(String originalTitle) {
+		this.originalTitle = strip(originalTitle);
 	}
 
 	public void setGenreIds(List<UUID> genreIds) {

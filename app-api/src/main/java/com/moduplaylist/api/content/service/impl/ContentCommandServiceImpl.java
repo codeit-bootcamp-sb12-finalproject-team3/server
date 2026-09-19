@@ -56,6 +56,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -73,6 +74,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 @RequiredArgsConstructor
 public class ContentCommandServiceImpl implements ContentCommandService {
+	private static final String ORIGINAL_TITLE_METADATA_KEY = "originalTitle";
 
 	private final ContentRepository contentRepository;
 	private final GenreRepository genreRepository;
@@ -168,7 +170,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		if (request.getParentContentId() != null || request.getSeasonNumber() != null
 			|| request.getEpisodeCount() != null
 			|| request.getDescription() != null || request.getReleaseDate() != null
-			|| request.getRuntime() != null || request.getMetadata() != null
+			|| request.getRuntime() != null
 			|| request.getGenreIds() != null || request.getManualTags() != null
 			|| request.getCasts() != null || request.getPlatforms() != null
 			|| hasSportFields(request)) {
@@ -193,7 +195,8 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		validateTags(request.getManualTags());
 		validatePlatforms(request.getPlatforms());
 		if (request.getParentContentId() == null || request.getSeasonNumber() == null
-			|| request.getRuntime() != null || request.getSeasons() != null
+			|| request.getRuntime() != null || request.getOriginalTitle() != null
+			|| request.getSeasons() != null
 			|| hasSportFields(request)) {
 			throw new InvalidContentSearchException();
 		}
@@ -208,7 +211,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			|| request.getParentContentId() != null || request.getSeasonNumber() != null
 			|| request.getEpisodeCount() != null || request.getSeasons() != null
 			|| request.getReleaseDate() != null || request.getRuntime() != null
-			|| request.getMetadata() != null || request.getGenreIds() != null
+			|| request.getOriginalTitle() != null || request.getGenreIds() != null
 			|| request.getManualTags() != null || request.getCasts() != null
 			|| request.getPlatforms() != null) {
 			throw new InvalidContentSearchException();
@@ -298,14 +301,17 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			return updateSport(content, request, thumbnailUrl, thumbnailChanged);
 		}
 		boolean embeddingSourceChanged = isEmbeddingSourceChanged(content, request);
-		boolean searchSourceChanged = embeddingSourceChanged || isCastChanged(content, request);
+		Map<String, Object> metadata = updateOriginalTitle(
+			content.getMetadata(), request.getOriginalTitle());
+		boolean searchSourceChanged = embeddingSourceChanged || isCastChanged(content, request)
+			|| !Objects.equals(metadata, content.getMetadata());
 		String title = value(request.getTitle(), content.getTitle());
 		String description = value(request.getDescription(), content.getDescription());
 		content.updateCommonDetails(
 			title,
 			description,
 			value(request.getReleaseDate(), content.getReleaseDate()),
-			value(request.getMetadata(), content.getMetadata())
+			metadata
 		);
 		if (content.getType() == ContentType.MOVIE && request.getRuntime().isPresent()) {
 			content.updateMovieDetails(request.getRuntime().orElse(null));
@@ -355,16 +361,23 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 
 	private ContentResponse updateSeries(Content content, ContentUpdateRequest request) {
 		String title = value(request.getTitle(), content.getTitle());
-		boolean titleChanged = !Objects.equals(title, content.getTitle());
-		content.updateCommonDetails(title, null, null, null);
+		Map<String, Object> metadata = updateOriginalTitle(
+			content.getMetadata(), request.getOriginalTitle());
+		boolean searchSourceChanged = !Objects.equals(title, content.getTitle())
+			|| !Objects.equals(metadata, content.getMetadata());
+		content.updateCommonDetails(title, null, null, metadata);
 		contentRepository.flush();
-		if (titleChanged) {
+		if (searchSourceChanged) {
 			publishContentLifecycleEvent(content.getId(), ContentLifecycleEvent.Type.UPSERTED);
+			contentRepository.findAllByParentContent_IdAndHiddenFalseOrderBySeasonNumberAsc(content.getId())
+				.forEach(season -> publishContentLifecycleEvent(
+					season.getId(), ContentLifecycleEvent.Type.UPSERTED));
 		}
 		return ContentResponse.builder()
 			.id(content.getId())
 			.type(content.getType())
 			.title(content.getTitle())
+			.originalTitle(content.getOriginalTitle())
 			.createdAt(content.getCreatedAt())
 			.updatedAt(content.getUpdatedAt())
 			.build();
@@ -438,7 +451,6 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 				|| request.getRuntime().isPresent()
 				|| request.getSeasonCount().isPresent()
 				|| request.getEpisodeCount().isPresent()
-				|| request.getMetadata().isPresent()
 				|| request.getGenreIds().isPresent()
 				|| request.getManualTags().isPresent()
 				|| request.getCasts().isPresent()
@@ -447,12 +459,13 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 				|| hasSportUpdateFields(request);
 			case TV_SEASON -> request.getRuntime().isPresent()
 				|| request.getSeasonCount().isPresent()
+				|| request.getOriginalTitle().isPresent()
 				|| hasSportUpdateFields(request);
 			case SPORT -> request.getReleaseDate().isPresent()
 				|| request.getRuntime().isPresent()
 				|| request.getSeasonCount().isPresent()
 				|| request.getEpisodeCount().isPresent()
-				|| request.getMetadata().isPresent()
+				|| request.getOriginalTitle().isPresent()
 				|| request.getGenreIds().isPresent()
 				|| request.getManualTags().isPresent()
 				|| request.getCasts().isPresent()
@@ -637,6 +650,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		Content series = Content.builder()
 			.title(request.getTitle())
 			.type(ContentType.TV_SERIES)
+			.metadata(originalTitleMetadata(request.getOriginalTitle()))
 			.build();
 		contentRepository.saveAndFlush(series);
 		List<UUID> seasonIds = new ArrayList<>();
@@ -655,7 +669,6 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 				.description(seasonRequest.getDescription())
 				.thumbnailUrl(thumbnailUrl)
 				.releaseDate(seasonRequest.getReleaseDate())
-				.metadata(seasonRequest.getMetadata())
 				.build();
 			contentRepository.saveAndFlush(season);
 			replaceRelations(season, seasonRequest.getGenreIds(), seasonRequest.getTags(),
@@ -690,7 +703,8 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			.thumbnailUrl(thumbnailUrl)
 			.releaseDate(request.getType() == ContentType.SPORT ? null : request.getReleaseDate())
 			.runtime(request.getType() == ContentType.MOVIE ? request.getRuntime() : null)
-			.metadata(request.getType() == ContentType.SPORT ? null : request.getMetadata())
+			.metadata(request.getType() == ContentType.MOVIE
+				? originalTitleMetadata(request.getOriginalTitle()) : null)
 			.build();
 	}
 
@@ -963,6 +977,31 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 				cast.getRoleName(), cast.getProfileImageUrl()));
 		}
 		contentCastRepository.saveAll(relations);
+	}
+
+	private static Map<String, Object> originalTitleMetadata(String originalTitle) {
+		return originalTitle == null
+			? null
+			: Map.of(ORIGINAL_TITLE_METADATA_KEY, originalTitle);
+	}
+
+	private static Map<String, Object> updateOriginalTitle(
+		Map<String, Object> currentMetadata,
+		JsonNullable<String> originalTitle
+	) {
+		if (!originalTitle.isPresent()) {
+			return currentMetadata;
+		}
+		Map<String, Object> updated = currentMetadata == null
+			? new LinkedHashMap<>()
+			: new LinkedHashMap<>(currentMetadata);
+		String value = originalTitle.orElse(null);
+		if (value == null) {
+			updated.remove(ORIGINAL_TITLE_METADATA_KEY);
+		} else {
+			updated.put(ORIGINAL_TITLE_METADATA_KEY, value);
+		}
+		return updated.isEmpty() ? null : updated;
 	}
 
 	private static <T> T value(JsonNullable<T> wrapper, T current) {
