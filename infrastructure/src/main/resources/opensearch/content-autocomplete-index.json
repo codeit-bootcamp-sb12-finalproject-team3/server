@@ -59,9 +59,8 @@
           "type": {
             "type": "keyword"
           }
-        }
-      },
-      "hidden": { "type": "boolean" }
-    }
+		}
+	  }
+	}
   }
 }
