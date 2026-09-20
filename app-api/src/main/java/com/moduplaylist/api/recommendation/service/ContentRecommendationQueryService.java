@@ -9,7 +9,6 @@ public interface ContentRecommendationQueryService {
     CursorPageResponse<ContentSummaryResponse> findRecommendations(
             UUID userId,
             String cursor,
-            UUID idAfter,
             int limit
     );
 }

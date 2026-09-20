@@ -34,10 +34,9 @@ public class ContentRecommendationQueryServiceImpl
     public CursorPageResponse<ContentSummaryResponse> findRecommendations(
             UUID userId,
             String cursor,
-            UUID idAfter,
             int limit
     ) {
-        long offset = parseOffset(cursor, idAfter, limit);
+        long offset = parseOffset(cursor, limit);
         RecommendationCachePage cachePage =
                 recommendationRedisRepository.findPage(userId, offset, limit);
         List<ContentSummaryResponse> data = loadInRecommendationOrder(cachePage.contentIds());
@@ -59,8 +58,8 @@ public class ContentRecommendationQueryServiceImpl
                 .build();
     }
 
-    private long parseOffset(String cursor, UUID idAfter, int limit) {
-        if (limit < 1 || limit > MAX_LIMIT || (cursor == null) != (idAfter == null)) {
+    private long parseOffset(String cursor, int limit) {
+        if (limit < 1 || limit > MAX_LIMIT ) {
             throw new BaseException(ErrorCode.INVALID_REQUEST);
         }
         if (cursor == null) {
@@ -85,7 +84,8 @@ public class ContentRecommendationQueryServiceImpl
 
         return contentIds.stream()
                 .map(contentById::get)
-                .filter(content -> content != null && content.isReviewable())
+                .filter(content ->
+                        content != null && content.getType().isPersonalizable())
                 .map(this::toResponse)
                 .toList();
     }

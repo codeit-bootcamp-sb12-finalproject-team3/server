@@ -23,12 +23,20 @@ public class OpenSearchIndexInitializer {
     @PostConstruct
     public void initialize() throws IOException {
         createIndexIfAbsent(
-                properties.getUserPreferenceIndex(),
+                properties.getUserContentPreferenceIndex(),
+                "opensearch/user-preference-index.json"
+        );
+        createIndexIfAbsent(
+                properties.getUserPlaylistPreferenceIndex(),
                 "opensearch/user-preference-index.json"
         );
         createIndexIfAbsent(
                 properties.getContentIndex(),
                 "opensearch/content-index.json"
+        );
+        createIndexIfAbsent(
+                properties.getPlaylistIndex(),
+                "opensearch/playlist-index.json"
         );
     }
 

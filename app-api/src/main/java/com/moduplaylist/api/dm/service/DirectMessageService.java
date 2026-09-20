@@ -1,5 +1,6 @@
 package com.moduplaylist.api.dm.service;
 
+import com.moduplaylist.api.dm.dto.ConversationListResponse;
 import com.moduplaylist.api.dm.dto.ConversationResponse;
 import com.moduplaylist.api.dm.dto.ConversationSearchRequest;
 import com.moduplaylist.api.dm.dto.DirectMessageCreateResult;
@@ -18,10 +19,12 @@ public interface DirectMessageService {
 
     ConversationResponse createOrGetConversation(UUID userId, UUID peerId);
 
-    CursorPageResponse<ConversationResponse> getConversations(
+    CursorPageResponse<ConversationListResponse> getConversations(
             UUID userId,
             ConversationSearchRequest request
     );
+
+    ConversationResponse getConversation(UUID userId, UUID conversationId);
 
     CursorPageResponse<DirectMessageResponse> getMessages(
             UUID userId,

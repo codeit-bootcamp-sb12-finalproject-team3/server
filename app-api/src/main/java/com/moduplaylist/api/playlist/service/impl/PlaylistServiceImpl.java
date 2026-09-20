@@ -7,10 +7,12 @@ import com.moduplaylist.api.playlist.dto.PlaylistCreateRequest;
 import com.moduplaylist.api.playlist.dto.PlaylistResponse;
 import com.moduplaylist.api.playlist.dto.PlaylistSummaryResponse;
 import com.moduplaylist.api.playlist.dto.PlaylistUpdateRequest;
+import com.moduplaylist.api.playlist.event.PlaylistTagRecalculationEvent;
 import com.moduplaylist.api.playlist.service.PlaylistService;
 import com.moduplaylist.api.user.dto.UserSummary;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
+import com.moduplaylist.core.content.exception.ContentTypeNotSupportedException;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.playlist.entity.Playlist;
 import com.moduplaylist.core.playlist.entity.PlaylistContent;
@@ -42,6 +44,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,6 +63,7 @@ public class PlaylistServiceImpl implements PlaylistService {
   private final PlaylistSubscriptionRepository playlistSubscriptionRepository;
   private final PlaylistQueryRepository playlistQueryRepository;
   private final PlaylistContentQueryRepository playlistContentQueryRepository;
+  private final ApplicationEventPublisher eventPublisher;
 
   @Override
   @Transactional
@@ -94,6 +98,8 @@ public class PlaylistServiceImpl implements PlaylistService {
       throw new ContentNotFoundException(missingContentId);
     }
 
+    contents.forEach(this::validatePlaylistContent);
+
     Playlist playlist = Playlist.create(
         owner,
         request.getTitle(),
@@ -107,6 +113,10 @@ public class PlaylistServiceImpl implements PlaylistService {
         .toList();
 
     playlistContentRepository.saveAll(playlistContents);
+
+    eventPublisher.publishEvent(
+        new PlaylistTagRecalculationEvent(savedPlaylist.getId())
+    );
 
     return PlaylistResponse.builder()
         .id(savedPlaylist.getId())
@@ -286,6 +296,8 @@ public class PlaylistServiceImpl implements PlaylistService {
     Content content = contentRepository.findById(contentId)
         .orElseThrow(() -> new ContentNotFoundException(contentId));
 
+    validatePlaylistContent(content);
+
     if (playlistContentRepository.existsByPlaylist_IdAndContent_Id(
         playlistId,
         contentId
@@ -303,6 +315,16 @@ public class PlaylistServiceImpl implements PlaylistService {
           contentId,
           e
       );
+    }
+
+    eventPublisher.publishEvent(
+        new PlaylistTagRecalculationEvent(playlist.getId())
+    );
+  }
+
+  private void validatePlaylistContent(Content content) {
+    if (!content.getType().isPersonalizable()) {
+      throw new ContentTypeNotSupportedException(content.getId(), content.getType());
     }
   }
 
@@ -332,6 +354,10 @@ public class PlaylistServiceImpl implements PlaylistService {
     }
 
     playlistContentRepository.delete(playlistContent);
+
+    eventPublisher.publishEvent(
+        new PlaylistTagRecalculationEvent(playlist.getId())
+    );
   }
 
   private Map<UUID, List<ContentSummary>> findPreviewContentsByPlaylistId(List<UUID> playlistIds) {

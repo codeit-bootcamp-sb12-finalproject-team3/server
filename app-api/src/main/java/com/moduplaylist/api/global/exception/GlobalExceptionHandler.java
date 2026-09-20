@@ -12,6 +12,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -67,6 +68,21 @@ public class GlobalExceptionHandler {
             .code(ErrorCode.INVALID_REQUEST.name())
             .message(ErrorCode.INVALID_REQUEST.getMessage())
             .details(Map.of())
+            .status(HttpStatus.BAD_REQUEST.value())
+            .build();
+
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(
+        MethodArgumentTypeMismatchException e
+    ) {
+        ErrorResponse response = ErrorResponse.builder()
+            .timestamp(Instant.now())
+            .code(ErrorCode.INVALID_REQUEST.name())
+            .message(ErrorCode.INVALID_REQUEST.getMessage())
+            .details(Map.of("parameter", e.getName()))
             .status(HttpStatus.BAD_REQUEST.value())
             .build();
 
