@@ -323,6 +323,11 @@ public class PlaylistServiceImpl implements PlaylistService {
   }
 
   private void validatePlaylistContent(Content content) {
+
+    if (content.isHidden()) {
+      throw new ContentNotFoundException(content.getId());
+    }
+
     if (!content.getType().isPersonalizable()) {
       throw new ContentTypeNotSupportedException(content.getId(), content.getType());
     }

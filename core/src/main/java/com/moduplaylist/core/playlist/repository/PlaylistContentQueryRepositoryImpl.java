@@ -39,7 +39,9 @@ public class PlaylistContentQueryRepositoryImpl implements PlaylistContentQueryR
                        ORDER BY pc.created_at ASC, pc.id ASC
                    ) AS rn
             FROM playlist_contents pc
+            JOIN contents c ON c.id = pc.content_id
             WHERE pc.playlist_id IN (:playlistIds)
+              AND c.hidden = false
         ) ranked
         WHERE ranked.rn <= :previewLimit
         """,
@@ -63,6 +65,7 @@ public class PlaylistContentQueryRepositoryImpl implements PlaylistContentQueryR
         JOIN FETCH pc.playlist
         JOIN FETCH pc.content
         WHERE pc.id IN :previewIds
+          AND pc.content.hidden = false
         ORDER BY pc.playlist.id ASC,
                  pc.createdAt ASC,
                  pc.id ASC
