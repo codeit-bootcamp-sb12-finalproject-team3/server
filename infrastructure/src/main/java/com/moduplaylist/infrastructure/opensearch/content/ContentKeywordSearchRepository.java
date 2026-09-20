@@ -140,7 +140,7 @@ public class ContentKeywordSearchRepository {
 				.hits().hits().stream()
 				.map(hit -> UUID.fromString(hit.id()))
 				.toList();
-		} catch (IOException | IllegalArgumentException exception) {
+		} catch (IOException | OpenSearchException | IllegalArgumentException exception) {
 			throw new ContentSearchUnavailableException(exception);
 		}
 	}

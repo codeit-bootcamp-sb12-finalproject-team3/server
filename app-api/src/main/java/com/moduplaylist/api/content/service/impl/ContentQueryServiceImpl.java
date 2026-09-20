@@ -657,11 +657,8 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	}
 
 	private List<UUID> findMatchedContentIds(String keyword, ContentType contentType) {
-		if (keyword == null) {
+		if (keyword == null || keyword.isBlank()) {
 			return null;
-		}
-		if (keyword.isBlank()) {
-			return List.of();
 		}
 		ContentKeywordSearchRepository repository =
 			keywordSearchRepositoryProvider.getIfAvailable();
