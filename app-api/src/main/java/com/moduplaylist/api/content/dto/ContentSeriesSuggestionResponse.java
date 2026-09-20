@@ -10,4 +10,5 @@ public class ContentSeriesSuggestionResponse {
 
 	private UUID id;
 	private String title;
+	private String originalTitle;
 }

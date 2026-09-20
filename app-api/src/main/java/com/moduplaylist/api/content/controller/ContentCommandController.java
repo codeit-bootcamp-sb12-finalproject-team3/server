@@ -6,6 +6,7 @@ import com.moduplaylist.api.content.dto.ContentResponse;
 import com.moduplaylist.api.content.dto.ContentUpdateRequest;
 import com.moduplaylist.api.content.dto.EpisodeCreateRequest;
 import com.moduplaylist.api.content.dto.EpisodeResponse;
+import com.moduplaylist.api.content.dto.EpisodeUpdateRequest;
 import com.moduplaylist.api.content.service.ContentCommandService;
 import com.moduplaylist.core.content.exception.InvalidContentSearchException;
 import jakarta.validation.Valid;
@@ -71,6 +72,26 @@ public class ContentCommandController {
 		return ResponseEntity
 			.created(URI.create("/api/contents/" + seasonId + "/episodes/" + response.getId()))
 			.body(response);
+	}
+
+	@PatchMapping(value = "/{seasonId}/episodes/{episodeId}", consumes = "multipart/form-data")
+	public ResponseEntity<EpisodeResponse> updateEpisode(
+		@PathVariable UUID seasonId,
+		@PathVariable UUID episodeId,
+		@Valid @RequestPart("request") EpisodeUpdateRequest request,
+		@RequestPart(value = "thumbnail", required = false) MultipartFile thumbnail
+	) {
+		return ResponseEntity.ok(
+			contentCommandService.updateEpisode(seasonId, episodeId, request, thumbnail));
+	}
+
+	@DeleteMapping("/{seasonId}/episodes/{episodeId}")
+	public ResponseEntity<Void> deleteEpisode(
+		@PathVariable UUID seasonId,
+		@PathVariable UUID episodeId
+	) {
+		contentCommandService.deleteEpisode(seasonId, episodeId);
+		return ResponseEntity.noContent().build();
 	}
 
 	@DeleteMapping("/{contentId}")

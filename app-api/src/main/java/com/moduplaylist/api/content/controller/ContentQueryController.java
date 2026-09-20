@@ -10,6 +10,7 @@ import com.moduplaylist.api.content.dto.ContentResponse;
 import com.moduplaylist.api.content.dto.ContentPlatformResponse;
 import com.moduplaylist.api.content.dto.ContentPlaylistResponse;
 import com.moduplaylist.api.content.dto.ContentWatchPartyResponse;
+import com.moduplaylist.api.content.dto.EpisodeResponse;
 import com.moduplaylist.api.content.service.ContentQueryService;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.security.CustomUserDetails;
@@ -39,7 +40,7 @@ public class ContentQueryController {
 		"typeEqual",
 		"genreIdEqual",
 		"sportTypeEqual",
-		"likedByUserIdEqual",
+		"likedByMe",
 		"sortBy",
 		"cursor",
 		"idAfter",
@@ -88,6 +89,21 @@ public class ContentQueryController {
 		@PathVariable UUID contentId
 	) {
 		return ResponseEntity.ok(contentQueryService.findOtt(contentId));
+	}
+
+	@GetMapping("/{seasonId}/episodes")
+	public ResponseEntity<List<EpisodeResponse>> findEpisodes(
+		@PathVariable UUID seasonId
+	) {
+		return ResponseEntity.ok(contentQueryService.findEpisodes(seasonId));
+	}
+
+	@GetMapping("/{seasonId}/episodes/{episodeId}")
+	public ResponseEntity<EpisodeResponse> findEpisode(
+		@PathVariable UUID seasonId,
+		@PathVariable UUID episodeId
+	) {
+		return ResponseEntity.ok(contentQueryService.findEpisode(seasonId, episodeId));
 	}
 
 	@GetMapping("/{contentId}/playlists")

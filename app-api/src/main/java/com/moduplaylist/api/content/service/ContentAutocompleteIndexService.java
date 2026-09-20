@@ -44,7 +44,6 @@ public class ContentAutocompleteIndexService {
 			.contentId(content.getId())
 			.type(content.getType().getValue())
 			.suggestions(buildSuggestions(content))
-			.hidden(false)
 			.build());
 	}
 

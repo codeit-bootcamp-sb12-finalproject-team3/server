@@ -16,5 +16,4 @@ public class ContentAutocompleteDocument {
 	private UUID contentId;
 	private String type;
 	private List<ContentAutocompleteTerm> suggestions;
-	private boolean hidden;
 }

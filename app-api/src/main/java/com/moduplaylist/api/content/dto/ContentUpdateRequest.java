@@ -23,10 +23,15 @@ import org.openapitools.jackson.nullable.JsonNullable;
 public class ContentUpdateRequest {
 
 	private JsonNullable<@NotBlank @Size(max = 255) String> title = JsonNullable.undefined();
+	private JsonNullable<@NotBlank @Size(max = 255) String> seriesTitle =
+		JsonNullable.undefined();
+	private JsonNullable<@NotNull UUID> parentContentId = JsonNullable.undefined();
+	private boolean createNewSeries;
 	private JsonNullable<@NotBlank String> description = JsonNullable.undefined();
 	private JsonNullable<LocalDate> releaseDate = JsonNullable.undefined();
 	private JsonNullable<@Positive Integer> runtime = JsonNullable.undefined();
-	private JsonNullable<@PositiveOrZero Integer> seasonCount = JsonNullable.undefined();
+	private JsonNullable<@NotNull @PositiveOrZero Integer> seasonNumber =
+		JsonNullable.undefined();
 	private JsonNullable<@PositiveOrZero Integer> episodeCount = JsonNullable.undefined();
 	private JsonNullable<@NotNull UUID> sportTypeId = JsonNullable.undefined();
 	private JsonNullable<Instant> scheduledAt = JsonNullable.undefined();
@@ -46,10 +51,23 @@ public class ContentUpdateRequest {
 	private JsonNullable<@NotNull List<@NotNull @Valid ContentPlatformCreateRequest>> platforms =
 		JsonNullable.undefined();
 	private boolean removeThumbnail;
+	private boolean duplicateConfirmed;
 	private final Set<String> unknownFields = new HashSet<>();
 
 	public void setTitle(JsonNullable<String> title) {
 		this.title = map(title, ContentUpdateRequest::strip);
+	}
+
+	public void setSeriesTitle(JsonNullable<String> seriesTitle) {
+		this.seriesTitle = map(seriesTitle, ContentUpdateRequest::strip);
+	}
+
+	public void setParentContentId(JsonNullable<UUID> parentContentId) {
+		this.parentContentId = requireWrapper(parentContentId);
+	}
+
+	public void setCreateNewSeries(boolean createNewSeries) {
+		this.createNewSeries = createNewSeries;
 	}
 
 	public void setDescription(JsonNullable<String> description) {
@@ -64,8 +82,8 @@ public class ContentUpdateRequest {
 		this.runtime = requireWrapper(runtime);
 	}
 
-	public void setSeasonCount(JsonNullable<Integer> seasonCount) {
-		this.seasonCount = requireWrapper(seasonCount);
+	public void setSeasonNumber(JsonNullable<Integer> seasonNumber) {
+		this.seasonNumber = requireWrapper(seasonNumber);
 	}
 
 	public void setEpisodeCount(JsonNullable<Integer> episodeCount) {
@@ -143,6 +161,10 @@ public class ContentUpdateRequest {
 
 	public void setRemoveThumbnail(boolean removeThumbnail) {
 		this.removeThumbnail = removeThumbnail;
+	}
+
+	public void setDuplicateConfirmed(boolean duplicateConfirmed) {
+		this.duplicateConfirmed = duplicateConfirmed;
 	}
 
 	@JsonAnySetter

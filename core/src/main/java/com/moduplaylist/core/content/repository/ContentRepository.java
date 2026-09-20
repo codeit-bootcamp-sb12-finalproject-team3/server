@@ -72,14 +72,32 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
     List<Content> findAllByParentContent_IdAndHiddenFalseOrderBySeasonNumberAsc(
             UUID parentContentId);
 
-    boolean existsByParentContent_IdAndSeasonNumber(UUID parentContentId, Integer seasonNumber);
+    boolean existsByParentContent_IdAndHiddenFalseAndIdNot(
+            UUID parentContentId,
+            UUID contentId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Content> findByParentContent_IdAndSeasonNumber(
+            UUID parentContentId,
+            Integer seasonNumber);
 
     boolean existsByTypeAndTitleAndReleaseDate(
             ContentType type,
             String title,
             java.time.LocalDate releaseDate);
 
+    boolean existsByTypeAndTitleAndReleaseDateAndIdNot(
+            ContentType type,
+            String title,
+            java.time.LocalDate releaseDate,
+            UUID contentId);
+
     boolean existsByTypeAndTitle(ContentType type, String title);
+
+    boolean existsByTypeAndTitleAndIdNot(
+            ContentType type,
+            String title,
+            UUID contentId);
 
     @Query("""
             select content

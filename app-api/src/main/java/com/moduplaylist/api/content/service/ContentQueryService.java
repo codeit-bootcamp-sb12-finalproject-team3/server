@@ -13,6 +13,7 @@ import com.moduplaylist.api.content.dto.GenreResponse;
 import com.moduplaylist.api.content.dto.SportTypeResponse;
 import com.moduplaylist.api.content.dto.PlatformResponse;
 import com.moduplaylist.api.content.dto.ContentSeriesSearchResponse;
+import com.moduplaylist.api.content.dto.EpisodeResponse;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import java.util.List;
 import java.util.UUID;
@@ -32,6 +33,14 @@ public interface ContentQueryService {
 	ContentResponse findById(UUID userId, UUID contentId);
 
 	ContentResponse findByIdForCommand(UUID contentId);
+
+	ContentResponse findHiddenSeasonByIdForAdmin(UUID hiddenSeasonId);
+
+	ContentPlatformResponse findHiddenSeasonOttByIdForAdmin(UUID hiddenSeasonId);
+
+	List<EpisodeResponse> findEpisodes(UUID seasonId);
+
+	EpisodeResponse findEpisode(UUID seasonId, UUID episodeId);
 
 	ContentPlatformResponse findOtt(UUID contentId);
 
