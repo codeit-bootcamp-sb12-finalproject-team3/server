@@ -8,10 +8,7 @@ import static org.mockito.Mockito.*;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.moduplaylist.realtime.watchparty.WatchPartyActivePartyRegistry;
-import com.moduplaylist.realtime.watchparty.WatchPartyHostRegistry;
-import com.moduplaylist.realtime.watchparty.WatchPartyJoinedRegistry;
-import com.moduplaylist.realtime.watchparty.WatchPartyKickedRegistry;
+import com.moduplaylist.realtime.watchparty.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,6 +31,7 @@ class StompAuthChannelInterceptorTest {
     private WatchPartyJoinedRegistry watchPartyJoinedRegistry;
     private WatchPartyHostRegistry watchPartyHostRegistry;
     private WatchPartyActivePartyRegistry watchPartyActivePartyRegistry;
+    private WatchPartyOnlineRegistry watchPartyOnlineRegistry;
     private SimpMessagingTemplate messagingTemplate;
 
     private static final UUID USER_ID = UUID.randomUUID();
@@ -57,6 +55,7 @@ class StompAuthChannelInterceptorTest {
         watchPartyJoinedRegistry = mock(WatchPartyJoinedRegistry.class);
         watchPartyHostRegistry = mock(WatchPartyHostRegistry.class);
         watchPartyActivePartyRegistry = mock(WatchPartyActivePartyRegistry.class);
+        watchPartyOnlineRegistry = mock(WatchPartyOnlineRegistry.class);
         messagingTemplate = mock(SimpMessagingTemplate.class);
 
         interceptor = new StompAuthChannelInterceptor(
@@ -66,6 +65,7 @@ class StompAuthChannelInterceptorTest {
                 watchPartyJoinedRegistry,
                 watchPartyHostRegistry,
                 watchPartyActivePartyRegistry,
+                watchPartyOnlineRegistry,
                 messagingTemplate
         );
 
