@@ -1,9 +1,11 @@
-package com.moduplaylist.realtime.watchparty;
+package com.moduplaylist.realtime.watchparty.websocket;
 
 import com.moduplaylist.realtime.global.security.RealtimePrincipal;
 import com.moduplaylist.realtime.global.security.StompAuthChannelInterceptor;
 import java.util.Set;
 import java.util.UUID;
+
+import com.moduplaylist.realtime.watchparty.WatchPartyOnlineRegistry;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Component;
