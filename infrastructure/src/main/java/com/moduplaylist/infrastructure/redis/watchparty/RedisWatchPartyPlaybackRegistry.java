@@ -67,6 +67,7 @@ public class RedisWatchPartyPlaybackRegistry implements WatchPartyPlaybackRegist
                 objectMapper.convertValue(raw.get("status"), WatchPartyPlaybackStatus.class),
                 objectMapper.convertValue(raw.get("startedAt"), Long.class),
                 objectMapper.convertValue(raw.get("accumulatedPauseMs"), Long.class),
+                convertNullable(raw.get("pausedAt"), Long.class),
                 convertNullable(raw.get("startEpisode"), Integer.class),
                 convertNullable(raw.get("endEpisode"), Integer.class),
                 objectMapper.convertValue(raw.get("hostId"), UUID.class),

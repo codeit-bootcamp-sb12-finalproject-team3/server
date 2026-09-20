@@ -46,6 +46,7 @@ public class WatchPartyService {
     private final WatchPartyQueryRepository watchPartyQueryRepository;
     private final WatchPartyParticipantRepository watchPartyParticipantRepository;
     private final WatchPartyHostRegistry watchPartyHostRegistry;
+    private final WatchPartyPlaybackRegistry watchPartyPlaybackRegistry;
 
     public WatchPartyResponse createWatchParty(UUID hostId, CreateWatchPartyRequest request) {
 
@@ -217,6 +218,10 @@ public class WatchPartyService {
     }
 
     private WatchPartyResponse toResponse(WatchParty watchParty, User host, Content content, int currentParticipants) {
+        WatchPartyPlaybackState playback = watchParty.getStatus() == WatchPartyStatus.LIVE
+                ? watchPartyPlaybackRegistry.find(watchParty.getId()).orElse(null)
+                : null;
+
         return new WatchPartyResponse(
                 watchParty.getId(),
                 toHostSummary(host),
@@ -231,7 +236,11 @@ public class WatchPartyService {
                 watchParty.getStartEpisode(),
                 watchParty.getEndEpisode(),
                 watchParty.getCreatedAt(),
-                watchParty.getEndedAt()
+                watchParty.getEndedAt(),
+                playback != null ? playback.getStatus() : null,
+                playback != null ? playback.getStartedAt() : null,
+                playback != null ? playback.getAccumulatedPauseMs() : null,
+                playback != null ? playback.getPausedAt() : null
         );
     }
 

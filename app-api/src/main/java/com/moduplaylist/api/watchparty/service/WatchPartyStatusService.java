@@ -38,6 +38,7 @@ public class WatchPartyStatusService {
                 WatchPartyPlaybackStatus.LIVE,
                 now,
                 0L,
+                null,              // pausedAt — 시작 시점엔 일시정지 아니므로 null
                 party.getStartEpisode(),
                 party.getEndEpisode(),
                 hostId,
