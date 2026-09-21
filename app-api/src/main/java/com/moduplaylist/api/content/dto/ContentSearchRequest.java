@@ -26,7 +26,7 @@ public class ContentSearchRequest {
 	@Size(max = 50)
 	private String sportTypeEqual;
 
-	private UUID likedByUserIdEqual;
+	private Boolean likedByMe;
 
 	private ContentSort sortBy;
 
@@ -61,7 +61,10 @@ public class ContentSearchRequest {
 		boolean hasKeyword = keywordLike != null && !keywordLike.isBlank();
 		boolean hasSportType = sportTypeEqual != null && !sportTypeEqual.isBlank();
 
-		if (likedByUserIdEqual != null && sortBy != null) {
+		if (Boolean.TRUE.equals(likedByMe) && sortBy != null) {
+			return false;
+		}
+		if (hasKeyword && Boolean.TRUE.equals(likedByMe)) {
 			return false;
 		}
 		if (hasKeyword && (genreIdEqual != null || hasSportType)) {

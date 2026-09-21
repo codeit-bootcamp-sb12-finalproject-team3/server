@@ -7,7 +7,6 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.data.jpa.repository.Modifying;
 
 public interface ContentTagRepository extends JpaRepository<ContentTag, UUID> {
 
@@ -19,8 +18,4 @@ public interface ContentTagRepository extends JpaRepository<ContentTag, UUID> {
               and ct.content.hidden = false
             """)
     List<ContentTag> findAllWithTagByContentIdIn(@Param("contentIds") Collection<UUID> contentIds);
-
-    @Modifying
-    @Query("delete from ContentTag contentTag where contentTag.content.id = :contentId")
-    int deleteAllByContentId(@Param("contentId") UUID contentId);
 }

@@ -1,6 +1,7 @@
 package com.moduplaylist.api.content.service;
 
 import com.github.f4b6a3.uuid.UuidCreator;
+import com.moduplaylist.core.activity.enums.ContentActivityType;
 import com.moduplaylist.infrastructure.kafka.KafkaTopics;
 import com.moduplaylist.infrastructure.kafka.event.ContentViewed;
 import com.moduplaylist.infrastructure.redis.content.ContentViewDeduplicator;
@@ -27,6 +28,7 @@ public class ContentViewActivityService {
 
 			ContentViewed event = new ContentViewed(
 				UuidCreator.getTimeOrderedEpoch(),
+				ContentActivityType.CONTENT_VIEW,
 				userId,
 				contentId,
 				Instant.now()
