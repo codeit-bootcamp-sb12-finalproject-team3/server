@@ -10,7 +10,6 @@ import com.moduplaylist.core.content.repository.SportEventRepository;
 import com.moduplaylist.infrastructure.embedding.EmbeddingGenerator;
 import com.moduplaylist.infrastructure.opensearch.content.ContentVectorDocument;
 import com.moduplaylist.infrastructure.opensearch.content.ContentVectorRepository;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +25,8 @@ public class ContentEmbeddingTargetService {
 
     private static final List<ContentType> EMBEDDABLE_TYPES =
             List.of(ContentType.MOVIE, ContentType.TV_SEASON);
+    private static final List<ContentType> INDEXED_TYPES =
+            List.of(ContentType.MOVIE, ContentType.TV_SEASON, ContentType.SPORT);
 
     private final ContentRepository contentRepository;
     private final ContentGenreRepository contentGenreRepository;
@@ -38,8 +39,7 @@ public class ContentEmbeddingTargetService {
         List<Content> contents = window.fullScan()
                 ? contentRepository.findEmbeddingSourcesThrough(
                         EMBEDDABLE_TYPES, window.through())
-                : contentRepository.findModifiedEmbeddingSources(
-                        EMBEDDABLE_TYPES, window.after(), window.through());
+                : contentRepository.findPendingEmbeddingSources(EMBEDDABLE_TYPES);
         if (contents.isEmpty()) {
             return List.of();
         }
@@ -59,7 +59,7 @@ public class ContentEmbeddingTargetService {
                 ));
 
         return contents.stream()
-                .filter(content -> requiresEmbedding(
+                .filter(content -> content.isEmbeddingPending() || requiresEmbedding(
                         content,
                         sortedDistinct(genresByContentId.get(content.getId())),
                         sortedDistinct(tagsByContentId.get(content.getId()))
@@ -73,7 +73,9 @@ public class ContentEmbeddingTargetService {
     }
 
     public List<UUID> findDeletedContentIds() {
-        HashSet<UUID> existingContentIds = new HashSet<>(contentRepository.findAllIds());
+        HashSet<UUID> existingContentIds = new HashSet<>(
+                contentRepository.findAllVisibleIdsByTypeIn(INDEXED_TYPES)
+        );
         return vectorRepository.findAllIds().stream()
                 .filter(contentId -> !existingContentIds.contains(contentId))
                 .sorted()
@@ -81,9 +83,8 @@ public class ContentEmbeddingTargetService {
     }
 
     public List<UUID> findSportSearchDocumentTargetIds() {
-        return contentRepository.findAll().stream()
-                .filter(content -> content.getType() == ContentType.SPORT)
-                .sorted(Comparator.comparing(Content::getId))
+        return contentRepository
+                .findAllByTypeAndHiddenFalseOrderByIdAsc(ContentType.SPORT).stream()
                 .filter(this::requiresSportSearchDocument)
                 .map(Content::getId)
                 .toList();

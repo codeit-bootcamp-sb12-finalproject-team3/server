@@ -14,6 +14,7 @@ public class WatchPartyPlaybackState {
     private WatchPartyPlaybackStatus status;
     private Long startedAt;            // epoch millis
     private Long accumulatedPauseMs;
+    private Long pausedAt;
     private Integer startEpisode;      // nullable (영화/스포츠는 null)
     private Integer endEpisode;        // nullable
     private UUID hostId;

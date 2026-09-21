@@ -28,10 +28,12 @@ public class ContentEmbeddingService {
     private final ContentEmbeddingTextBuilder textBuilder;
     private final EmbeddingGenerator embeddingGenerator;
     private final ContentVectorRepository vectorRepository;
+    private final ContentEmbeddingCompletionService completionService;
 
     public ContentEmbeddingResult embedAndIndex(UUID contentId) {
         Content content = contentRepository.findById(contentId)
                 .orElseThrow(() -> new ContentNotFoundException(contentId));
+        Instant sourceUpdatedAt = content.getEmbeddingSourceUpdatedAt();
         List<String> genres = contentGenreRepository
                 .findAllWithGenreByContentIdIn(List.of(contentId)).stream()
                 .map(ContentGenre::getGenre)
@@ -66,10 +68,10 @@ public class ContentEmbeddingService {
                 .tags(tags)
                 .embedding(embedding)
                 .embeddingModel(embeddingGenerator.modelName())
-                .sourceUpdatedAt(content.getUpdatedAt())
+                .sourceUpdatedAt(sourceUpdatedAt)
                 .embeddedAt(Instant.now())
                 .build();
-        vectorRepository.upsert(document);
+        completionService.publishIfCurrent(contentId, sourceUpdatedAt, document);
 
         return new ContentEmbeddingResult(contentId, embeddingText, embedding.length);
     }

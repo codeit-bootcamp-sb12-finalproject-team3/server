@@ -75,5 +75,8 @@ public class TmdbContentPlatformService {
             ))
             .toList();
         contentPlatformRepository.saveAll(relations);
+        if (!relations.isEmpty()) {
+            content.markUpdated();
+        }
     }
 }

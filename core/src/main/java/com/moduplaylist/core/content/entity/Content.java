@@ -35,6 +35,10 @@ import org.hibernate.type.SqlTypes;
 		@Index(
 			name = "idx_contents_parent_season",
 			columnList = "parent_content_id, hidden, season_number"
+		),
+		@Index(
+			name = "idx_contents_embedding_pending",
+			columnList = "hidden, type, embedding_pending, embedding_source_updated_at, id"
 		)
 	},
 	uniqueConstraints = {
@@ -119,13 +123,19 @@ public class Content extends BaseEntity {
 	@Column(name = "review_count", nullable = false, columnDefinition = "INT UNSIGNED")
 	private long reviewCount = 0;
 
-	@Transient
-	@Getter(AccessLevel.NONE)
-	private Instant persistedUpdatedAt;
+	@Column(
+		name = "embedding_source_updated_at",
+		nullable = false,
+		columnDefinition = "DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)"
+	)
+	private Instant embeddingSourceUpdatedAt;
 
-	@Transient
-	@Getter(AccessLevel.NONE)
-	private boolean embeddingSourceChanged;
+	@Column(
+		name = "embedding_pending",
+		nullable = false,
+		columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE"
+	)
+	private boolean embeddingPending;
 
 	@Builder
 	private Content(
@@ -154,6 +164,9 @@ public class Content extends BaseEntity {
 		this.metadata = metadata;
 		this.externalSource = externalSource;
 		this.externalId = externalId;
+		this.embeddingSourceUpdatedAt = Instant.now();
+		this.embeddingPending = type == ContentType.MOVIE
+			|| type == ContentType.TV_SEASON;
 		validate();
 	}
 
@@ -258,27 +271,12 @@ public class Content extends BaseEntity {
 	}
 
 	public void markEmbeddingSourceUpdated() {
-		this.embeddingSourceChanged = true;
+		this.embeddingSourceUpdatedAt = Instant.now();
+		this.embeddingPending = true;
+	}
+
+	public void markUpdated() {
 		touchUpdatedAt();
-	}
-
-	@PostLoad
-	@PostPersist
-	private void rememberUpdatedAt() {
-		this.persistedUpdatedAt = getUpdatedAt();
-		this.embeddingSourceChanged = false;
-	}
-
-	@PreUpdate
-	private void preserveUpdatedAtForNonEmbeddingChanges() {
-		if (!embeddingSourceChanged && persistedUpdatedAt != null) {
-			restoreUpdatedAt(persistedUpdatedAt);
-		}
-	}
-
-	@PostUpdate
-	private void rememberUpdatedAtAfterUpdate() {
-		rememberUpdatedAt();
 	}
 
 	public boolean isReviewable() {

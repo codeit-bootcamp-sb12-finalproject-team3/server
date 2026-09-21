@@ -21,9 +21,7 @@ public class WatchPartyStatusService {
 
     private final WatchPartyRepository watchPartyRepository;
     private final ApplicationEventPublisher eventPublisher;
-    private final WatchPartyJoinedRegistry watchPartyJoinedRegistry;
-    private final WatchPartyActivePartyRegistry watchPartyActivePartyRegistry;
-    private final WatchPartyLifecycleRegistry watchPartyLifecycleRegistry;
+
 
     public void startWatchParty(UUID partyId, UUID hostId) {
         WatchParty party = watchPartyRepository.findById(partyId)
@@ -40,6 +38,7 @@ public class WatchPartyStatusService {
                 WatchPartyPlaybackStatus.LIVE,
                 now,
                 0L,
+                null,              // pausedAt — 시작 시점엔 일시정지 아니므로 null
                 party.getStartEpisode(),
                 party.getEndEpisode(),
                 hostId,
@@ -58,13 +57,7 @@ public class WatchPartyStatusService {
         }
 
         party.end();
-
-        // joinedParty 역인덱스는 파티 키 그룹에 안 묶이니 여기서 별도 정리
-        watchPartyJoinedRegistry.findAll(partyId)
-                .forEach(watchPartyActivePartyRegistry::clearJoinedParty);
-
-        watchPartyLifecycleRegistry.armSafetyNetTtl(partyId);
-
         eventPublisher.publishEvent(new WatchPartyEndedEvent(partyId));
+
     }
 }
