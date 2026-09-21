@@ -171,14 +171,15 @@ public class PlaylistQueryRepositoryImpl implements PlaylistQueryRepository {
 
     if (search.getContentIdEqual() != null) {
       jpql.append("""
-        
-        AND EXISTS (
-          SELECT 1
-          FROM PlaylistContent pc
-          WHERE pc.playlist = p
-            AND pc.content.id = :contentId
-        )
-        """);
+      
+      AND EXISTS (
+        SELECT 1
+        FROM PlaylistContent pc
+        WHERE pc.playlist = p
+          AND pc.content.id = :contentId
+          AND pc.content.hidden = false
+      )
+      """);
 
       parameters.put(
           "contentId",
