@@ -4,8 +4,10 @@ import com.moduplaylist.api.content.service.ContentAutocompleteIndexService;
 import com.moduplaylist.infrastructure.kafka.KafkaTopics;
 import com.moduplaylist.infrastructure.kafka.event.ContentDeleted;
 import com.moduplaylist.infrastructure.kafka.event.ContentUpserted;
+import com.moduplaylist.infrastructure.opensearch.content.ContentVectorRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -18,6 +20,7 @@ public class ContentLifecycleEventListener {
 
 	private final KafkaTemplate<String, Object> kafkaTemplate;
 	private final ContentAutocompleteIndexService autocompleteIndexService;
+	private final ObjectProvider<ContentVectorRepository> contentVectorRepositoryProvider;
 
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	public void handle(ContentLifecycleEvent event) {
@@ -51,6 +54,25 @@ public class ContentLifecycleEventListener {
 			log.warn(
 				"자동완성 인덱스 동기화에 실패했습니다. eventId={}, type={}, contentId={}",
 				event.eventId(), event.type(), event.contentId(), exception);
+		}
+
+		if (event.type() == ContentLifecycleEvent.Type.DELETED) {
+			deleteVectorDocument(event);
+		}
+	}
+
+	private void deleteVectorDocument(ContentLifecycleEvent event) {
+		ContentVectorRepository contentVectorRepository =
+			contentVectorRepositoryProvider.getIfAvailable();
+		if (contentVectorRepository == null) {
+			return;
+		}
+		try {
+			contentVectorRepository.deleteById(event.contentId());
+		} catch (RuntimeException exception) {
+			log.warn(
+				"숨김 콘텐츠 벡터 문서 삭제에 실패했습니다. eventId={}, contentId={}",
+				event.eventId(), event.contentId(), exception);
 		}
 	}
 }

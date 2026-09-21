@@ -18,15 +18,21 @@ import org.springframework.data.domain.Pageable;
 
 public interface ContentRepository extends JpaRepository<Content, UUID>, ContentQueryRepository {
 
-    @Query("select content.id from Content content")
-    List<UUID> findAllIds();
+    @Query("""
+            select content.id
+            from Content content
+            where content.hidden = false
+              and content.type in :types
+            """)
+    List<UUID> findAllVisibleIdsByTypeIn(@Param("types") Collection<ContentType> types);
 
     @Query("""
             select content
             from Content content
             where content.type in :types
-              and content.updatedAt <= :through
-            order by content.updatedAt, content.id
+              and content.hidden = false
+              and content.embeddingSourceUpdatedAt <= :through
+            order by content.embeddingSourceUpdatedAt, content.id
             """)
     List<Content> findEmbeddingSourcesThrough(
             @Param("types") Collection<ContentType> types,
@@ -37,14 +43,25 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
             select content
             from Content content
             where content.type in :types
-              and content.updatedAt > :after
-              and content.updatedAt <= :through
-            order by content.updatedAt, content.id
+              and content.hidden = false
+              and content.embeddingPending = true
+            order by content.embeddingSourceUpdatedAt, content.id
             """)
-    List<Content> findModifiedEmbeddingSources(
-            @Param("types") Collection<ContentType> types,
-            @Param("after") Instant after,
-            @Param("through") Instant through
+    List<Content> findPendingEmbeddingSources(
+            @Param("types") Collection<ContentType> types
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Content content
+            set content.embeddingPending = false
+            where content.id = :contentId
+              and content.hidden = false
+              and content.embeddingSourceUpdatedAt = :sourceUpdatedAt
+            """)
+    int markEmbeddingCompleted(
+            @Param("contentId") UUID contentId,
+            @Param("sourceUpdatedAt") Instant sourceUpdatedAt
     );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -53,7 +70,7 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update Content content set content.title = :title, content.description = :description, "
-            + "content.thumbnailUrl = :thumbnailUrl "
+            + "content.thumbnailUrl = :thumbnailUrl, content.updatedAt = CURRENT_TIMESTAMP "
             + "where content.id = :contentId")
     int updateSportCommonDetails(
             @Param("contentId") UUID contentId,
@@ -72,9 +89,7 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
     List<Content> findAllByParentContent_IdAndHiddenFalseOrderBySeasonNumberAsc(
             UUID parentContentId);
 
-    boolean existsByParentContent_IdAndHiddenFalseAndIdNot(
-            UUID parentContentId,
-            UUID contentId);
+    List<Content> findAllByTypeAndHiddenFalseOrderByIdAsc(ContentType type);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Content> findByParentContent_IdAndSeasonNumber(

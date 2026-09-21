@@ -85,7 +85,9 @@ CREATE TABLE contents (
                           like_count          INT UNSIGNED NOT NULL DEFAULT 0,
                           review_count        INT UNSIGNED NOT NULL DEFAULT 0,
                           created_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-                          updated_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+                          updated_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                          embedding_source_updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                          embedding_pending   BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 ALTER TABLE contents
@@ -166,6 +168,9 @@ CREATE INDEX idx_contents_type_rating
 
 CREATE INDEX idx_contents_parent_season
     ON contents (parent_content_id, hidden, season_number);
+
+CREATE INDEX idx_contents_embedding_pending
+    ON contents (hidden, type, embedding_pending, embedding_source_updated_at, id);
 
 
 -- =================================================================
@@ -1205,4 +1210,3 @@ ALTER TABLE notifications
 
 CREATE INDEX idx_notifications_receiver_created
     ON notifications (receiver_id, created_at DESC, id DESC);
-

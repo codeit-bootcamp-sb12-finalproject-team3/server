@@ -274,6 +274,15 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		ContentUpdateRequest request,
 		MultipartFile thumbnail
 	) {
+		return update(contentId, request, thumbnail, false);
+	}
+
+	private ContentResponse update(
+		UUID contentId,
+		ContentUpdateRequest request,
+		MultipartFile thumbnail,
+		boolean forceContentUpsertEvent
+	) {
 		Content content = lockContentForUpdate(contentId, request, true);
 		validateUpdateFields(content.getType(), request);
 		if (content.getType() == ContentType.TV_SERIES) {
@@ -387,6 +396,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 				validatePlatforms(platforms);
 				replacePlatforms(content, platforms);
 			}
+			content.markUpdated();
 		}
 		if (embeddingSourceChanged) {
 			content.markEmbeddingSourceUpdated();
@@ -407,7 +417,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			contentRepository.findAllByParentContent_IdAndHiddenFalseOrderBySeasonNumberAsc(parent.getId())
 				.forEach(season -> publishContentLifecycleEvent(
 					season.getId(), ContentLifecycleEvent.Type.UPSERTED));
-		} else if (searchSourceChanged) {
+		} else if (searchSourceChanged || forceContentUpsertEvent) {
 			publishContentLifecycleEvent(contentId, ContentLifecycleEvent.Type.UPSERTED);
 		}
 		return response;
@@ -428,9 +438,9 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		boolean parentWasHidden = parent.isHidden();
 		season.show();
 		parent.show();
+		season.markEmbeddingSourceUpdated();
 
-		ContentResponse response = update(hiddenSeasonId, request, thumbnail);
-		publishContentLifecycleEvent(hiddenSeasonId, ContentLifecycleEvent.Type.UPSERTED);
+		ContentResponse response = update(hiddenSeasonId, request, thumbnail, true);
 		if (parentWasHidden && !parent.isHidden()) {
 			publishContentLifecycleEvent(parent.getId(), ContentLifecycleEvent.Type.UPSERTED);
 		}
@@ -539,9 +549,8 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 				targetParent.show();
 				activatedParentId = targetParent.getId();
 			}
-			boolean hasOtherVisibleSeason = contentRepository
-				.existsByParentContent_IdAndHiddenFalseAndIdNot(
-					previousParent.getId(), season.getId());
+			boolean hasOtherVisibleSeason = hasOtherVisibleSeasonForUpdate(
+				previousParent.getId(), season.getId());
 			if (!hasOtherVisibleSeason && !previousParent.isHidden()) {
 				previousParent.hide();
 				hiddenParentId = previousParent.getId();
@@ -805,6 +814,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			seasonId, request.getEpisodeNumber())) {
 			throw new EpisodeAlreadyExistsException(seasonId, request.getEpisodeNumber());
 		}
+		season.markUpdated();
 		Episode episode = episodeRepository.saveAndFlush(Episode.builder()
 			.season(season)
 			.episodeNumber(request.getEpisodeNumber())
@@ -824,7 +834,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		EpisodeUpdateRequest request,
 		MultipartFile thumbnail
 	) {
-		requireVisibleSeasonForUpdate(seasonId);
+		Content season = requireVisibleSeasonForUpdate(seasonId);
 		Episode episode = episodeRepository.findByIdAndSeason_IdAndSeason_HiddenFalse(
 			episodeId, seasonId)
 			.orElseThrow(() -> new ContentNotFoundException(episodeId));
@@ -875,6 +885,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			thumbnailUrl,
 			value(request.getRuntime(), episode.getRuntime())
 		);
+		season.markUpdated();
 		episodeRepository.flush();
 		return toEpisodeResponse(episode);
 	}
@@ -882,7 +893,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 	@Override
 	@Transactional
 	public void deleteEpisode(UUID seasonId, UUID episodeId) {
-		requireVisibleSeasonForUpdate(seasonId);
+		Content season = requireVisibleSeasonForUpdate(seasonId);
 		Episode episode = episodeRepository.findByIdAndSeason_IdAndSeason_HiddenFalse(
 			episodeId, seasonId)
 			.orElseThrow(() -> new ContentNotFoundException(episodeId));
@@ -891,6 +902,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			throw new ContentDeletionBlockedException(seasonId);
 		}
 		episodeRepository.delete(episode);
+		season.markUpdated();
 		if (episode.getThumbnailUrl() != null) {
 			registerPreviousImageCleanup(episode.getThumbnailUrl());
 		}
@@ -945,8 +957,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		idsToCheck.add(contentId);
 		boolean hideParent = false;
 		if (parent != null) {
-			hideParent = !contentRepository
-				.existsByParentContent_IdAndHiddenFalseAndIdNot(parent.getId(), contentId);
+			hideParent = !hasOtherVisibleSeasonForUpdate(parent.getId(), contentId);
 			if (hideParent) {
 				idsToCheck.add(parent.getId());
 			}
@@ -960,6 +971,12 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			parent.hide();
 			publishContentLifecycleEvent(parent.getId(), ContentLifecycleEvent.Type.DELETED);
 		}
+	}
+
+	private boolean hasOtherVisibleSeasonForUpdate(UUID parentId, UUID excludedSeasonId) {
+		return dependencyQueryRepository.findChildSeasonsForUpdate(parentId).stream()
+			.anyMatch(season -> !season.getId().equals(excludedSeasonId)
+				&& !season.isHidden());
 	}
 
 	private Content lockContentForUpdate(

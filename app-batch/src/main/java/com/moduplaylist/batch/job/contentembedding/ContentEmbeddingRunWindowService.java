@@ -26,25 +26,20 @@ public class ContentEmbeddingRunWindowService {
                 : Instant.ofEpochMilli(requestedAt);
 
         if (Boolean.parseBoolean(currentExecution.getJobParameters().getString("fullScan"))) {
-            return new ContentEmbeddingRunWindow(null, through, true);
+            return new ContentEmbeddingRunWindow(through, true);
         }
 
         Optional<JobExecution> previous = findLastCompletedExecution();
         if (previous.isEmpty()) {
-            return new ContentEmbeddingRunWindow(null, through, true);
+            return new ContentEmbeddingRunWindow(through, true);
         }
 
         JobExecution lastCompleted = previous.get();
-        Long lastRequestedAt = lastCompleted.getJobParameters().getLong("requestedAt");
         String lastModel = lastCompleted.getJobParameters().getString("embeddingModel");
-        if (lastRequestedAt == null
-                || !embeddingGenerator.modelName().equals(lastModel)
-                || lastRequestedAt >= through.toEpochMilli()) {
-            return new ContentEmbeddingRunWindow(null, through, true);
+        if (!embeddingGenerator.modelName().equals(lastModel)) {
+            return new ContentEmbeddingRunWindow(through, true);
         }
-        return new ContentEmbeddingRunWindow(
-                Instant.ofEpochMilli(lastRequestedAt), through, false
-        );
+        return new ContentEmbeddingRunWindow(through, false);
     }
 
     private Optional<JobExecution> findLastCompletedExecution() {

@@ -21,6 +21,7 @@ public class ContentVectorSearchRepository {
 
     private static final String EMBEDDING_FIELD = "embedding";
     private static final String TYPE_FIELD = "type";
+    private static final String HIDDEN_FIELD = "hidden";
     private static final String TV_SERIES_TYPE = "tvSeries";
     private static final String SPORT_TYPE = "sport";
 
@@ -66,6 +67,10 @@ public class ContentVectorSearchRepository {
                 .toList();
 
         return Query.of(query -> query.bool(bool -> {
+
+            bool.filter(hiddenQuery -> hiddenQuery.term(term -> term
+                    .field(HIDDEN_FIELD)
+                    .value(FieldValue.of(false))));
 
             bool.mustNot(typeQuery -> typeQuery.term(term -> term
                     .field(TYPE_FIELD)
