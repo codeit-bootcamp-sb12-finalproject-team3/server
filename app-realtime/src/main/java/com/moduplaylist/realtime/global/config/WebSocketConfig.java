@@ -51,11 +51,4 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.interceptors(stompAuthChannelInterceptor);
     }
-
-    /*
-     * TODO(auth):
-     * - 인증/인가 예외 처리 정책 (현재는 Spring 기본 STOMP ERROR 프레임에만 의존)
-     * - SEND/SUBSCRIBE 권한 검증 — #53
-     * - 이미 연결된 세션에 로그아웃/토큰만료 반영 여부
-     */
 }

@@ -1,10 +1,7 @@
 package com.moduplaylist.realtime.global.security;
 
 
-import com.moduplaylist.realtime.watchparty.WatchPartyActivePartyRegistry;
-import com.moduplaylist.realtime.watchparty.WatchPartyHostRegistry;
-import com.moduplaylist.realtime.watchparty.WatchPartyJoinedRegistry;
-import com.moduplaylist.realtime.watchparty.WatchPartyKickedRegistry;
+import com.moduplaylist.realtime.watchparty.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -21,8 +18,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,12 +29,15 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     // watch-parties SEND/SUBSCRIBE destination에서 partyId(UUID)를 뽑기 위한 패턴
     private static final Pattern WATCH_PARTY_DESTINATION_PATTERN =
             Pattern.compile("^/(?:pub|sub)/watch-parties/([^/]+)/.*$");
+    public static final String ONLINE_PARTY_IDS_ATTRIBUTE = "watchPartyOnlineIds";
+
     private final JwtAccessTokenVerifier tokenVerifier;
     private final AccessTokenSessionRegistry accessTokenSessionRegistry;
     private final WatchPartyKickedRegistry watchPartyKickedRegistry;
     private final WatchPartyJoinedRegistry watchPartyJoinedRegistry;
     private final WatchPartyHostRegistry watchPartyHostRegistry;
     private final WatchPartyActivePartyRegistry watchPartyActivePartyRegistry;
+    private final WatchPartyOnlineRegistry watchPartyOnlineRegistry;
     private final SimpMessagingTemplate messagingTemplate;
 
     public StompAuthChannelInterceptor(
@@ -48,6 +47,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             WatchPartyJoinedRegistry watchPartyJoinedRegistry,
             WatchPartyHostRegistry watchPartyHostRegistry,
             WatchPartyActivePartyRegistry watchPartyActivePartyRegistry,
+            WatchPartyOnlineRegistry watchPartyOnlineRegistry,
             @Lazy SimpMessagingTemplate messagingTemplate
     ) {
         this.tokenVerifier = tokenVerifier;
@@ -56,6 +56,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         this.watchPartyJoinedRegistry = watchPartyJoinedRegistry;
         this.watchPartyHostRegistry = watchPartyHostRegistry;
         this.watchPartyActivePartyRegistry = watchPartyActivePartyRegistry;
+        this.watchPartyOnlineRegistry = watchPartyOnlineRegistry;
         this.messagingTemplate = messagingTemplate;
     }
 
@@ -128,7 +129,21 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             return null;
         }
 
+        watchPartyOnlineRegistry.addOnline(partyId, userId);
+        trackOnlineParty(accessor, partyId);
+
         return message;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void trackOnlineParty(StompHeaderAccessor accessor, UUID partyId) {
+        Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+        if (sessionAttributes == null) {
+            return;
+        }
+        Set<UUID> onlinePartyIds = (Set<UUID>) sessionAttributes
+                .computeIfAbsent(ONLINE_PARTY_IDS_ATTRIBUTE, key -> new HashSet<UUID>());
+        onlinePartyIds.add(partyId);
     }
 
     // SEND: kicked 체크 + "JOINED 또는 host만 채팅 가능" 체크

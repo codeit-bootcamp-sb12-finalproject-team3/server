@@ -1,6 +1,5 @@
-package com.moduplaylist.core.watchparty.repository;
+package com.moduplaylist.realtime.watchparty.dto;
 
-import com.moduplaylist.core.watchparty.entity.WatchPartyPlaybackStatus;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -14,7 +13,7 @@ public class WatchPartyPlaybackState {
     private WatchPartyPlaybackStatus status;
     private Long startedAt;            // epoch millis
     private Long accumulatedPauseMs;
-    private Long pausedAt;
+    private Long pausedAt;             // epoch millis, null이면 현재 일시정지 아님
     private Integer startEpisode;      // nullable (영화/스포츠는 null)
     private Integer endEpisode;        // nullable
     private UUID hostId;

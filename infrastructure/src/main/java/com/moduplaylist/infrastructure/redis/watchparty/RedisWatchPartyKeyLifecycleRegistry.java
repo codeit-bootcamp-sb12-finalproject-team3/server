@@ -20,7 +20,9 @@ public class RedisWatchPartyKeyLifecycleRegistry implements WatchPartyKeyLifecyc
             WatchPartyRedisKey::playback,
             WatchPartyRedisKey::online,
             WatchPartyRedisKey::kicked,
-            WatchPartyRedisKey::chatLog
+            WatchPartyRedisKey::chatLog,
+            WatchPartyRedisKey::joined,
+            WatchPartyRedisKey::host
     );
 
     private final RedisTemplate<String, Object> redisTemplate;
