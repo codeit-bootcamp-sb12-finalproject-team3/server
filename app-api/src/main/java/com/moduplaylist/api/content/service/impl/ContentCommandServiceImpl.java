@@ -539,9 +539,8 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 				targetParent.show();
 				activatedParentId = targetParent.getId();
 			}
-			boolean hasOtherVisibleSeason = contentRepository
-				.existsByParentContent_IdAndHiddenFalseAndIdNot(
-					previousParent.getId(), season.getId());
+			boolean hasOtherVisibleSeason = hasOtherVisibleSeasonForUpdate(
+				previousParent.getId(), season.getId());
 			if (!hasOtherVisibleSeason && !previousParent.isHidden()) {
 				previousParent.hide();
 				hiddenParentId = previousParent.getId();
@@ -945,8 +944,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		idsToCheck.add(contentId);
 		boolean hideParent = false;
 		if (parent != null) {
-			hideParent = !contentRepository
-				.existsByParentContent_IdAndHiddenFalseAndIdNot(parent.getId(), contentId);
+			hideParent = !hasOtherVisibleSeasonForUpdate(parent.getId(), contentId);
 			if (hideParent) {
 				idsToCheck.add(parent.getId());
 			}
@@ -960,6 +958,12 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			parent.hide();
 			publishContentLifecycleEvent(parent.getId(), ContentLifecycleEvent.Type.DELETED);
 		}
+	}
+
+	private boolean hasOtherVisibleSeasonForUpdate(UUID parentId, UUID excludedSeasonId) {
+		return dependencyQueryRepository.findChildSeasonsForUpdate(parentId).stream()
+			.anyMatch(season -> !season.getId().equals(excludedSeasonId)
+				&& !season.isHidden());
 	}
 
 	private Content lockContentForUpdate(
