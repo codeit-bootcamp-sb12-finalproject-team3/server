@@ -2,22 +2,34 @@ package com.moduplaylist.api.review.service.impl;
 
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
+import com.moduplaylist.api.review.dto.ReviewCreateRequest;
 import com.moduplaylist.api.review.dto.ReviewResponse;
 import com.moduplaylist.api.review.dto.ReviewSearchRequest;
 import com.moduplaylist.api.review.dto.ReviewSort;
 import com.moduplaylist.api.review.service.ReviewService;
+import com.moduplaylist.core.content.entity.Content;
+import com.moduplaylist.core.content.exception.ContentNotFoundException;
+import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.review.entity.Review;
+import com.moduplaylist.core.review.exception.ContentNotReviewableException;
 import com.moduplaylist.core.review.exception.InvalidReviewSearchException;
+import com.moduplaylist.core.review.exception.ReviewAlreadyExistsException;
 import com.moduplaylist.core.review.repository.ReviewQueryRepository.Direction;
 import com.moduplaylist.core.review.repository.ReviewQueryRepository.SearchCondition;
 import com.moduplaylist.core.review.repository.ReviewQueryRepository.SearchResult;
 import com.moduplaylist.core.review.repository.ReviewQueryRepository.Sort;
 import com.moduplaylist.core.review.repository.ReviewRepository;
+import com.moduplaylist.core.user.entity.User;
+import com.moduplaylist.core.user.exception.UserNotFoundException;
+import com.moduplaylist.core.user.repository.UserRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,11 +37,14 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ReviewServiceImpl implements ReviewService {
 
+	private static final String UNIQUE_USER_CONTENT_CONSTRAINT = "uq_reviews_user_content";
 	private static final BigDecimal MIN_RATING = new BigDecimal("0.5");
 	private static final BigDecimal MAX_RATING = new BigDecimal("5.0");
 	private static final BigDecimal RATING_STEP = new BigDecimal("0.5");
 
 	private final ReviewRepository reviewRepository;
+	private final ContentRepository contentRepository;
+	private final UserRepository userRepository;
 
 	@Override
 	@Transactional(readOnly = true)
@@ -65,6 +80,72 @@ public class ReviewServiceImpl implements ReviewService {
 			.sortBy(request.getSortBy().getValue())
 			.sortDirection(request.getSortDirection())
 			.build();
+	}
+
+	@Override
+	@Transactional
+	public ReviewResponse create(UUID userId, ReviewCreateRequest request) {
+		User user = userRepository.findById(userId)
+			.orElseThrow(() -> new UserNotFoundException(userId));
+		UUID contentId = request.getContentId();
+		Content content = contentRepository.findByIdForUpdate(contentId)
+			.orElseThrow(() -> new ContentNotFoundException(contentId));
+		if (content.isHidden()) {
+			throw new ContentNotFoundException(contentId);
+		}
+		if (!content.isReviewable()) {
+			throw new ContentNotReviewableException(contentId);
+		}
+		if (reviewRepository.existsByUser_IdAndContent_Id(userId, contentId)) {
+			throw new ReviewAlreadyExistsException(userId, contentId);
+		}
+
+		Review review = Review.create(
+			user,
+			content,
+			request.getText(),
+			request.getRating(),
+			false
+		);
+		Review savedReview;
+		try {
+			savedReview = reviewRepository.saveAndFlush(review);
+		} catch (DataIntegrityViolationException exception) {
+			if (isDuplicateReviewConstraint(exception)) {
+				throw new ReviewAlreadyExistsException(userId, contentId, exception);
+			}
+			throw exception;
+		}
+		ReviewRepository.ReviewStatisticsProjection statistics =
+			reviewRepository.calculateStatistics(contentId);
+		content.updateReviewStatistics(
+			statistics.getAverageRating(),
+			statistics.getReviewCount()
+		);
+		return ReviewResponse.from(savedReview);
+	}
+
+	private boolean isDuplicateReviewConstraint(Throwable exception) {
+		Throwable cause = exception;
+		while (cause != null) {
+			if (cause instanceof ConstraintViolationException violation
+				&& UNIQUE_USER_CONTENT_CONSTRAINT.equalsIgnoreCase(
+					unqualifiedConstraintName(violation.getConstraintName()))) {
+				return true;
+			}
+			cause = cause.getCause();
+		}
+		return false;
+	}
+
+	private String unqualifiedConstraintName(String constraintName) {
+		if (constraintName == null) {
+			return null;
+		}
+		int qualifierSeparator = constraintName.lastIndexOf('.');
+		return qualifierSeparator < 0
+			? constraintName
+			: constraintName.substring(qualifierSeparator + 1);
 	}
 
 	private ParsedCursor parseCursor(String value, ReviewSort sort) {
