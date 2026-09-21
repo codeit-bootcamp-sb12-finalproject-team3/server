@@ -133,9 +133,9 @@ public class Content extends BaseEntity {
 	@Column(
 		name = "embedding_pending",
 		nullable = false,
-		columnDefinition = "BOOLEAN NOT NULL DEFAULT TRUE"
+		columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE"
 	)
-	private boolean embeddingPending = true;
+	private boolean embeddingPending;
 
 	@Builder
 	private Content(
@@ -165,7 +165,8 @@ public class Content extends BaseEntity {
 		this.externalSource = externalSource;
 		this.externalId = externalId;
 		this.embeddingSourceUpdatedAt = Instant.now();
-		this.embeddingPending = true;
+		this.embeddingPending = type == ContentType.MOVIE
+			|| type == ContentType.TV_SEASON;
 		validate();
 	}
 

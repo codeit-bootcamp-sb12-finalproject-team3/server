@@ -87,7 +87,7 @@ CREATE TABLE contents (
                           created_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
                           updated_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
                           embedding_source_updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-                          embedding_pending   BOOLEAN NOT NULL DEFAULT TRUE
+                          embedding_pending   BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 ALTER TABLE contents

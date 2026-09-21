@@ -28,6 +28,7 @@ public class ContentEmbeddingService {
     private final ContentEmbeddingTextBuilder textBuilder;
     private final EmbeddingGenerator embeddingGenerator;
     private final ContentVectorRepository vectorRepository;
+    private final ContentEmbeddingCompletionService completionService;
 
     public ContentEmbeddingResult embedAndIndex(UUID contentId) {
         Content content = contentRepository.findById(contentId)
@@ -70,8 +71,7 @@ public class ContentEmbeddingService {
                 .sourceUpdatedAt(sourceUpdatedAt)
                 .embeddedAt(Instant.now())
                 .build();
-        vectorRepository.upsert(document);
-        contentRepository.markEmbeddingCompleted(contentId, sourceUpdatedAt);
+        completionService.publishIfCurrent(contentId, sourceUpdatedAt, document);
 
         return new ContentEmbeddingResult(contentId, embeddingText, embedding.length);
     }
