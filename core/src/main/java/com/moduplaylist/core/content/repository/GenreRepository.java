@@ -22,6 +22,8 @@ public interface GenreRepository extends JpaRepository<Genre, UUID> {
             String externalSource,
             Collection<Integer> externalIds);
 
+    List<Genre> findAllByOrderByNameAsc();
+
     @Query("""
             select distinct contentGenre.genre
             from ContentGenre contentGenre

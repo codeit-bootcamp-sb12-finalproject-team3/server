@@ -40,4 +40,8 @@ public interface ContentPlatformRepository extends JpaRepository<ContentPlatform
 		@Param("contentId") UUID contentId,
 		@Param("platformId") UUID platformId,
 		@Param("regionCode") String regionCode);
+
+	@Modifying(flushAutomatically = true)
+	@Query("delete from ContentPlatform contentPlatform where contentPlatform.content.id = :contentId")
+	int deleteAllByContentId(@Param("contentId") UUID contentId);
 }

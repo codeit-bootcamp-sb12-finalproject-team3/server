@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 public class ContentAutocompleteRequest {
 
 	@NotBlank
-	@Size(max = 100)
+	@Size(min = 2, max = 100)
 	private String query;
 
 	public void setQuery(String query) {

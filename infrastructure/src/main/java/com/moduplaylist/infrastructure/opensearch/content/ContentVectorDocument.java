@@ -25,7 +25,6 @@ public class ContentVectorDocument {
     private String leagueName;
     private String homeTeamName;
     private String awayTeamName;
-    private String venue;
     private float[] embedding;
     private String embeddingModel;
     private Instant sourceUpdatedAt;

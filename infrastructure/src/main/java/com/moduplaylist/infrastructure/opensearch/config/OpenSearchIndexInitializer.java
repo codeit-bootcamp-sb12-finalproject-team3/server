@@ -35,6 +35,10 @@ public class OpenSearchIndexInitializer {
                 "opensearch/content-index.json"
         );
         createIndexIfAbsent(
+                properties.getContentAutocompleteIndex(),
+                "opensearch/content-autocomplete-index.json"
+        );
+        createIndexIfAbsent(
                 properties.getPlaylistIndex(),
                 "opensearch/playlist-index.json"
         );

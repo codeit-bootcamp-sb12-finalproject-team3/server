@@ -97,7 +97,6 @@ public class ContentEmbeddingService {
                 .leagueName(sportEvent.getLeagueName())
                 .homeTeamName(sportEvent.getHomeTeamName())
                 .awayTeamName(sportEvent.getAwayTeamName())
-                .venue(sportEvent.getVenue())
                 .sourceUpdatedAt(content.getUpdatedAt())
                 .build();
         vectorRepository.upsert(document);

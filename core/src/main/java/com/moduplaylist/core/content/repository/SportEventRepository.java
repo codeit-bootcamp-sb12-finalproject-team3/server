@@ -14,6 +14,38 @@ import org.springframework.data.repository.query.Param;
 public interface SportEventRepository extends JpaRepository<SportEvent, UUID> {
 
 	@Query("""
+		select count(sportEvent) > 0
+		from SportEvent sportEvent
+		where sportEvent.content.title = :title
+		  and sportEvent.homeTeamName = :homeTeam
+		  and sportEvent.awayTeamName = :awayTeam
+		  and ((:scheduledAt is null and sportEvent.scheduledAt is null)
+		    or sportEvent.scheduledAt = :scheduledAt)
+		""")
+	boolean existsDuplicate(
+		@Param("title") String title,
+		@Param("homeTeam") String homeTeam,
+		@Param("awayTeam") String awayTeam,
+		@Param("scheduledAt") java.time.Instant scheduledAt);
+
+	@Query("""
+		select count(sportEvent) > 0
+		from SportEvent sportEvent
+		where sportEvent.contentId <> :contentId
+		  and sportEvent.content.title = :title
+		  and sportEvent.homeTeamName = :homeTeam
+		  and sportEvent.awayTeamName = :awayTeam
+		  and ((:scheduledAt is null and sportEvent.scheduledAt is null)
+		    or sportEvent.scheduledAt = :scheduledAt)
+		""")
+	boolean existsDuplicateExcluding(
+		@Param("contentId") UUID contentId,
+		@Param("title") String title,
+		@Param("homeTeam") String homeTeam,
+		@Param("awayTeam") String awayTeam,
+		@Param("scheduledAt") Instant scheduledAt);
+
+	@Query("""
 		select sportEvent
 		from SportEvent sportEvent
 		join fetch sportEvent.sportType

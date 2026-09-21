@@ -5,6 +5,7 @@ import com.moduplaylist.core.common.BaseEntity;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
 import lombok.AccessLevel;
@@ -50,6 +51,7 @@ import org.hibernate.type.SqlTypes;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Content extends BaseEntity {
+	private static final String ORIGINAL_TITLE_METADATA_KEY = "originalTitle";
 	private static final BigDecimal MAX_RATING = new BigDecimal("5.00");
 	private static final BigDecimal MIN_REVIEW_RATING = new BigDecimal("0.50");
 	private static final int RATING_SCALE = 2;
@@ -117,6 +119,14 @@ public class Content extends BaseEntity {
 	@Column(name = "review_count", nullable = false, columnDefinition = "INT UNSIGNED")
 	private long reviewCount = 0;
 
+	@Transient
+	@Getter(AccessLevel.NONE)
+	private Instant persistedUpdatedAt;
+
+	@Transient
+	@Getter(AccessLevel.NONE)
+	private boolean embeddingSourceChanged;
+
 	@Builder
 	private Content(
 		Content parentContent,
@@ -165,13 +175,24 @@ public class Content extends BaseEntity {
 			description,
 			null,
 			releaseDate,
-			null,
-			metadata
+			null
 		);
 		this.title = title;
 		this.description = description;
 		this.releaseDate = releaseDate;
 		this.metadata = metadata;
+	}
+
+	public String getOriginalTitle() {
+		if (metadata == null) {
+			return null;
+		}
+		Object value = metadata.get(ORIGINAL_TITLE_METADATA_KEY);
+		if (!(value instanceof String originalTitle)) {
+			return null;
+		}
+		String normalized = originalTitle.strip();
+		return normalized.isEmpty() ? null : normalized;
 	}
 
 	public void replaceThumbnailUrl(String thumbnailUrl) {
@@ -180,7 +201,6 @@ public class Content extends BaseEntity {
 			type,
 			null,
 			thumbnailUrl,
-			null,
 			null,
 			null
 		);
@@ -237,8 +257,28 @@ public class Content extends BaseEntity {
 		this.hidden = false;
 	}
 
-	public void markRelationsUpdated() {
+	public void markEmbeddingSourceUpdated() {
+		this.embeddingSourceChanged = true;
 		touchUpdatedAt();
+	}
+
+	@PostLoad
+	@PostPersist
+	private void rememberUpdatedAt() {
+		this.persistedUpdatedAt = getUpdatedAt();
+		this.embeddingSourceChanged = false;
+	}
+
+	@PreUpdate
+	private void preserveUpdatedAtForNonEmbeddingChanges() {
+		if (!embeddingSourceChanged && persistedUpdatedAt != null) {
+			restoreUpdatedAt(persistedUpdatedAt);
+		}
+	}
+
+	@PostUpdate
+	private void rememberUpdatedAtAfterUpdate() {
+		rememberUpdatedAt();
 	}
 
 	public boolean isReviewable() {
@@ -285,8 +325,7 @@ public class Content extends BaseEntity {
 			description,
 			thumbnailUrl,
 			releaseDate,
-			runtime,
-			metadata
+			runtime
 		);
 		if ((externalSource == null) != (externalId == null)) {
 			throw new IllegalArgumentException("외부 데이터 출처와 외부 ID는 함께 지정해야 합니다.");
@@ -329,17 +368,15 @@ public class Content extends BaseEntity {
 		String description,
 		String thumbnailUrl,
 		LocalDate releaseDate,
-		Integer runtime,
-		Map<String, Object> metadata
+		Integer runtime
 	) {
 		if (type == ContentType.TV_SERIES
 			&& (description != null
 				|| thumbnailUrl != null
 				|| releaseDate != null
-				|| runtime != null
-				|| metadata != null)) {
+				|| runtime != null)) {
 			throw new IllegalArgumentException(
-				"TV 시리즈 컨테이너에는 설명, 썸네일, 공개일, 상영 시간, 메타데이터를 저장할 수 없습니다."
+				"TV 시리즈 컨테이너에는 설명, 썸네일, 공개일, 상영 시간을 저장할 수 없습니다."
 			);
 		}
 	}

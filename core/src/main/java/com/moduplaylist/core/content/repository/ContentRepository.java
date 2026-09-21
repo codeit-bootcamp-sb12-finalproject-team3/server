@@ -10,8 +10,10 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Pageable;
 
 
 public interface ContentRepository extends JpaRepository<Content, UUID>, ContentQueryRepository {
@@ -49,6 +51,16 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
     @Query("select content from Content content where content.id = :contentId")
     Optional<Content> findByIdForUpdate(@Param("contentId") UUID contentId);
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update Content content set content.title = :title, content.description = :description, "
+            + "content.thumbnailUrl = :thumbnailUrl "
+            + "where content.id = :contentId")
+    int updateSportCommonDetails(
+            @Param("contentId") UUID contentId,
+            @Param("title") String title,
+            @Param("description") String description,
+            @Param("thumbnailUrl") String thumbnailUrl);
+
     Optional<Content> findByExternalSourceAndTypeAndExternalId(
             String externalSource, ContentType type, Integer externalId);
 
@@ -60,10 +72,42 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
     List<Content> findAllByParentContent_IdAndHiddenFalseOrderBySeasonNumberAsc(
             UUID parentContentId);
 
-    boolean existsByParentContent_IdAndSeasonNumber(UUID parentContentId, Integer seasonNumber);
-
-    boolean existsByParentContent_IdAndSeasonNumberAndIdNot(
+    boolean existsByParentContent_IdAndHiddenFalseAndIdNot(
             UUID parentContentId,
-            Integer seasonNumber,
             UUID contentId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Content> findByParentContent_IdAndSeasonNumber(
+            UUID parentContentId,
+            Integer seasonNumber);
+
+    boolean existsByTypeAndTitleAndReleaseDate(
+            ContentType type,
+            String title,
+            java.time.LocalDate releaseDate);
+
+    boolean existsByTypeAndTitleAndReleaseDateAndIdNot(
+            ContentType type,
+            String title,
+            java.time.LocalDate releaseDate,
+            UUID contentId);
+
+    boolean existsByTypeAndTitle(ContentType type, String title);
+
+    boolean existsByTypeAndTitleAndIdNot(
+            ContentType type,
+            String title,
+            UUID contentId);
+
+    @Query("""
+            select content
+            from Content content
+            where content.type = :type
+              and lower(content.title) like lower(concat('%', :query, '%'))
+            order by content.title asc, content.id asc
+            """)
+    List<Content> searchSeriesForAdmin(
+            @Param("type") ContentType type,
+            @Param("query") String query,
+            Pageable pageable);
 }

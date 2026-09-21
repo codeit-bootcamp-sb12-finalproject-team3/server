@@ -13,6 +13,7 @@ public class OpenSearchProperties {
     private String userContentPreferenceIndex = "user-content-preference-index";
     private String userPlaylistPreferenceIndex = "user-playlist-preference-index";
     private String contentIndex = "content-index";
+    private String contentAutocompleteIndex = "content-autocomplete-index";
     private String playlistIndex = "playlist-index";
 
     public boolean isEnabled() {
@@ -69,6 +70,14 @@ public class OpenSearchProperties {
 
     public void setContentIndex(String contentIndex) {
         this.contentIndex = contentIndex;
+    }
+
+    public String getContentAutocompleteIndex() {
+        return contentAutocompleteIndex;
+    }
+
+    public void setContentAutocompleteIndex(String contentAutocompleteIndex) {
+        this.contentAutocompleteIndex = contentAutocompleteIndex;
     }
 
     public String getPlaylistIndex() {

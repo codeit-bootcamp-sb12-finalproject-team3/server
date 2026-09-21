@@ -66,10 +66,12 @@ mopl:
     dimensions: 1536
   opensearch:
     enabled: ${OPENSEARCH_ENABLED:true}
+    autocomplete-initial-indexing-enabled: ${CONTENT_AUTOCOMPLETE_INITIAL_INDEXING_ENABLED:false}
     uris: ${OPENSEARCH_URIS:http://localhost:9200}
     username: ${OPENSEARCH_USERNAME:}
     password: ${OPENSEARCH_PASSWORD:}
     user-content-preference-index: user-content-preference-index
     user-playlist-preference-index: user-playlist-preference-index
     content-index: content-index
+    content-autocomplete-index: content-autocomplete-index
     playlist-index: playlist-index

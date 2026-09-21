@@ -5,7 +5,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import lombok.Builder;
 import lombok.Getter;
@@ -23,7 +22,7 @@ public class ContentResponse {
 	private BigDecimal averageRating;
 	private long reviewCount;
 	private long likeCount;
-	private Map<String, Object> metadata;
+	private String originalTitle;
 
 	@Builder.Default
 	private List<GenreResponse> genres = List.of();
