@@ -63,7 +63,8 @@ public interface ContentLikeRepository extends JpaRepository<ContentLike, UUID> 
     @Modifying
     @Query("""
             update Content content
-            set content.likeCount = content.likeCount + 1
+            set content.likeCount = content.likeCount + 1,
+                content.updatedAt = CURRENT_TIMESTAMP
             where content.id = :contentId
               and content.hidden = false
             """)
@@ -75,7 +76,8 @@ public interface ContentLikeRepository extends JpaRepository<ContentLike, UUID> 
     @Modifying
     @Query("""
             update Content content
-            set content.likeCount = content.likeCount - 1
+            set content.likeCount = content.likeCount - 1,
+                content.updatedAt = CURRENT_TIMESTAMP
             where content.id = :contentId
               and content.likeCount > 0
             """)

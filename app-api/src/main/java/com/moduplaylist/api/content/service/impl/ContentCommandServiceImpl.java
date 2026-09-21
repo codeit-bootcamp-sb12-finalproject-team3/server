@@ -387,6 +387,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 				validatePlatforms(platforms);
 				replacePlatforms(content, platforms);
 			}
+			content.markUpdated();
 		}
 		if (embeddingSourceChanged) {
 			content.markEmbeddingSourceUpdated();
@@ -428,6 +429,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		boolean parentWasHidden = parent.isHidden();
 		season.show();
 		parent.show();
+		season.markEmbeddingSourceUpdated();
 
 		ContentResponse response = update(hiddenSeasonId, request, thumbnail);
 		publishContentLifecycleEvent(hiddenSeasonId, ContentLifecycleEvent.Type.UPSERTED);
@@ -804,6 +806,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			seasonId, request.getEpisodeNumber())) {
 			throw new EpisodeAlreadyExistsException(seasonId, request.getEpisodeNumber());
 		}
+		season.markUpdated();
 		Episode episode = episodeRepository.saveAndFlush(Episode.builder()
 			.season(season)
 			.episodeNumber(request.getEpisodeNumber())
@@ -823,7 +826,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		EpisodeUpdateRequest request,
 		MultipartFile thumbnail
 	) {
-		requireVisibleSeasonForUpdate(seasonId);
+		Content season = requireVisibleSeasonForUpdate(seasonId);
 		Episode episode = episodeRepository.findByIdAndSeason_IdAndSeason_HiddenFalse(
 			episodeId, seasonId)
 			.orElseThrow(() -> new ContentNotFoundException(episodeId));
@@ -874,6 +877,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			thumbnailUrl,
 			value(request.getRuntime(), episode.getRuntime())
 		);
+		season.markUpdated();
 		episodeRepository.flush();
 		return toEpisodeResponse(episode);
 	}
@@ -881,7 +885,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 	@Override
 	@Transactional
 	public void deleteEpisode(UUID seasonId, UUID episodeId) {
-		requireVisibleSeasonForUpdate(seasonId);
+		Content season = requireVisibleSeasonForUpdate(seasonId);
 		Episode episode = episodeRepository.findByIdAndSeason_IdAndSeason_HiddenFalse(
 			episodeId, seasonId)
 			.orElseThrow(() -> new ContentNotFoundException(episodeId));
@@ -890,6 +894,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			throw new ContentDeletionBlockedException(seasonId);
 		}
 		episodeRepository.delete(episode);
+		season.markUpdated();
 		if (episode.getThumbnailUrl() != null) {
 			registerPreviousImageCleanup(episode.getThumbnailUrl());
 		}
