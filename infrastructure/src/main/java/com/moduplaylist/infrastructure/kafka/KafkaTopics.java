@@ -8,6 +8,7 @@ public final class KafkaTopics {
     public static final String DM_MESSAGE_CREATED = "dm.message.created";
     public static final String CONTENT_ACTIVITIES = "content-activities";
     public static final String CONTENT_LIFECYCLE = "content-lifecycle";
+    public static final String WATCH_PARTY_PARTICIPANT_CHANGED = "watchparty.participant-changed";
 
     private KafkaTopics() {
     }

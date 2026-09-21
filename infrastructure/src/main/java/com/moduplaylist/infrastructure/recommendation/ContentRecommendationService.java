@@ -61,7 +61,9 @@ public class ContentRecommendationService {
                 .toList();
         Set<UUID> existingRecommendableIds = new HashSet<>(
                 contentRepository.findAllById(candidateIds).stream()
-                        .filter(content -> content.getType().isPersonalizable())
+                        .filter(content ->
+                                !content.isHidden()
+                                        && content.getType().isPersonalizable())
                         .map(Content::getId)
                         .toList()
         );

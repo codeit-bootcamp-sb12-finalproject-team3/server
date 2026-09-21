@@ -1,6 +1,8 @@
 package com.moduplaylist.batch.job.playlistembedding;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
@@ -18,21 +20,21 @@ public class PlaylistEmbeddingTextBuilder {
             throw new IllegalArgumentException("플레이리스트 제목은 필수입니다.");
         }
 
-        return """
-                플레이리스트 제목: %s
-                장르: %s
-                태그: %s
-                설명: %s""".formatted(
-                normalize(title),
-                joinValues(genres),
-                joinValues(tags),
-                description == null || description.isBlank() ? "없음" : normalize(description)
-        );
+        List<String> lines = new ArrayList<>();
+        lines.add("플레이리스트 제목: " + normalize(title));
+        addCollectionLine(lines, "장르", genres);
+        addCollectionLine(lines, "태그", tags);
+        addTextLine(lines, "설명", description);
+        return String.join("\n", lines);
     }
 
-    private String joinValues(Collection<String> values) {
+    private void addCollectionLine(
+            List<String> lines,
+            String label,
+            Collection<String> values
+    ) {
         if (values == null || values.isEmpty()) {
-            return "없음";
+            return;
         }
         String names = values.stream()
                 .filter(Objects::nonNull)
@@ -41,7 +43,15 @@ public class PlaylistEmbeddingTextBuilder {
                 .distinct()
                 .sorted()
                 .collect(Collectors.joining(", "));
-        return names.isEmpty() ? "없음" : names;
+        if (!names.isEmpty()) {
+            lines.add(label + ": " + names);
+        }
+    }
+
+    private void addTextLine(List<String> lines, String label, String value) {
+        if (value != null && !value.isBlank()) {
+            lines.add(label + ": " + normalize(value));
+        }
     }
 
     private String normalize(String value) {

@@ -14,6 +14,7 @@ import com.moduplaylist.infrastructure.opensearch.playlist.PlaylistVectorDocumen
 import com.moduplaylist.infrastructure.opensearch.playlist.PlaylistVectorRepository;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -32,20 +33,15 @@ public class PlaylistEmbeddingService {
     public void embedAndIndex(UUID playlistId) {
         Playlist playlist = playlistRepository.findById(playlistId)
                 .orElseThrow(() -> new PlaylistNotFoundException(playlistId));
-        List<String> genres = playlistGenreRepository.findAllWithGenreByPlaylistId(playlistId)
-                .stream()
-                .map(PlaylistGenre::getGenre)
-                .map(Genre::getName)
-                .distinct()
-                .sorted()
-                .toList();
-        List<String> tags = playlistTagRepository.findAllWithTagByPlaylistId(playlistId)
-                .stream()
-                .map(PlaylistTag::getTag)
-                .map(Tag::getName)
-                .distinct()
-                .sorted()
-                .toList();
+        Optional<PlaylistVectorDocument> existingDocument = vectorRepository.findById(playlistId);
+        List<String> genres = existingDocument
+                .map(PlaylistVectorDocument::getGenres)
+                .map(List::copyOf)
+                .orElseGet(() -> findCurrentGenres(playlistId));
+        List<String> tags = existingDocument
+                .map(PlaylistVectorDocument::getTags)
+                .map(List::copyOf)
+                .orElseGet(() -> findCurrentTags(playlistId));
 
         String embeddingText = textBuilder.build(
                 playlist.getTitle(), playlist.getDescription(), genres, tags
@@ -64,6 +60,26 @@ public class PlaylistEmbeddingService {
                 Instant.now()
         );
         vectorRepository.upsert(document);
+    }
+
+    private List<String> findCurrentGenres(UUID playlistId) {
+        return playlistGenreRepository.findAllWithGenreByPlaylistId(playlistId)
+                .stream()
+                .map(PlaylistGenre::getGenre)
+                .map(Genre::getName)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    private List<String> findCurrentTags(UUID playlistId) {
+        return playlistTagRepository.findAllWithTagByPlaylistId(playlistId)
+                .stream()
+                .map(PlaylistTag::getTag)
+                .map(Tag::getName)
+                .distinct()
+                .sorted()
+                .toList();
     }
 
     public void deleteFromIndex(UUID playlistId) {
