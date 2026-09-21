@@ -271,6 +271,7 @@ public class PlaylistQueryRepositoryImpl implements PlaylistQueryRepository {
         SELECT pc.playlist.id, COUNT(pc.id)
         FROM PlaylistContent pc
         WHERE pc.playlist.id IN :playlistIds
+          AND pc.content.hidden = false
         GROUP BY pc.playlist.id
         """,
         playlistIds
