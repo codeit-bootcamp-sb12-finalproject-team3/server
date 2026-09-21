@@ -8,4 +8,7 @@ public interface WatchPartyPlaybackRegistry {
     void createOnLive(UUID partyId, WatchPartyPlaybackState state);
 
     Optional<WatchPartyPlaybackState> find(UUID partyId);
+
+    void markEnded(UUID partyId);
+
 }

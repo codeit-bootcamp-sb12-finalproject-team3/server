@@ -29,7 +29,17 @@ public class RedisWatchPartyPlaybackRegistry implements WatchPartyPlaybackRegist
         String key = WatchPartyRedisKey.playback(partyId);
         HashOperations<String, String, Object> hashOps = redisTemplate.opsForHash();
         hashOps.putAll(key, toFieldMap(state));
-        // LIVE 전이 시점엔 TTL을 걸지 않음 (설계 문서 참고 — ENDED 전이 시점에 별도로 armSafetyNetTtl 호출 예정)
+        // LIVE 전이 시점엔 TTL을 걸지 않음 (ENDED 전이 시점에 별도로 armSafetyNetTtl 호출 예정)
+    }
+
+    @Override
+    public void markEnded(UUID partyId) {
+        Assert.notNull(partyId, "partyId가 필요합니다.");
+
+        String key = WatchPartyRedisKey.playback(partyId);
+        HashOperations<String, String, Object> hashOps = redisTemplate.opsForHash();
+        hashOps.put(key, "status", WatchPartyPlaybackStatus.ENDED);
+        hashOps.put(key, "updatedAt", System.currentTimeMillis());
     }
 
     @Override

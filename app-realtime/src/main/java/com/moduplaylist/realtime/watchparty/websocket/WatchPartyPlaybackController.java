@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moduplaylist.realtime.watchparty.WatchPartyHostRegistry;
 import com.moduplaylist.realtime.watchparty.WatchPartyPlaybackRegistry;
+import com.moduplaylist.realtime.watchparty.dto.WatchPartyPlaybackAction;
 import com.moduplaylist.realtime.watchparty.dto.WatchPartyPlaybackControlRequest;
 import com.moduplaylist.realtime.watchparty.dto.WatchPartyPlaybackState;
 import com.moduplaylist.realtime.watchparty.dto.WatchPartyPlaybackStatus;
@@ -62,7 +63,15 @@ public class WatchPartyPlaybackController {
             return;
         }
 
-        WatchPartyPlaybackState next = nextState(current.get(), request);
+        WatchPartyPlaybackState state = current.get();
+
+        String invalidReason = invalidTransitionReason(state.getStatus(), request);
+        if (invalidReason != null) {
+            sendError(userId, invalidReason);
+            return;
+        }
+
+        WatchPartyPlaybackState next = nextState(state, request);
         watchPartyPlaybackRegistry.update(partyId, next);
         publish(partyId, next);
     }
@@ -74,6 +83,22 @@ public class WatchPartyPlaybackController {
             case PLAY -> resume(s, now);
             case SEEK -> seek(s, now, request.getTargetElapsedMs());
         };
+    }
+
+    private String invalidTransitionReason(WatchPartyPlaybackStatus status, WatchPartyPlaybackControlRequest request) {
+        if (status == WatchPartyPlaybackStatus.ENDED) {
+            return "이미 종료된 Watch Party입니다.";
+        }
+        if (request.getAction() == WatchPartyPlaybackAction.PLAY && status == WatchPartyPlaybackStatus.LIVE) {
+            return "이미 재생 중입니다.";
+        }
+        if (request.getAction() == WatchPartyPlaybackAction.PAUSE && status == WatchPartyPlaybackStatus.PAUSED) {
+            return "이미 일시정지 상태입니다.";
+        }
+        if (request.getAction() == WatchPartyPlaybackAction.SEEK && request.getTargetElapsedMs() == null) {
+            return "SEEK 요청에는 targetElapsedMs가 필요합니다.";
+        }
+        return null;
     }
 
     private WatchPartyPlaybackState pause(WatchPartyPlaybackState s, long now) {

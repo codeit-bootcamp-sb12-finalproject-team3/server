@@ -20,12 +20,15 @@ public class RedisWatchPartyOnlineRegistry implements WatchPartyOnlineRegistry {
     @Override
     public void addOnline(UUID partyId, UUID userId) {
         String key = KEY_PREFIX + partyId + KEY_SUFFIX;
-        redisTemplate.opsForSet().add(key, userId.toString());
+        redisTemplate.opsForHash().increment(key, userId.toString(), 1);
     }
 
     @Override
     public void removeOnline(UUID partyId, UUID userId) {
         String key = KEY_PREFIX + partyId + KEY_SUFFIX;
-        redisTemplate.opsForSet().remove(key, userId.toString());
+        Long remaining = redisTemplate.opsForHash().increment(key, userId.toString(), -1);
+        if (remaining == null || remaining <= 0) {
+            redisTemplate.opsForHash().delete(key, userId.toString());
+        }
     }
 }
