@@ -12,6 +12,10 @@ public interface PlaylistContentRepository extends JpaRepository<PlaylistContent
   @EntityGraph(attributePaths = "content")
   List<PlaylistContent> findAllByPlaylist_IdOrderByCreatedAtAscIdAsc(UUID playlistId);
 
+  @EntityGraph(attributePaths = "content")
+  List<PlaylistContent>
+  findAllByPlaylist_IdAndContent_HiddenFalseOrderByCreatedAtAscIdAsc(UUID playlistId);
+
   boolean existsByPlaylist_IdAndContent_Id(UUID playlistId, UUID contentId);
 
   Optional<PlaylistContent> findByPlaylist_IdAndContent_Id(
@@ -19,5 +23,5 @@ public interface PlaylistContentRepository extends JpaRepository<PlaylistContent
       UUID contentId
   );
 
-  long countByPlaylist_Id(UUID playlistId);
+  long countByPlaylist_IdAndContent_HiddenFalse(UUID playlistId);
 }

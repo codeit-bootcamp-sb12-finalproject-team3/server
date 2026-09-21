@@ -323,6 +323,11 @@ public class PlaylistServiceImpl implements PlaylistService {
   }
 
   private void validatePlaylistContent(Content content) {
+
+    if (content.isHidden()) {
+      throw new ContentNotFoundException(content.getId());
+    }
+
     if (!content.getType().isPersonalizable()) {
       throw new ContentTypeNotSupportedException(content.getId(), content.getType());
     }
@@ -338,7 +343,7 @@ public class PlaylistServiceImpl implements PlaylistService {
       throw new PlaylistAccessDeniedException(playlistId);
     }
 
-    contentRepository.findById(contentId)
+    Content content = contentRepository.findById(contentId)
         .orElseThrow(() -> new ContentNotFoundException(contentId));
 
     PlaylistContent playlistContent = playlistContentRepository
@@ -347,10 +352,14 @@ public class PlaylistServiceImpl implements PlaylistService {
             () -> new PlaylistContentNotFoundException(playlistId, contentId)
         );
 
-    long contentCount = playlistContentRepository.countByPlaylist_Id(playlistId);
+    if (!content.isHidden()) {
+      long visibleContentCount =
+          playlistContentRepository
+              .countByPlaylist_IdAndContent_HiddenFalse(playlistId);
 
-    if (contentCount <= MIN_CONTENT_COUNT) {
-      throw new PlaylistMinimumContentException();
+      if (visibleContentCount <= MIN_CONTENT_COUNT) {
+        throw new PlaylistMinimumContentException();
+      }
     }
 
     playlistContentRepository.delete(playlistContent);
@@ -447,7 +456,9 @@ public class PlaylistServiceImpl implements PlaylistService {
 
     List<ContentSummary> contents =
         playlistContentRepository
-            .findAllByPlaylist_IdOrderByCreatedAtAscIdAsc(playlist.getId())
+            .findAllByPlaylist_IdAndContent_HiddenFalseOrderByCreatedAtAscIdAsc(
+                playlist.getId()
+            )
             .stream()
             .map(PlaylistContent::getContent)
             .map(ContentSummary::from)
