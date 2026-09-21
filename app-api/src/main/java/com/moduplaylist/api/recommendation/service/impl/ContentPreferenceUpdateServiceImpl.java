@@ -32,7 +32,7 @@ public class ContentPreferenceUpdateServiceImpl implements ContentPreferenceUpda
     private final ContentPreferenceScoreRepository contentPreferenceScoreRepository;
 
     @Override
-    public void applyActivity(
+    public double applyActivity(
             UUID userId,
             UUID contentId,
             ContentActivityType activityType
@@ -44,31 +44,42 @@ public class ContentPreferenceUpdateServiceImpl implements ContentPreferenceUpda
         }
 
         double delta = ContentRecommendationScorePolicy.calculate(activityType);
-        applyDelta(userId, contentId, delta);
+        return applyDelta(userId, contentId, delta);
     }
 
     @Override
-    public void applyRatingChanged(UUID userId, UUID contentId, double oldRating, double newRating) {
+    public double applyRatingCreated(UUID userId, UUID contentId, double rating) {
+        double delta = ContentRecommendationScorePolicy.calculateRatingWeight(rating);
+        return applyDelta(userId, contentId, delta);
+    }
+
+    @Override
+    public double applyRatingChanged(
+            UUID userId,
+            UUID contentId,
+            double oldRating,
+            double newRating
+    ) {
         double delta = ContentRecommendationScorePolicy.calculateRatingChange(
                 oldRating,
                 newRating
         );
-        applyDelta(userId, contentId, delta);
+        return applyDelta(userId, contentId, delta);
     }
 
     @Override
-    public void applyRatingDeleted(UUID userId, UUID contentId, double oldRating) {
+    public double applyRatingDeleted(UUID userId, UUID contentId, double oldRating) {
         double delta = ContentRecommendationScorePolicy.calculateRatingDeletion(oldRating);
-        applyDelta(userId, contentId, delta);
+        return applyDelta(userId, contentId, delta);
     }
 
-    private void applyDelta(
+    private double applyDelta(
             UUID userId,
             UUID contentId,
             double delta
     ) {
         if (delta == 0.0) {
-            return;
+            return 0.0;
         }
 
         User user = userRepository.findById(userId)
@@ -78,14 +89,15 @@ public class ContentPreferenceUpdateServiceImpl implements ContentPreferenceUpda
                 .orElseThrow(() -> new ContentNotFoundException(contentId));
 
         if (!content.getType().isPersonalizable()) {
-            return;
+            return 0.0;
         }
 
-        updateGenrePreferences(user, contentId, delta);
-        updateTagPreferences(user, contentId, delta);
+        boolean genreUpdated = updateGenrePreferences(user, contentId, delta);
+        boolean tagUpdated = updateTagPreferences(user, contentId, delta);
+        return genreUpdated || tagUpdated ? delta : 0.0;
     }
 
-    private void updateGenrePreferences(
+    private boolean updateGenrePreferences(
             User user,
             UUID contentId,
             double delta
@@ -93,7 +105,7 @@ public class ContentPreferenceUpdateServiceImpl implements ContentPreferenceUpda
         List<ContentGenre> contentGenres =
                 contentGenreRepository.findAllWithGenreByContentIdIn(List.of(contentId));
         if (contentGenres.isEmpty()) {
-            return;
+            return false;
         }
 
         contentGenres.stream()
@@ -102,9 +114,10 @@ public class ContentPreferenceUpdateServiceImpl implements ContentPreferenceUpda
                 .sorted()
                 .forEach(genreId -> contentPreferenceScoreRepository.addGenreScore(
                         user.getId(), genreId, delta));
+        return true;
     }
 
-    private void updateTagPreferences(
+    private boolean updateTagPreferences(
             User user,
             UUID contentId,
             double delta
@@ -112,7 +125,7 @@ public class ContentPreferenceUpdateServiceImpl implements ContentPreferenceUpda
         List<ContentTag> contentTags =
                 contentTagRepository.findAllWithTagByContentIdIn(List.of(contentId));
         if (contentTags.isEmpty()) {
-            return;
+            return false;
         }
 
         contentTags.stream()
@@ -121,5 +134,6 @@ public class ContentPreferenceUpdateServiceImpl implements ContentPreferenceUpda
                 .sorted()
                 .forEach(tagId -> contentPreferenceScoreRepository.addTagScore(
                         user.getId(), tagId, delta));
+        return true;
     }
 }
