@@ -274,6 +274,15 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		ContentUpdateRequest request,
 		MultipartFile thumbnail
 	) {
+		return update(contentId, request, thumbnail, false);
+	}
+
+	private ContentResponse update(
+		UUID contentId,
+		ContentUpdateRequest request,
+		MultipartFile thumbnail,
+		boolean forceContentUpsertEvent
+	) {
 		Content content = lockContentForUpdate(contentId, request, true);
 		validateUpdateFields(content.getType(), request);
 		if (content.getType() == ContentType.TV_SERIES) {
@@ -408,7 +417,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			contentRepository.findAllByParentContent_IdAndHiddenFalseOrderBySeasonNumberAsc(parent.getId())
 				.forEach(season -> publishContentLifecycleEvent(
 					season.getId(), ContentLifecycleEvent.Type.UPSERTED));
-		} else if (searchSourceChanged) {
+		} else if (searchSourceChanged || forceContentUpsertEvent) {
 			publishContentLifecycleEvent(contentId, ContentLifecycleEvent.Type.UPSERTED);
 		}
 		return response;
@@ -431,8 +440,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		parent.show();
 		season.markEmbeddingSourceUpdated();
 
-		ContentResponse response = update(hiddenSeasonId, request, thumbnail);
-		publishContentLifecycleEvent(hiddenSeasonId, ContentLifecycleEvent.Type.UPSERTED);
+		ContentResponse response = update(hiddenSeasonId, request, thumbnail, true);
 		if (parentWasHidden && !parent.isHidden()) {
 			publishContentLifecycleEvent(parent.getId(), ContentLifecycleEvent.Type.UPSERTED);
 		}
