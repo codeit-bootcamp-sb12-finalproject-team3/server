@@ -6,6 +6,7 @@ import com.moduplaylist.api.review.dto.ReviewCreateRequest;
 import com.moduplaylist.api.review.dto.ReviewResponse;
 import com.moduplaylist.api.review.dto.ReviewSearchRequest;
 import com.moduplaylist.api.review.dto.ReviewSort;
+import com.moduplaylist.api.review.dto.ReviewUpdateRequest;
 import com.moduplaylist.api.review.service.ReviewService;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
@@ -13,7 +14,9 @@ import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.review.entity.Review;
 import com.moduplaylist.core.review.exception.ContentNotReviewableException;
 import com.moduplaylist.core.review.exception.InvalidReviewSearchException;
+import com.moduplaylist.core.review.exception.ReviewAccessDeniedException;
 import com.moduplaylist.core.review.exception.ReviewAlreadyExistsException;
+import com.moduplaylist.core.review.exception.ReviewNotFoundException;
 import com.moduplaylist.core.review.repository.ReviewQueryRepository.Direction;
 import com.moduplaylist.core.review.repository.ReviewQueryRepository.SearchCondition;
 import com.moduplaylist.core.review.repository.ReviewQueryRepository.SearchResult;
@@ -123,6 +126,41 @@ public class ReviewServiceImpl implements ReviewService {
 			statistics.getReviewCount()
 		);
 		return ReviewResponse.from(savedReview);
+	}
+
+	@Override
+	@Transactional
+	public ReviewResponse update(
+		UUID userId,
+		UUID reviewId,
+		ReviewUpdateRequest request
+	) {
+		ReviewRepository.ReviewAccessProjection access = reviewRepository.findAccessById(reviewId)
+			.orElseThrow(() -> new ReviewNotFoundException(reviewId));
+		if (!access.getUserId().equals(userId)) {
+			throw new ReviewAccessDeniedException(reviewId, userId);
+		}
+
+		UUID contentId = access.getContentId();
+		Content content = contentRepository.findByIdForUpdate(contentId)
+			.orElseThrow(() -> new ContentNotFoundException(contentId));
+		Review review = reviewRepository.findByIdForUpdate(reviewId)
+			.orElseThrow(() -> new ReviewNotFoundException(reviewId));
+		BigDecimal previousRating = review.getRating();
+
+		review.update(request.getText(), request.getRating(), null);
+		boolean ratingChanged = request.getRating() != null
+			&& previousRating.compareTo(review.getRating()) != 0;
+		if (ratingChanged) {
+			reviewRepository.flush();
+			ReviewRepository.ReviewStatisticsProjection statistics =
+				reviewRepository.calculateStatistics(contentId);
+			content.updateReviewStatistics(
+				statistics.getAverageRating(),
+				statistics.getReviewCount()
+			);
+		}
+		return ReviewResponse.from(review);
 	}
 
 	private boolean isDuplicateReviewConstraint(Throwable exception) {
