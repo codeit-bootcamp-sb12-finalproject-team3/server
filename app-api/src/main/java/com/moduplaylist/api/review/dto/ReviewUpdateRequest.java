@@ -41,4 +41,10 @@ public class ReviewUpdateRequest {
 		return rating == null
 			|| rating.remainder(RATING_STEP).compareTo(BigDecimal.ZERO) == 0;
 	}
+
+	@JsonIgnore
+	@AssertTrue(message = "text 또는 rating 중 하나는 반드시 포함해야 합니다.")
+	public boolean isUpdateFieldPresent() {
+		return text != null || rating != null;
+	}
 }
