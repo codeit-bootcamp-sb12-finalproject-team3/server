@@ -7,6 +7,8 @@ import com.moduplaylist.api.playlist.dto.PlaylistCreateRequest;
 import com.moduplaylist.api.playlist.dto.PlaylistResponse;
 import com.moduplaylist.api.playlist.dto.PlaylistSummaryResponse;
 import com.moduplaylist.api.playlist.dto.PlaylistUpdateRequest;
+import com.moduplaylist.api.playlist.event.PlaylistContentAddedEvent;
+import com.moduplaylist.api.playlist.event.PlaylistSubscribedEvent;
 import com.moduplaylist.api.playlist.event.PlaylistTagRecalculationEvent;
 import com.moduplaylist.api.playlist.service.PlaylistService;
 import com.moduplaylist.api.recommendation.service.PlaylistPreferenceUpdateService;
@@ -260,6 +262,14 @@ public class PlaylistServiceImpl implements PlaylistService {
         playlistId,
         PlaylistActivityType.PLAYLIST_SUBSCRIBED
     );
+
+    eventPublisher.publishEvent(
+        new PlaylistSubscribedEvent(
+            userId,
+            playlist.getOwner().getId(),
+            playlistId
+        )
+    );
   }
 
   @Override
@@ -333,6 +343,14 @@ public class PlaylistServiceImpl implements PlaylistService {
 
     eventPublisher.publishEvent(
         new PlaylistTagRecalculationEvent(playlist.getId())
+    );
+
+    eventPublisher.publishEvent(
+        new PlaylistContentAddedEvent(
+            playlist.getOwner().getId(),
+            playlistId,
+            contentId
+        )
     );
   }
 

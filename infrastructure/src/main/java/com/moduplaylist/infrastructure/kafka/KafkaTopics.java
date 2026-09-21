@@ -9,6 +9,8 @@ public final class KafkaTopics {
     public static final String CONTENT_ACTIVITIES = "content-activities";
     public static final String CONTENT_LIFECYCLE = "content-lifecycle";
     public static final String WATCH_PARTY_PARTICIPANT_CHANGED = "watchparty.participant-changed";
+    public static final String PLAYLIST_SUBSCRIBED = "playlist.subscribed";
+    public static final String PLAYLIST_CONTENT_ADDED = "playlist.content-added";
 
     private KafkaTopics() {
     }
