@@ -75,6 +75,13 @@ mopl:
         cron: ${RECOMMENDATION_CRON:0 0 4 * * *}
 #        cron: "0 * * * * *" #테스트
         zone: ${RECOMMENDATION_SCHEDULER_ZONE:Asia/Seoul}
+    playlist-popularity:
+      total-subscriber-weight: ${PLAYLIST_POPULARITY_TOTAL_SUBSCRIBER_WEIGHT:0.3}
+      weekly-new-subscriber-weight: ${PLAYLIST_POPULARITY_WEEKLY_NEW_SUBSCRIBER_WEIGHT:0.7}
+      scheduler:
+        enabled: ${PLAYLIST_POPULARITY_SCHEDULER_ENABLED:false}
+        cron: ${PLAYLIST_POPULARITY_CRON:0 10 0 * * *}
+        zone: ${PLAYLIST_POPULARITY_SCHEDULER_ZONE:UTC}
   recommendation:
     search-limit: ${RECOMMENDATION_SEARCH_LIMIT:100}
     cache-ttl: ${RECOMMENDATION_CACHE_TTL:48h}
