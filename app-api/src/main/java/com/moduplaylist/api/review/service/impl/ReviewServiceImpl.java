@@ -1,5 +1,6 @@
 package com.moduplaylist.api.review.service.impl;
 
+import com.github.f4b6a3.uuid.UuidCreator;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
 import com.moduplaylist.api.review.dto.ReviewCreateRequest;
@@ -7,7 +8,9 @@ import com.moduplaylist.api.review.dto.ReviewResponse;
 import com.moduplaylist.api.review.dto.ReviewSearchRequest;
 import com.moduplaylist.api.review.dto.ReviewSort;
 import com.moduplaylist.api.review.dto.ReviewUpdateRequest;
+import com.moduplaylist.api.review.event.ReviewRatingChangedEvent;
 import com.moduplaylist.api.review.service.ReviewService;
+import com.moduplaylist.core.activity.enums.ContentActivityType;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.repository.ContentRepository;
@@ -32,6 +35,7 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +52,7 @@ public class ReviewServiceImpl implements ReviewService {
 	private final ReviewRepository reviewRepository;
 	private final ContentRepository contentRepository;
 	private final UserRepository userRepository;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Override
 	@Transactional(readOnly = true)
@@ -125,6 +130,7 @@ public class ReviewServiceImpl implements ReviewService {
 			statistics.getAverageRating(),
 			statistics.getReviewCount()
 		);
+		publishRatingChangedEvent(userId, contentId, null, savedReview.getRating());
 		return ReviewResponse.from(savedReview);
 	}
 
@@ -159,6 +165,12 @@ public class ReviewServiceImpl implements ReviewService {
 				statistics.getAverageRating(),
 				statistics.getReviewCount()
 			);
+			publishRatingChangedEvent(
+				userId,
+				contentId,
+				previousRating,
+				review.getRating()
+			);
 		}
 		return ReviewResponse.from(review);
 	}
@@ -177,6 +189,7 @@ public class ReviewServiceImpl implements ReviewService {
 			.orElseThrow(() -> new ContentNotFoundException(contentId));
 		Review review = reviewRepository.findByIdForUpdate(reviewId)
 			.orElseThrow(() -> new ReviewNotFoundException(reviewId));
+		BigDecimal deletedRating = review.getRating();
 
 		reviewRepository.delete(review);
 		reviewRepository.flush();
@@ -186,6 +199,24 @@ public class ReviewServiceImpl implements ReviewService {
 			statistics.getAverageRating(),
 			statistics.getReviewCount()
 		);
+		publishRatingChangedEvent(userId, contentId, deletedRating, null);
+	}
+
+	private void publishRatingChangedEvent(
+		UUID userId,
+		UUID contentId,
+		BigDecimal oldRating,
+		BigDecimal newRating
+	) {
+		eventPublisher.publishEvent(new ReviewRatingChangedEvent(
+			UuidCreator.getTimeOrderedEpoch(),
+			ContentActivityType.CONTENT_RATING,
+			userId,
+			contentId,
+			oldRating,
+			newRating,
+			Instant.now()
+		));
 	}
 
 	private boolean isDuplicateReviewConstraint(Throwable exception) {
