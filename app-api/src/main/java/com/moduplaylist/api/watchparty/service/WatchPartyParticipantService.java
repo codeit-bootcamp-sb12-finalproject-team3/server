@@ -1,6 +1,7 @@
 package com.moduplaylist.api.watchparty.service;
 
 import com.moduplaylist.api.recommendation.service.ContentPreferenceUpdateService;
+import com.moduplaylist.api.watchparty.event.WatchPartyParticipantChangedEvent;
 import com.moduplaylist.core.activity.enums.ContentActivityType;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.exception.UserNotFoundException;
@@ -12,6 +13,7 @@ import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import com.moduplaylist.core.watchparty.exception.*;
 import com.moduplaylist.core.watchparty.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +32,7 @@ public class WatchPartyParticipantService {
     private final ContentPreferenceUpdateService contentPreferenceUpdateService;
     private final WatchPartyJoinedRegistry watchPartyJoinedRegistry;
     private final WatchPartyActivePartyRegistry watchPartyActivePartyRegistry;
+    private final ApplicationEventPublisher eventPublisher;
 
     public void joinWatchParty(UUID partyId, UUID userId) {
 
@@ -68,6 +71,8 @@ public class WatchPartyParticipantService {
 
             validateCapacity(party);
             participant.rejoin();
+            eventPublisher.publishEvent
+                    (new WatchPartyParticipantChangedEvent(partyId, userId, ParticipantStatus.JOINED));
             watchPartyJoinedRegistry.join(partyId, userId);
             watchPartyActivePartyRegistry.setJoinedParty(userId, partyId);
             return;
@@ -79,10 +84,12 @@ public class WatchPartyParticipantService {
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
         watchPartyParticipantRepository.save(new WatchPartyParticipant(user, party));
+        eventPublisher.publishEvent
+                (new WatchPartyParticipantChangedEvent(partyId, userId, ParticipantStatus.JOINED));
         watchPartyJoinedRegistry.join(partyId, userId);
         watchPartyActivePartyRegistry.setJoinedParty(userId, partyId);
 
-        // TODO: Kafka RecommendationConsumer 적용 후 직접 호출 제거 - 일단 테스트를 위해 남겨둡니다 혼란을 드려 죄송합니다..........
+        // TODO: Kafka RecommendationConsumer 적용 후 직접 호출 제거 - 일단 테스트를 위해 남겨둡니다
         contentPreferenceUpdateService.applyActivity(
                 userId,
                 party.getContentId(),
@@ -110,6 +117,8 @@ public class WatchPartyParticipantService {
         }
 
         participant.leave();
+        eventPublisher.publishEvent
+                (new WatchPartyParticipantChangedEvent(partyId, userId, ParticipantStatus.LEFT));
         watchPartyJoinedRegistry.leave(partyId, userId);
         watchPartyActivePartyRegistry.clearJoinedParty(userId);
     }
@@ -131,6 +140,8 @@ public class WatchPartyParticipantService {
         }
 
         participant.kick();
+        eventPublisher.publishEvent
+                (new WatchPartyParticipantChangedEvent(partyId, targetUserId, ParticipantStatus.KICKED));
         watchPartyKickedRegistry.kick(partyId, targetUserId);
         watchPartyJoinedRegistry.leave(partyId, targetUserId);
         watchPartyActivePartyRegistry.clearJoinedParty(targetUserId);
