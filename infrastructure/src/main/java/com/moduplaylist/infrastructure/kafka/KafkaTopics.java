@@ -9,6 +9,7 @@ public final class KafkaTopics {
     public static final String CONTENT_ACTIVITIES = "content-activities";
     public static final String WATCH_PARTY_REMINDER_DUE = "watchparty.reminder-due";
     public static final String WATCH_PARTY_STATUS_CHANGED = "watchparty.status-changed";
+    public static final String WATCH_PARTY_CREATED = "watchparty.created";
 
     private KafkaTopics() {
     }
