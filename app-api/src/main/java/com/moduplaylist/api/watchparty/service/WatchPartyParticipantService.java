@@ -71,8 +71,9 @@ public class WatchPartyParticipantService {
 
             validateCapacity(party);
             participant.rejoin();
-            eventPublisher.publishEvent
-                    (new WatchPartyParticipantChangedEvent(partyId, userId, ParticipantStatus.JOINED));
+            eventPublisher.publishEvent(
+                    new WatchPartyParticipantChangedEvent(
+                            UUID.randomUUID(), partyId, userId, ParticipantStatus.JOINED, true));
             watchPartyJoinedRegistry.join(partyId, userId);
             watchPartyActivePartyRegistry.setJoinedParty(userId, partyId);
             return;
@@ -84,8 +85,9 @@ public class WatchPartyParticipantService {
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
         watchPartyParticipantRepository.save(new WatchPartyParticipant(user, party));
-        eventPublisher.publishEvent
-                (new WatchPartyParticipantChangedEvent(partyId, userId, ParticipantStatus.JOINED));
+        eventPublisher.publishEvent(
+                new WatchPartyParticipantChangedEvent(
+                        UUID.randomUUID(), partyId, userId, ParticipantStatus.JOINED, false));
         watchPartyJoinedRegistry.join(partyId, userId);
         watchPartyActivePartyRegistry.setJoinedParty(userId, partyId);
 
@@ -117,8 +119,9 @@ public class WatchPartyParticipantService {
         }
 
         participant.leave();
-        eventPublisher.publishEvent
-                (new WatchPartyParticipantChangedEvent(partyId, userId, ParticipantStatus.LEFT));
+        eventPublisher.publishEvent(
+                new WatchPartyParticipantChangedEvent(
+                        UUID.randomUUID(), partyId, userId, ParticipantStatus.LEFT, false));
         watchPartyJoinedRegistry.leave(partyId, userId);
         watchPartyActivePartyRegistry.clearJoinedParty(userId);
     }
@@ -140,8 +143,9 @@ public class WatchPartyParticipantService {
         }
 
         participant.kick();
-        eventPublisher.publishEvent
-                (new WatchPartyParticipantChangedEvent(partyId, targetUserId, ParticipantStatus.KICKED));
+        eventPublisher.publishEvent(
+                new WatchPartyParticipantChangedEvent(
+                        UUID.randomUUID(), partyId, targetUserId, ParticipantStatus.KICKED, false));
         watchPartyKickedRegistry.kick(partyId, targetUserId);
         watchPartyJoinedRegistry.leave(partyId, targetUserId);
         watchPartyActivePartyRegistry.clearJoinedParty(targetUserId);
