@@ -163,6 +163,31 @@ public class ReviewServiceImpl implements ReviewService {
 		return ReviewResponse.from(review);
 	}
 
+	@Override
+	@Transactional
+	public void delete(UUID userId, UUID reviewId) {
+		ReviewRepository.ReviewAccessProjection access = reviewRepository.findAccessById(reviewId)
+			.orElseThrow(() -> new ReviewNotFoundException(reviewId));
+		if (!access.getUserId().equals(userId)) {
+			throw new ReviewAccessDeniedException(reviewId, userId);
+		}
+
+		UUID contentId = access.getContentId();
+		Content content = contentRepository.findByIdForUpdate(contentId)
+			.orElseThrow(() -> new ContentNotFoundException(contentId));
+		Review review = reviewRepository.findByIdForUpdate(reviewId)
+			.orElseThrow(() -> new ReviewNotFoundException(reviewId));
+
+		reviewRepository.delete(review);
+		reviewRepository.flush();
+		ReviewRepository.ReviewStatisticsProjection statistics =
+			reviewRepository.calculateStatistics(contentId);
+		content.updateReviewStatistics(
+			statistics.getAverageRating(),
+			statistics.getReviewCount()
+		);
+	}
+
 	private boolean isDuplicateReviewConstraint(Throwable exception) {
 		Throwable cause = exception;
 		while (cause != null) {
