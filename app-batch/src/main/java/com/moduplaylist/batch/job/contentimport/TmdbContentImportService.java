@@ -220,11 +220,21 @@ public class TmdbContentImportService {
     }
 
     private void saveEpisodes(Content season, JsonNode ko, JsonNode en, JsonNode original) {
+        List<JsonNode> episodes = iterable(ko.path("episodes"));
         Map<Integer, JsonNode> english = iterable(en.path("episodes")).stream()
             .collect(java.util.stream.Collectors.toMap(node -> node.path("id").asInt(), node -> node, (a, b) -> a));
         Map<Integer, JsonNode> originals = iterable(original.path("episodes")).stream()
             .collect(java.util.stream.Collectors.toMap(node -> node.path("id").asInt(), node -> node, (a, b) -> a));
-        for (JsonNode episode : ko.path("episodes")) {
+        Set<Integer> episodeIds = episodes.stream()
+            .map(episode -> episode.path("id").asInt())
+            .filter(id -> id > 0)
+            .collect(java.util.stream.Collectors.toSet());
+        Set<Integer> knownEpisodeIds = episodeIds.isEmpty()
+            ? new HashSet<>()
+            : episodeRepository.findAllByExternalSourceAndExternalIdIn(SOURCE, episodeIds).stream()
+                .map(Episode::getExternalId)
+                .collect(java.util.stream.Collectors.toCollection(HashSet::new));
+        for (JsonNode episode : episodes) {
             int id = episode.path("id").asInt();
             int number = episode.path("episode_number").asInt();
             JsonNode englishEpisode = english.getOrDefault(id, episode);
@@ -233,8 +243,7 @@ public class TmdbContentImportService {
             if (title == null) {
                 title = season.getSeasonNumber() == 0 ? "스페셜 " + number + "화" : number + "화";
             }
-            if (id <= 0 || number < 0
-                || episodeRepository.findByExternalSourceAndExternalId(SOURCE, id).isPresent()) continue;
+            if (id <= 0 || number < 0 || !knownEpisodeIds.add(id)) continue;
             episodeRepository.save(Episode.builder()
                 .season(season).episodeNumber(number).title(title)
                 .description(firstText(episode, englishEpisode, originalEpisode, "overview"))

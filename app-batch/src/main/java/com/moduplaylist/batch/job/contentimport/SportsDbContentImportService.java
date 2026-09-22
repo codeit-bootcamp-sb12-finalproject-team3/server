@@ -177,12 +177,12 @@ public class SportsDbContentImportService {
     }
 
     private SportType sportType(String configuredCode, String name) {
-        name = limit(name, 100);
+        String normalizedName = limit(name, 100);
         String code = normalizedCode(configuredCode);
         if (code.length() > 50) code = code.substring(0, 50);
         String finalCode = code;
         return sportTypeRepository.findByCode(finalCode)
-            .orElseGet(() -> sportTypeRepository.save(SportType.create(finalCode, name)));
+            .orElseGet(() -> sportTypeRepository.save(SportType.create(finalCode, normalizedName)));
     }
 
     private static String normalizedCode(String value) {
