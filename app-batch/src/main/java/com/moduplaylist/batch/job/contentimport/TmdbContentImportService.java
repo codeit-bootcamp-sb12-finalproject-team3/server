@@ -13,6 +13,7 @@ import com.moduplaylist.core.content.repository.ContentGenreRepository;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.content.repository.EpisodeRepository;
 import com.moduplaylist.core.content.repository.GenreRepository;
+import com.moduplaylist.infrastructure.opensearch.content.ContentAutocompleteSynchronizer;
 import com.moduplaylist.infrastructure.tmdb.TmdbContentClient;
 import com.moduplaylist.infrastructure.tmdb.TmdbProperties;
 import com.moduplaylist.infrastructure.tmdb.TmdbWatchProviderClient;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.IntFunction;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,7 +40,6 @@ public class TmdbContentImportService {
     private static final String EPISODE_SYNC_METADATA_KEY = "tmdbEpisodeSync";
     private static final String EPISODE_COUNT_METADATA_KEY = "episodeCount";
     private static final String SEEN_EPISODE_IDS_METADATA_KEY = "seenEpisodeIds";
-    private static final int PAGE_LIMIT = 5;
     private static final int CAST_LIMIT = 10;
 
     private final TmdbContentClient tmdbClient;
@@ -50,66 +51,101 @@ public class TmdbContentImportService {
     private final GenreRepository genreRepository;
     private final ContentGenreRepository contentGenreRepository;
     private final ContentCastRepository contentCastRepository;
+    private final ContentAutocompleteSynchronizer autocompleteSynchronizer;
     private final TransactionTemplate transactionTemplate;
 
-    public void importMovies(LocalDate runDate) {
-        LocalDate from = runDate.minusDays(6);
+    public void importMovies(LocalDate runDate, ContentImportMetrics metrics) {
+        LocalDate from = runDate.minusDays(1);
         Set<Integer> ids = new HashSet<>();
-        for (int page = 1; page <= PAGE_LIMIT; page++) {
+        int totalPages = 1;
+        for (int page = 1; page <= totalPages; page++) {
             JsonNode response = tmdbClient.discoverMovies(from, runDate, page);
-            response.path("results").forEach(candidate -> ids.add(candidate.path("id").asInt()));
-            if (page >= Math.min(PAGE_LIMIT, response.path("total_pages").asInt())) break;
+            response.path("results").forEach(candidate -> {
+                int id = candidate.path("id").asInt();
+                if (id > 0 && ids.add(id)) metrics.candidate();
+            });
+            totalPages = response.path("total_pages").asInt(1);
         }
-        ids.stream().filter(id -> id > 0).forEach(this::fetchAndImportMovieSafely);
+        ids.forEach(id -> fetchAndImportMovieSafely(id, metrics));
     }
 
-    public void importTvSeasons(LocalDate runDate) {
-        LocalDate from = runDate.minusDays(6);
+    public void importTvSeasons(LocalDate runDate, ContentImportMetrics metrics) {
+        LocalDate from = runDate.minusDays(1);
         Set<Integer> ids = new HashSet<>();
-        for (int page = 1; page <= PAGE_LIMIT; page++) {
-            JsonNode response = tmdbClient.discoverTv(from, runDate, page);
-            response.path("results").forEach(candidate -> ids.add(candidate.path("id").asInt()));
-            if (page >= Math.min(PAGE_LIMIT, response.path("total_pages").asInt())) break;
-        }
-        ids.stream().filter(id -> id > 0)
-            .forEach(id -> importSeriesSeasonsSafely(id, from, runDate));
+        collectTvCandidates(ids, metrics,
+            page -> tmdbClient.discoverTvByNetworks(from, runDate, page));
+        collectTvCandidates(ids, metrics,
+            page -> tmdbClient.discoverTvByWatchProviders(from, runDate, page));
+        ids.forEach(id -> importSeriesSeasonsSafely(id, metrics));
     }
 
-    private void fetchAndImportMovieSafely(int id) {
+    private void collectTvCandidates(
+        Set<Integer> ids,
+        ContentImportMetrics metrics,
+        IntFunction<JsonNode> requestPage
+    ) {
+        int totalPages = 1;
+        for (int page = 1; page <= totalPages; page++) {
+            JsonNode response = requestPage.apply(page);
+            response.path("results").forEach(candidate -> {
+                int id = candidate.path("id").asInt();
+                if (id > 0 && ids.add(id)) metrics.candidate();
+            });
+            totalPages = response.path("total_pages").asInt(1);
+        }
+    }
+
+    private void fetchAndImportMovieSafely(int id, ContentImportMetrics metrics) {
         try {
-            fetchAndImportMovie(id);
+            fetchAndImportMovie(id, metrics);
         } catch (RuntimeException exception) {
             rethrowIfInterrupted(exception);
+            metrics.failed("movie:" + id);
             log.warn("TMDB 영화 수집에 실패해 다음 콘텐츠를 처리합니다. tmdbId={}", id, exception);
         }
     }
 
-    private void importSeriesSeasonsSafely(int seriesId, LocalDate from, LocalDate to) {
+    private void importSeriesSeasonsSafely(
+        int seriesId,
+        ContentImportMetrics metrics
+    ) {
         try {
-            importSeriesSeasons(seriesId, from, to);
+            importSeriesSeasons(seriesId, metrics);
         } catch (RuntimeException exception) {
             rethrowIfInterrupted(exception);
+            metrics.failed("tv-series:" + seriesId);
             log.warn("TMDB TV 시리즈 조회에 실패해 다음 콘텐츠를 처리합니다. tmdbId={}",
                 seriesId, exception);
         }
     }
 
-    private void fetchAndImportMovie(int id) {
-        if (contentRepository.findByExternalSourceAndTypeAndExternalId(SOURCE, ContentType.MOVIE, id).isPresent()) return;
+    private void fetchAndImportMovie(int id, ContentImportMetrics metrics) {
+        if (contentRepository.findByExternalSourceAndTypeAndExternalId(
+            SOURCE, ContentType.MOVIE, id).isPresent()) {
+            metrics.existing();
+            return;
+        }
         JsonNode ko = tmdbClient.movieDetails(id, "ko-KR");
         JsonNode en = needsFallback(ko, "title", "overview", "poster_path")
             ? tmdbClient.movieDetails(id, "en-US") : ko;
         String title = limit(firstText(ko, en, "title"), 255);
         String description = firstText(ko, en, "overview");
         if (title == null || description == null) {
+            metrics.missingRequired();
             log.info("TMDB 영화 필수 정보가 없어 건너뜁니다. tmdbId={}", id);
             return;
         }
         Content movie = transactionTemplate.execute(status -> importMovie(id, ko, en));
-        if (movie == null) return;
-        saveGenresSafely(movie.getId(), ko.path("genres"), "영화", id);
-        saveCastSafely(movie.getId(), ko.path("credits").path("cast"), "영화", id);
-        saveMovieProvidersSafely(movie.getId(), id);
+        if (movie == null) {
+            metrics.existing();
+            return;
+        }
+        metrics.created();
+        saveGenresSafely(movie.getId(), ko.path("genres"), "영화", id, "movie:" + id, metrics);
+        saveCastSafely(movie.getId(), ko.path("credits").path("cast"),
+            "영화", id, "movie:" + id, metrics);
+        saveMovieProvidersSafely(movie.getId(), id, metrics);
+        synchronizeAutocompleteSafely(movie.getId(), "movie:" + id, metrics);
     }
 
     private Content importMovie(int id, JsonNode ko, JsonNode en) {
@@ -129,9 +165,14 @@ public class TmdbContentImportService {
         return movie;
     }
 
-    private void importSeriesSeasons(int seriesId, LocalDate from, LocalDate to) {
+    private void importSeriesSeasons(
+        int seriesId,
+        ContentImportMetrics metrics
+    ) {
         Content series = contentRepository.findByExternalSourceAndTypeAndExternalId(
             SOURCE, ContentType.TV_SERIES, seriesId).orElse(null);
+        boolean newSeries = series == null;
+        if (series != null) metrics.existing();
         boolean sourceSeriesHidden = series != null && series.isHidden();
         JsonNode ko = tmdbClient.tvDetails(seriesId, "ko-KR");
 
@@ -139,51 +180,76 @@ public class TmdbContentImportService {
             .filter(candidate -> candidate.hasNonNull("id") && candidate.hasNonNull("season_number"))
             .filter(candidate -> candidate.path("season_number").asInt() >= 0)
             .filter(candidate -> shouldLoadSeasonDetails(
-                candidate, from, to, series, sourceSeriesHidden))
+                candidate, series, sourceSeriesHidden, newSeries))
             .toList();
         if (candidates.isEmpty()) return;
 
         JsonNode en = needsFallback(ko, "name") ? tmdbClient.tvDetails(seriesId, "en-US") : ko;
-        Set<UUID> importedSeasonIds = new HashSet<>();
+        if (series == null && firstText(ko, en, "name") == null
+            && text(ko, "original_name", null) == null) {
+            metrics.missingRequired();
+            return;
+        }
+        Map<UUID, String> importedSeasonIds = new LinkedHashMap<>();
         for (JsonNode candidate : candidates) {
             int number = candidate.path("season_number").asInt();
+            String failureId = "tv-season:" + seriesId + "/" + number;
             try {
                 JsonNode seasonKo = tmdbClient.seasonDetails(seriesId, number, "ko-KR");
-                JsonNode seasonEn = tmdbClient.seasonDetails(seriesId, number, "en-US");
-                JsonNode seasonOriginal = tmdbClient.seasonDetailsOriginal(seriesId, number);
+                JsonNode seasonEn = needsSeasonEnglishFallback(seasonKo)
+                    ? tmdbClient.seasonDetails(seriesId, number, "en-US")
+                    : seasonKo;
                 Content existing = contentRepository.findByExternalSourceAndTypeAndExternalId(
                     SOURCE, ContentType.TV_SEASON, candidate.path("id").asInt()).orElse(null);
                 SeasonData data = new SeasonData(
                     candidate,
                     seasonKo,
                     seasonEn,
-                    seasonOriginal,
                     existing != null,
                     existing != null && existing.isHidden()
                 );
-                if (!isImportTarget(data, from, to)) continue;
-                Content imported = transactionTemplate.execute(status ->
+                if (data.hidden()) continue;
+                if (!data.existing() && missingSeasonTitle(data)) {
+                    metrics.missingRequired();
+                    continue;
+                }
+                SeasonSaveResult result = transactionTemplate.execute(status ->
                     saveSeason(seriesId, data, ko, en)
                 );
-                if (imported != null) {
-                    importedSeasonIds.add(imported.getId());
-                    saveGenresSafely(imported.getId(), ko.path("genres"),
-                        "TV 시즌", candidate.path("id").asInt());
-                    saveCastSafely(imported.getId(), seasonCast(data, ko, en),
-                        "TV 시즌", candidate.path("id").asInt());
+                if (result != null && result.season() != null) {
+                    metrics.created(result.createdCount());
+                    importedSeasonIds.put(result.season().getId(), failureId);
+                    saveGenresSafely(result.season().getId(), ko.path("genres"),
+                        "TV 시즌", candidate.path("id").asInt(), failureId, metrics);
+                    saveCastSafely(result.season().getId(), seasonCast(data, ko, en),
+                        "TV 시즌", candidate.path("id").asInt(), failureId, metrics);
                 }
             } catch (RuntimeException exception) {
                 rethrowIfInterrupted(exception);
+                metrics.failed(failureId);
                 log.warn("TMDB TV 시즌 수집에 실패해 다음 시즌을 처리합니다. seriesId={}, seasonNumber={}",
                     seriesId, number, exception);
             }
         }
         if (!importedSeasonIds.isEmpty()) {
-            saveTvProvidersSafely(importedSeasonIds, seriesId);
+            saveTvProvidersSafely(importedSeasonIds, seriesId, metrics);
+            importedSeasonIds.forEach((contentId, failureId) ->
+                synchronizeAutocompleteSafely(contentId, failureId, metrics));
         }
     }
 
-    private Content saveSeason(
+    private static boolean missingSeasonTitle(SeasonData data) {
+        return firstText(data.ko(), data.en(), "name") == null;
+    }
+
+    private static boolean needsSeasonEnglishFallback(JsonNode season) {
+        return text(season, "name", null) == null
+            || text(season, "overview", null) == null
+            || iterable(season.path("episodes")).stream()
+                .anyMatch(episode -> text(episode, "name", null) == null);
+    }
+
+    private SeasonSaveResult saveSeason(
         int seriesId,
         SeasonData data,
         JsonNode seriesKo,
@@ -195,33 +261,38 @@ public class TmdbContentImportService {
         Content existing = contentRepository.findByExternalSourceAndTypeAndExternalId(
             SOURCE, ContentType.TV_SEASON, seasonId).orElse(null);
         if (existing != null) {
-            if (existing.isHidden()) return null;
+            if (existing.isHidden()) return SeasonSaveResult.empty();
             EpisodeSyncState syncState = episodeSyncState(existing);
             Set<Integer> seenEpisodeIds = saveEpisodes(
                 existing,
                 data.ko(),
                 data.en(),
-                data.original(),
                 syncState.seenEpisodeIds()
             );
             updateEpisodeSyncMetadata(existing, remoteEpisodeCount(data), seenEpisodeIds);
-            return null;
+            return SeasonSaveResult.empty();
         }
-        if (series != null && series.isHidden()) return null;
+        if (series != null && series.isHidden()) return SeasonSaveResult.empty();
         if (series != null && contentRepository.findByParentContent_IdAndSeasonNumber(
-            series.getId(), data.candidate().path("season_number").asInt()).isPresent()) return null;
+            series.getId(), data.candidate().path("season_number").asInt()).isPresent()) {
+            return SeasonSaveResult.empty();
+        }
+        boolean seriesCreated = false;
         if (series == null) {
             String seriesTitle = limit(firstText(seriesKo, seriesEn, "name"), 255);
             if (seriesTitle == null) {
                 seriesTitle = limit(text(seriesKo, "original_name", null), 255);
             }
-            if (seriesTitle == null) return null;
+            if (seriesTitle == null) return SeasonSaveResult.empty();
             series = contentRepository.save(Content.builder()
                 .title(seriesTitle).type(ContentType.TV_SERIES)
                 .metadata(Map.of("originalTitle", text(seriesKo, "original_name", seriesTitle)))
                 .externalSource(SOURCE).externalId(seriesId).build());
+            seriesCreated = true;
         }
-        return importSeason(series, data, seriesKo);
+        Content season = importSeason(series, data, seriesKo);
+        if (season == null) return SeasonSaveResult.empty();
+        return new SeasonSaveResult(season, seriesCreated ? 2 : 1);
     }
 
     private Content importSeason(
@@ -233,10 +304,9 @@ public class TmdbContentImportService {
         int number = candidate.path("season_number").asInt();
         JsonNode ko = data.ko();
         JsonNode en = data.en();
-        JsonNode original = data.original();
-        String title = limit(firstText(ko, en, original, "name"), 255);
-        String description = firstText(ko, en, original, "overview");
-        if (title == null || description == null) return null;
+        String title = limit(firstText(ko, en, "name"), 255);
+        String description = firstText(ko, en, "overview");
+        if (title == null) return null;
         int seasonId = candidate.path("id").asInt();
         Content season = Content.builder()
             .parentContent(series).title(title).seasonNumber(number)
@@ -247,7 +317,7 @@ public class TmdbContentImportService {
             .externalSource(SOURCE).externalId(seasonId).build();
         season.updateAiTaggingStatus(AiTaggingStatus.PENDING);
         contentRepository.save(season);
-        Set<Integer> seenEpisodeIds = saveEpisodes(season, ko, en, original, Set.of());
+        Set<Integer> seenEpisodeIds = saveEpisodes(season, ko, en, Set.of());
         updateEpisodeSyncMetadata(season, remoteEpisodeCount(data), seenEpisodeIds);
         return season;
     }
@@ -261,53 +331,95 @@ public class TmdbContentImportService {
         return cast;
     }
 
-    private void saveGenresSafely(UUID contentId, JsonNode genres, String type, int externalId) {
+    private void saveGenresSafely(
+        UUID contentId,
+        JsonNode genres,
+        String type,
+        int externalId,
+        String failureId,
+        ContentImportMetrics metrics
+    ) {
         try {
             transactionTemplate.executeWithoutResult(status -> contentRepository.findById(contentId)
                 .ifPresent(content -> saveGenres(content, genres)));
         } catch (RuntimeException exception) {
             rethrowIfInterrupted(exception);
+            metrics.failed(failureId);
             log.warn("TMDB {} 장르 저장에 실패했습니다. externalId={}", type, externalId, exception);
         }
     }
 
-    private void saveCastSafely(UUID contentId, JsonNode cast, String type, int externalId) {
+    private void saveCastSafely(
+        UUID contentId,
+        JsonNode cast,
+        String type,
+        int externalId,
+        String failureId,
+        ContentImportMetrics metrics
+    ) {
         try {
             transactionTemplate.executeWithoutResult(status -> contentRepository.findById(contentId)
                 .ifPresent(content -> saveCast(content, cast)));
         } catch (RuntimeException exception) {
             rethrowIfInterrupted(exception);
+            metrics.failed(failureId);
             log.warn("TMDB {} 출연진 저장에 실패했습니다. externalId={}", type, externalId, exception);
         }
     }
 
-    private void saveMovieProvidersSafely(UUID contentId, int movieId) {
+    private void saveMovieProvidersSafely(
+        UUID contentId,
+        int movieId,
+        ContentImportMetrics metrics
+    ) {
         try {
             TmdbWatchProviderResponse providers = watchProviderClient.fetchMovie(movieId);
             contentPlatformService.saveInitialProviders(contentId, providers);
         } catch (RuntimeException exception) {
             rethrowIfInterrupted(exception);
+            metrics.failed("movie:" + movieId);
             log.warn("TMDB 영화 OTT 제공처 저장에 실패했습니다. tmdbId={}", movieId, exception);
         }
     }
 
-    private void saveTvProvidersSafely(Set<UUID> contentIds, int seriesId) {
+    private void saveTvProvidersSafely(
+        Map<UUID, String> contentIds,
+        int seriesId,
+        ContentImportMetrics metrics
+    ) {
         TmdbWatchProviderResponse providers;
         try {
             providers = watchProviderClient.fetchTvSeries(seriesId);
         } catch (RuntimeException exception) {
             rethrowIfInterrupted(exception);
+            contentIds.values().forEach(metrics::failed);
             log.warn("TMDB TV OTT 제공처 조회에 실패했습니다. seriesId={}", seriesId, exception);
             return;
         }
-        for (UUID contentId : contentIds) {
+        for (Map.Entry<UUID, String> content : contentIds.entrySet()) {
             try {
-                contentPlatformService.saveInitialProviders(contentId, providers);
+                contentPlatformService.saveInitialProviders(content.getKey(), providers);
             } catch (RuntimeException exception) {
                 rethrowIfInterrupted(exception);
+                metrics.failed(content.getValue());
                 log.warn("TMDB TV OTT 제공처 저장에 실패했습니다. seriesId={}, contentId={}",
-                    seriesId, contentId, exception);
+                    seriesId, content.getKey(), exception);
             }
+        }
+    }
+
+    private void synchronizeAutocompleteSafely(
+        UUID contentId,
+        String failureId,
+        ContentImportMetrics metrics
+    ) {
+        try {
+            autocompleteSynchronizer.synchronize(contentId);
+        } catch (RuntimeException exception) {
+            rethrowIfInterrupted(exception);
+            metrics.failed(failureId);
+            log.warn("TMDB 콘텐츠 자동완성 동기화에 실패했습니다. contentId={}, externalId={}",
+                contentId, failureId, exception);
         }
     }
 
@@ -319,13 +431,10 @@ public class TmdbContentImportService {
         Content season,
         JsonNode ko,
         JsonNode en,
-        JsonNode original,
         Set<Integer> seenEpisodeIds
     ) {
         List<JsonNode> episodes = iterable(ko.path("episodes"));
         Map<Integer, JsonNode> english = iterable(en.path("episodes")).stream()
-            .collect(java.util.stream.Collectors.toMap(node -> node.path("id").asInt(), node -> node, (a, b) -> a));
-        Map<Integer, JsonNode> originals = iterable(original.path("episodes")).stream()
             .collect(java.util.stream.Collectors.toMap(node -> node.path("id").asInt(), node -> node, (a, b) -> a));
         Set<Integer> episodeIds = episodes.stream()
             .map(episode -> episode.path("id").asInt())
@@ -355,16 +464,15 @@ public class TmdbContentImportService {
             if (id <= 0 || number < 0 || !updatedSeenEpisodeIds.add(id)
                 || knownEpisodeIds.contains(id) || knownEpisodeNumbers.contains(number)) continue;
             JsonNode englishEpisode = english.getOrDefault(id, episode);
-            JsonNode originalEpisode = originals.getOrDefault(id, englishEpisode);
-            String title = limit(firstText(episode, englishEpisode, originalEpisode, "name"), 255);
+            String title = limit(firstText(episode, englishEpisode, "name"), 255);
             if (title == null) {
                 title = season.getSeasonNumber() == 0 ? "스페셜 " + number + "화" : number + "화";
             }
             episodeRepository.save(Episode.builder()
                 .season(season).episodeNumber(number).title(title)
-                .description(firstText(episode, englishEpisode, originalEpisode, "overview"))
+                .description(firstText(episode, englishEpisode, "overview"))
                 .thumbnailUrl(properties.imageUrl(firstText(
-                    episode, englishEpisode, originalEpisode, "still_path")))
+                    episode, englishEpisode, "still_path")))
                 .runtime(positiveInt(episode.path("runtime")))
                 .externalSource(SOURCE).externalId(id).build());
             knownEpisodeIds.add(id);
@@ -477,10 +585,6 @@ public class TmdbContentImportService {
         String value = text(primary, field, null);
         return value != null ? value : text(fallback, field, null);
     }
-    private static String firstText(JsonNode primary, JsonNode fallback, JsonNode original, String field) {
-        String value = firstText(primary, fallback, field);
-        return value != null ? value : text(original, field, null);
-    }
     private static String text(JsonNode node, String field, String fallback) {
         String value = node.path(field).asText("").strip();
         return value.isEmpty() ? fallback : value;
@@ -489,38 +593,18 @@ public class TmdbContentImportService {
         if (value == null) return null;
         try { return LocalDate.parse(value); } catch (RuntimeException ignored) { return null; }
     }
-    private static boolean within(LocalDate value, LocalDate from, LocalDate to) {
-        return value != null && !value.isBefore(from) && !value.isAfter(to);
-    }
-    private static boolean isImportTarget(SeasonData data, LocalDate from, LocalDate to) {
-        int seasonNumber = data.candidate().path("season_number").asInt();
-        if (seasonNumber > 0) {
-            if (data.hidden()) return false;
-            return data.existing()
-                || (within(date(text(data.candidate(), "air_date", null)), from, to)
-                && firstText(data.ko(), data.en(), data.original(), "name") != null
-                && firstText(data.ko(), data.en(), data.original(), "overview") != null);
-        }
-        if (data.hidden()) return false;
-        boolean hasRecentEpisode = iterable(data.ko().path("episodes")).stream()
-            .anyMatch(episode -> within(date(text(episode, "air_date", null)), from, to));
-        if (!hasRecentEpisode) return false;
-        return data.existing()
-            || (firstText(data.ko(), data.en(), data.original(), "name") != null
-                && firstText(data.ko(), data.en(), data.original(), "overview") != null);
-    }
     private boolean shouldLoadSeasonDetails(
         JsonNode candidate,
-        LocalDate from,
-        LocalDate to,
         Content sourceSeries,
-        boolean sourceSeriesHidden
+        boolean sourceSeriesHidden,
+        boolean newSeries
     ) {
         Content existing = contentRepository.findByExternalSourceAndTypeAndExternalId(
             SOURCE,
             ContentType.TV_SEASON,
             candidate.path("id").asInt()
         ).orElse(null);
+        if (newSeries) return true;
         if (sourceSeriesHidden) {
             return existing != null
                 && !existing.isHidden()
@@ -532,10 +616,7 @@ public class TmdbContentImportService {
                 sourceSeries.getId(), candidate.path("season_number").asInt()).isPresent()) {
             return false;
         }
-        if (candidate.path("season_number").asInt() == 0) return true;
-        if (existing == null) {
-            return within(date(text(candidate, "air_date", null)), from, to);
-        }
+        if (existing == null) return candidate.path("episode_count").asInt() > 0;
         return shouldSyncEpisodes(candidate, existing);
     }
     private static boolean shouldSyncEpisodes(JsonNode candidate, Content existing) {
@@ -575,10 +656,15 @@ public class TmdbContentImportService {
         JsonNode candidate,
         JsonNode ko,
         JsonNode en,
-        JsonNode original,
         boolean existing,
         boolean hidden
     ) { }
+
+    private record SeasonSaveResult(Content season, int createdCount) {
+        private static SeasonSaveResult empty() {
+            return new SeasonSaveResult(null, 0);
+        }
+    }
 
     private record EpisodeSyncState(int episodeCount, Set<Integer> seenEpisodeIds) { }
 }

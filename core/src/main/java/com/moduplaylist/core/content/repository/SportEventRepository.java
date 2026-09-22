@@ -10,6 +10,7 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Pageable;
 
 public interface SportEventRepository extends JpaRepository<SportEvent, UUID> {
 
@@ -73,9 +74,14 @@ public interface SportEventRepository extends JpaRepository<SportEvent, UUID> {
 		where content.externalSource = :externalSource
 		  and content.hidden = false
 		  and sportEvent.normalizedStatus in :statuses
+		  and sportEvent.scheduledAt >= :from
+		  and sportEvent.scheduledAt < :to
 		order by sportEvent.lastCheckedAt asc, sportEvent.contentId asc
 		""")
 	List<SportEvent> findAllBatchUpdateCandidates(
 		@Param("externalSource") String externalSource,
-		@Param("statuses") Collection<NormalizedStatus> statuses);
+		@Param("statuses") Collection<NormalizedStatus> statuses,
+		@Param("from") Instant from,
+		@Param("to") Instant to,
+		Pageable pageable);
 }

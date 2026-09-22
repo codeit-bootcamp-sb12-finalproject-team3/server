@@ -31,9 +31,18 @@ public class TmdbContentClient {
         return get("/discover/movie", query);
     }
 
-    public JsonNode discoverTv(LocalDate from, LocalDate to, int page) {
+    public JsonNode discoverTvByNetworks(LocalDate from, LocalDate to, int page) {
         Map<String, String> query = commonDiscoverQuery(from, to, page);
-        query.put("timezone", "Asia/Seoul");
+        addTvDiscoverFilters(query);
+        query.put("with_networks", "829|342|97|156|866|885|5841|627|809");
+        return get("/discover/tv", query);
+    }
+
+    public JsonNode discoverTvByWatchProviders(LocalDate from, LocalDate to, int page) {
+        Map<String, String> query = commonDiscoverQuery(from, to, page);
+        addTvDiscoverFilters(query);
+        query.put("watch_region", "KR");
+        query.put("with_watch_monetization_types", "flatrate|free|ads|rent|buy");
         return get("/discover/tv", query);
     }
 
@@ -51,11 +60,6 @@ public class TmdbContentClient {
             Map.of("language", language, "append_to_response", "aggregate_credits"));
     }
 
-    public JsonNode seasonDetailsOriginal(int seriesId, int seasonNumber) {
-        return get("/tv/" + seriesId + "/season/" + seasonNumber,
-            Map.of("append_to_response", "aggregate_credits"));
-    }
-
     private Map<String, String> commonDiscoverQuery(LocalDate from, LocalDate to, int page) {
         Map<String, String> query = new LinkedHashMap<>();
         query.put("language", "ko-KR");
@@ -65,6 +69,12 @@ public class TmdbContentClient {
         query.put("include_adult", "false");
         query.put("page", Integer.toString(page));
         return query;
+    }
+
+    private static void addTvDiscoverFilters(Map<String, String> query) {
+        query.put("timezone", "Asia/Seoul");
+        query.put("with_origin_country", "KR|US|GB|JP|CN");
+        query.put("with_type", "0|2|3|4|5");
     }
 
     private JsonNode get(String path, Map<String, String> query) {

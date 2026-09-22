@@ -4,17 +4,22 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Set;
+import java.util.function.Consumer;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobParametersInvalidException;
 import org.springframework.batch.core.JobParametersValidator;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.job.flow.FlowExecutionStatus;
 import org.springframework.batch.core.job.flow.JobExecutionDecider;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -22,6 +27,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.interceptor.DefaultTransactionAttribute;
 
 @Configuration
+@Slf4j
 public class ContentImportJobConfig {
     public static final String JOB_NAME = "contentImportJob";
     public static final String RUN_DATE_PARAMETER = "runDate";
@@ -63,10 +69,12 @@ public class ContentImportJobConfig {
     public Step tmdbMovieImportStep(JobRepository repository, PlatformTransactionManager transactionManager,
         TmdbContentImportService service) {
         return new StepBuilder("tmdbMovieImportStep", repository)
-            .tasklet((contribution, context) -> {
-                service.importMovies(runDate(context));
-                return org.springframework.batch.repeat.RepeatStatus.FINISHED;
-            }, transactionManager)
+            .tasklet((contribution, context) -> executeImport(
+                contribution,
+                context,
+                "TMDB_MOVIE",
+                metrics -> service.importMovies(runDate(context), metrics)
+            ), transactionManager)
             .transactionAttribute(noStepTransaction())
             .build();
     }
@@ -75,10 +83,12 @@ public class ContentImportJobConfig {
     public Step tmdbTvImportStep(JobRepository repository, PlatformTransactionManager transactionManager,
         TmdbContentImportService service) {
         return new StepBuilder("tmdbTvImportStep", repository)
-            .tasklet((contribution, context) -> {
-                service.importTvSeasons(runDate(context));
-                return org.springframework.batch.repeat.RepeatStatus.FINISHED;
-            }, transactionManager)
+            .tasklet((contribution, context) -> executeImport(
+                contribution,
+                context,
+                "TMDB_TV",
+                metrics -> service.importTvSeasons(runDate(context), metrics)
+            ), transactionManager)
             .transactionAttribute(noStepTransaction())
             .build();
     }
@@ -87,12 +97,34 @@ public class ContentImportJobConfig {
     public Step sportsDbEventSyncStep(JobRepository repository, PlatformTransactionManager transactionManager,
         SportsDbContentImportService service) {
         return new StepBuilder("sportsDbEventSyncStep", repository)
-            .tasklet((contribution, context) -> {
-                service.syncEvents(runDate(context));
-                return org.springframework.batch.repeat.RepeatStatus.FINISHED;
-            }, transactionManager)
+            .tasklet((contribution, context) -> executeImport(
+                contribution,
+                context,
+                "THESPORTSDB",
+                metrics -> service.syncEvents(runDate(context), metrics)
+            ), transactionManager)
             .transactionAttribute(noStepTransaction())
             .build();
+    }
+
+    private static RepeatStatus executeImport(
+        StepContribution contribution,
+        ChunkContext context,
+        String source,
+        Consumer<ContentImportMetrics> action
+    ) {
+        ContentImportMetrics metrics = new ContentImportMetrics();
+        boolean completed = false;
+        try {
+            action.accept(metrics);
+            completed = true;
+            return RepeatStatus.FINISHED;
+        } finally {
+            metrics.writeTo(context.getStepContext().getStepExecution().getExecutionContext());
+            ExitStatus status = completed ? ExitStatus.COMPLETED : ExitStatus.FAILED;
+            contribution.setExitStatus(status.addExitDescription(metrics.summary()));
+            log.info("콘텐츠 수집 Step 결과 - source={}, {}", source, metrics.summary());
+        }
     }
 
     private static DefaultTransactionAttribute noStepTransaction() {
