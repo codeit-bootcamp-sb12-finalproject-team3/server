@@ -779,7 +779,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			);
 			sportEventRepository.flush();
 			contentRepository.updateSportCommonDetails(
-				content.getId(), title, description, thumbnailUrl);
+				content.getId(), title, description, thumbnailUrl, Instant.now());
 			if (searchSourceChanged) {
 				publishContentLifecycleEvent(content.getId(), ContentLifecycleEvent.Type.UPSERTED);
 			}

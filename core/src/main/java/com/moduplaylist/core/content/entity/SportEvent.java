@@ -218,6 +218,27 @@ public class SportEvent {
 		updateScore(homeScore, awayScore);
 	}
 
+	public void updateMutableDetails(
+		String season,
+		String round,
+		String homeTeamName,
+		String awayTeamName,
+		String venue,
+		String country,
+		Instant scheduledAt,
+		Integer homeScore,
+		Integer awayScore
+	) {
+		this.season = normalizeOptional(season, MAX_SEASON_LENGTH, "season");
+		this.round = normalizeOptional(round, MAX_ROUND_LENGTH, "round");
+		this.homeTeamName = normalizeRequired(homeTeamName, MAX_TEAM_NAME_LENGTH, "homeTeamName");
+		this.awayTeamName = normalizeRequired(awayTeamName, MAX_TEAM_NAME_LENGTH, "awayTeamName");
+		this.venue = normalizeOptional(venue, MAX_VENUE_LENGTH, "venue");
+		this.country = normalizeOptional(country, MAX_COUNTRY_LENGTH, "country");
+		this.scheduledAt = scheduledAt;
+		updateScore(homeScore, awayScore);
+	}
+
 	public void updateStatus(
 		String rawStatus,
 		NormalizedStatus normalizedStatus,

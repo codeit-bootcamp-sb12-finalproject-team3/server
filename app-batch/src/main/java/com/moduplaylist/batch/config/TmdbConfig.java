@@ -2,6 +2,7 @@ package com.moduplaylist.batch.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moduplaylist.infrastructure.tmdb.TmdbKrWatchProviderExtractor;
+import com.moduplaylist.infrastructure.tmdb.TmdbContentClient;
 import com.moduplaylist.infrastructure.tmdb.TmdbProperties;
 import com.moduplaylist.infrastructure.tmdb.TmdbWatchProviderClient;
 import java.net.http.HttpClient;
@@ -28,6 +29,15 @@ public class TmdbConfig {
         TmdbProperties properties
     ) {
         return new TmdbWatchProviderClient(tmdbHttpClient, objectMapper, properties);
+    }
+
+    @Bean
+    public TmdbContentClient tmdbContentClient(
+        HttpClient tmdbHttpClient,
+        ObjectMapper objectMapper,
+        TmdbProperties properties
+    ) {
+        return new TmdbContentClient(tmdbHttpClient, objectMapper, properties);
     }
 
     @Bean

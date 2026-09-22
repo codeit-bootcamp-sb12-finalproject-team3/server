@@ -3,7 +3,6 @@ package com.moduplaylist.core.content.entity;
 import com.moduplaylist.core.common.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
@@ -14,9 +13,6 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(
 	name = "sport_types",
-	indexes = {
-		@Index(name = "idx_sport_types_active_name", columnList = "active, name")
-	},
 	uniqueConstraints = {
 		@UniqueConstraint(name = "uq_sport_types_code", columnNames = "code"),
 		@UniqueConstraint(name = "uq_sport_types_name", columnNames = "name")
