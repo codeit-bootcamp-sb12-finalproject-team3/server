@@ -4,6 +4,8 @@ import com.moduplaylist.core.playlist.entity.PlaylistSubscription;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -26,11 +28,15 @@ public interface PlaylistSubscriptionRepository extends JpaRepository<PlaylistSu
   );
 
   @Query("""
-      select subscription.user.id
-      from PlaylistSubscription subscription
-      where subscription.playlist.id = :playlistId
-      """)
-  List<UUID> findSubscriberIdsByPlaylistId(@Param("playlistId") UUID playlistId);
+    select subscription.user.id
+    from PlaylistSubscription subscription
+    where subscription.playlist.id = :playlistId
+    order by subscription.id asc
+    """)
+  Slice<UUID> findSubscriberIdsByPlaylistId(
+      @Param("playlistId") UUID playlistId,
+      Pageable pageable
+  );
 
   @Query("""
       select subscription.playlist.id

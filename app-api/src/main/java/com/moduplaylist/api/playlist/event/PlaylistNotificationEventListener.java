@@ -1,11 +1,8 @@
 package com.moduplaylist.api.playlist.event;
 
-import com.moduplaylist.core.playlist.repository.PlaylistSubscriptionRepository;
 import com.moduplaylist.infrastructure.kafka.KafkaTopics;
 import com.moduplaylist.infrastructure.kafka.event.PlaylistContentAddedKafkaEvent;
 import com.moduplaylist.infrastructure.kafka.event.PlaylistSubscribedKafkaEvent;
-import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -18,7 +15,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 public class PlaylistNotificationEventListener {
 
-  private final PlaylistSubscriptionRepository playlistSubscriptionRepository;
   private final KafkaTemplate<String, Object> kafkaTemplate;
 
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -59,61 +55,37 @@ public class PlaylistNotificationEventListener {
 
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
   public void handle(PlaylistContentAddedEvent event) {
-    List<UUID> subscriberIds;
+    PlaylistContentAddedKafkaEvent kafkaEvent = new PlaylistContentAddedKafkaEvent(
+        event.ownerId(),
+        event.playlistId(),
+        event.contentId(),
+        event.playlistTitle(),
+        event.contentTitle()
+    );
 
     try {
-      subscriberIds =
-          playlistSubscriptionRepository.findSubscriberIdsByPlaylistId(event.playlistId());
+      kafkaTemplate.send(
+          KafkaTopics.PLAYLIST_CONTENT_ADDED,
+          kafkaEvent
+      ).whenComplete((result, exception) -> {
+        if (exception != null) {
+          log.warn(
+              "플레이리스트 콘텐츠 추가 알림 이벤트 발행에 실패했습니다. "
+                  + "playlistId={}, contentId={}",
+              event.playlistId(),
+              event.contentId(),
+              exception
+          );
+        }
+      });
     } catch (RuntimeException exception) {
       log.warn(
-          "플레이리스트 콘텐츠 추가 알림 대상 조회에 실패했습니다. playlistId={}, contentId={}",
+          "플레이리스트 콘텐츠 추가 알림 이벤트 발행 요청에 실패했습니다. "
+              + "playlistId={}, contentId={}",
           event.playlistId(),
           event.contentId(),
           exception
       );
-      return;
-    }
-
-    for (UUID subscriberId : subscriberIds) {
-      if (subscriberId.equals(event.ownerId())) {
-        continue;
-      }
-
-      PlaylistContentAddedKafkaEvent kafkaEvent = new PlaylistContentAddedKafkaEvent(
-          subscriberId,
-          event.ownerId(),
-          event.playlistId(),
-          event.contentId(),
-          event.playlistTitle(),
-          event.contentTitle()
-      );
-
-      try {
-        kafkaTemplate.send(
-            KafkaTopics.PLAYLIST_CONTENT_ADDED,
-            kafkaEvent
-        ).whenComplete((result, exception) -> {
-          if (exception != null) {
-            log.warn(
-                "플레이리스트 콘텐츠 추가 알림 이벤트 발행에 실패했습니다. "
-                    + "receiverId={}, playlistId={}, contentId={}",
-                subscriberId,
-                event.playlistId(),
-                event.contentId(),
-                exception
-            );
-          }
-        });
-      } catch (RuntimeException exception) {
-        log.warn(
-            "플레이리스트 콘텐츠 추가 알림 이벤트 발행 요청에 실패했습니다. "
-                + "receiverId={}, playlistId={}, contentId={}",
-            subscriberId,
-            event.playlistId(),
-            event.contentId(),
-            exception
-        );
-      }
     }
   }
 }
