@@ -4,6 +4,7 @@ import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentPlatform;
 import com.moduplaylist.core.content.entity.Platform;
 import com.moduplaylist.core.content.repository.ContentPlatformRepository;
+import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.content.repository.PlatformRepository;
 import com.moduplaylist.infrastructure.tmdb.TmdbKrWatchProviderExtractor;
 import com.moduplaylist.infrastructure.tmdb.TmdbKrWatchProviderExtractor.Result;
@@ -13,6 +14,7 @@ import com.moduplaylist.infrastructure.tmdb.TmdbWatchProviderResponse.Provider;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -27,11 +29,16 @@ public class TmdbContentPlatformService {
 
     private final PlatformRepository platformRepository;
     private final ContentPlatformRepository contentPlatformRepository;
+    private final ContentRepository contentRepository;
     private final TmdbKrWatchProviderExtractor watchProviderExtractor;
     private final TmdbProperties tmdbProperties;
 
     @Transactional
-    public void saveInitialProviders(Content content, TmdbWatchProviderResponse response) {
+    public void saveInitialProviders(UUID contentId, TmdbWatchProviderResponse response) {
+        Content content = contentRepository.findById(contentId).orElse(null);
+        if (content == null) {
+            return;
+        }
         Result result = watchProviderExtractor.extract(response).orElse(null);
         if (result == null || result.providers().isEmpty()) {
             return;

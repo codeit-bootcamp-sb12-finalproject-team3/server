@@ -32,6 +32,13 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Slf4j
 public class SportsDbContentImportService {
     private static final String SOURCE = "THESPORTSDB";
+    private static final Set<NormalizedStatus> TRACKED_STATUSES = Set.of(
+        NormalizedStatus.SCHEDULED,
+        NormalizedStatus.LIVE,
+        NormalizedStatus.POSTPONED,
+        NormalizedStatus.SUSPENDED,
+        NormalizedStatus.UNKNOWN
+    );
     private static final Map<String, NormalizedStatus> STATUS_MAPPING = Map.ofEntries(
         Map.entry("NS", NormalizedStatus.SCHEDULED),
         Map.entry("TBD", NormalizedStatus.SCHEDULED),
@@ -110,11 +117,48 @@ public class SportsDbContentImportService {
                     if (!league.getSportCode().name().equals(externalSportCode(event))) continue;
                     Integer id = integer(event, "idEvent");
                     if (id != null && handled.add(id)) {
-                        transactionTemplate.executeWithoutResult(status -> syncEvent(event, id, league));
+                        try {
+                            transactionTemplate.executeWithoutResult(status -> syncEvent(event, id, league));
+                        } catch (RuntimeException exception) {
+                            rethrowIfInterrupted(exception);
+                            log.warn("TheSportsDB 경기 저장에 실패해 다음 경기를 처리합니다. externalEventId={}",
+                                id, exception);
+                        }
                     }
                 }
             }
         }
+        syncStoredEvents(handled);
+    }
+
+    private void syncStoredEvents(Set<Integer> handled) {
+        for (SportEvent candidate : sportEventRepository.findAllBatchUpdateCandidates(
+            SOURCE, TRACKED_STATUSES)) {
+            Integer externalId = candidate.getContent().getExternalId();
+            if (externalId == null || !handled.add(externalId)) continue;
+
+            try {
+                JsonNode event = client.event(externalId);
+                if (!event.isObject()) {
+                    log.warn("TheSportsDB 기존 경기 조회 결과가 없습니다. externalEventId={}", externalId);
+                    continue;
+                }
+
+                transactionTemplate.executeWithoutResult(status ->
+                    sportEventRepository.findById(candidate.getContentId())
+                        .filter(existing -> !existing.getContent().isHidden())
+                        .ifPresent(existing -> update(existing, event))
+                );
+            } catch (RuntimeException exception) {
+                rethrowIfInterrupted(exception);
+                log.warn("TheSportsDB 기존 경기 갱신에 실패해 다음 경기를 처리합니다. externalEventId={}",
+                    externalId, exception);
+            }
+        }
+    }
+
+    private static void rethrowIfInterrupted(RuntimeException exception) {
+        if (Thread.currentThread().isInterrupted()) throw exception;
     }
 
     private boolean isEnabledLeague(SportsImportProperties.League league) {

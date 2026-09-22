@@ -3,10 +3,14 @@ package com.moduplaylist.batch.job.contentimport;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.Set;
+import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobParametersInvalidException;
 import org.springframework.batch.core.JobParametersValidator;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.job.flow.FlowExecutionStatus;
+import org.springframework.batch.core.job.flow.JobExecutionDecider;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.scope.context.ChunkContext;
@@ -21,20 +25,38 @@ import org.springframework.transaction.interceptor.DefaultTransactionAttribute;
 public class ContentImportJobConfig {
     public static final String JOB_NAME = "contentImportJob";
     public static final String RUN_DATE_PARAMETER = "runDate";
+    private static final Set<String> SOURCE_STEP_NAMES = Set.of(
+        "tmdbMovieImportStep",
+        "tmdbTvImportStep",
+        "sportsDbEventSyncStep"
+    );
 
     @Bean
     public Job contentImportJob(
         JobRepository jobRepository,
         Step tmdbMovieImportStep,
         Step tmdbTvImportStep,
-        Step sportsDbEventSyncStep
+        Step sportsDbEventSyncStep,
+        JobExecutionDecider contentImportResultDecider
     ) {
         return new JobBuilder(JOB_NAME, jobRepository)
             .validator(runDateValidator())
             .start(tmdbMovieImportStep)
-            .next(tmdbTvImportStep)
-            .next(sportsDbEventSyncStep)
+            .on("*").to(tmdbTvImportStep)
+            .on("*").to(sportsDbEventSyncStep)
+            .on("*").to(contentImportResultDecider)
+            .on(FlowExecutionStatus.FAILED.getName()).fail()
+            .from(contentImportResultDecider).on("*").end()
             .build();
+    }
+
+    @Bean
+    public JobExecutionDecider contentImportResultDecider() {
+        return (jobExecution, stepExecution) -> jobExecution.getStepExecutions().stream()
+            .filter(execution -> SOURCE_STEP_NAMES.contains(execution.getStepName()))
+            .anyMatch(execution -> execution.getStatus() == BatchStatus.FAILED)
+                ? FlowExecutionStatus.FAILED
+                : FlowExecutionStatus.COMPLETED;
     }
 
     @Bean

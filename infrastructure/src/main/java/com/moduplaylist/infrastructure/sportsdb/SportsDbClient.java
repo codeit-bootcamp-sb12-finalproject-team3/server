@@ -25,6 +25,12 @@ public class SportsDbClient {
             + "&l=" + encode(externalLeagueId)).path("events");
     }
 
+    public JsonNode event(int externalEventId) {
+        return get("lookupevent.php?id=" + externalEventId)
+            .path("events")
+            .path(0);
+    }
+
     private synchronized JsonNode get(String endpoint) {
         awaitRateLimit();
         String base = properties.getApiBaseUrl().replaceAll("/+$", "");

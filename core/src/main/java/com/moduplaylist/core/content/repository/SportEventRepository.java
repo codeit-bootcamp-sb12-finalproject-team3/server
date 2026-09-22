@@ -71,13 +71,11 @@ public interface SportEventRepository extends JpaRepository<SportEvent, UUID> {
 		join fetch sportEvent.content content
 		join fetch sportEvent.sportType
 		where content.externalSource = :externalSource
+		  and content.hidden = false
 		  and sportEvent.normalizedStatus in :statuses
-		  and sportEvent.scheduledAt between :from and :to
-		order by sportEvent.scheduledAt asc, sportEvent.contentId asc
+		order by sportEvent.lastCheckedAt asc, sportEvent.contentId asc
 		""")
 	List<SportEvent> findAllBatchUpdateCandidates(
 		@Param("externalSource") String externalSource,
-		@Param("statuses") Collection<NormalizedStatus> statuses,
-		@Param("from") Instant from,
-		@Param("to") Instant to);
+		@Param("statuses") Collection<NormalizedStatus> statuses);
 }
