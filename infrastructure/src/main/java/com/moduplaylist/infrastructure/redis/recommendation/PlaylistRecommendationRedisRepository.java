@@ -70,4 +70,8 @@ public class PlaylistRecommendationRedisRepository {
         }
         return List.copyOf(playlistIds);
     }
+
+    public void delete(UUID userId) {
+        redisTemplate.delete(RecommendationRedisKey.playlists(userId));
+    }
 }
