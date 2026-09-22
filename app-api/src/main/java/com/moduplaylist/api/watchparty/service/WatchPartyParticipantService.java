@@ -1,7 +1,5 @@
 package com.moduplaylist.api.watchparty.service;
 
-import com.moduplaylist.api.recommendation.service.ContentPreferenceUpdateService;
-import com.moduplaylist.core.activity.enums.ContentActivityType;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.exception.UserNotFoundException;
 import com.moduplaylist.core.user.repository.UserRepository;
@@ -27,7 +25,6 @@ public class WatchPartyParticipantService {
     private final UserRepository userRepository;
     private final WatchPartyParticipantRepository watchPartyParticipantRepository;
     private final WatchPartyKickedRegistry watchPartyKickedRegistry;
-    private final ContentPreferenceUpdateService contentPreferenceUpdateService;
     private final WatchPartyJoinedRegistry watchPartyJoinedRegistry;
     private final WatchPartyActivePartyRegistry watchPartyActivePartyRegistry;
 
@@ -81,13 +78,6 @@ public class WatchPartyParticipantService {
         watchPartyParticipantRepository.save(new WatchPartyParticipant(user, party));
         watchPartyJoinedRegistry.join(partyId, userId);
         watchPartyActivePartyRegistry.setJoinedParty(userId, partyId);
-
-        // TODO: Kafka RecommendationConsumer 적용 후 직접 호출 제거 - 일단 테스트를 위해 남겨둡니다 혼란을 드려 죄송합니다..........
-        contentPreferenceUpdateService.applyActivity(
-                userId,
-                party.getContentId(),
-                ContentActivityType.WATCH_PARTY_JOINED
-        );
     }
 
 

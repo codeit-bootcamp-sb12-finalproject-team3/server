@@ -483,6 +483,18 @@ CREATE INDEX idx_user_content_genre_preferences_genre
 
 
 -- =================================================================
+-- 추천 Kafka 이벤트 중복 처리 방지
+CREATE TABLE recommendation_processed_events (
+                                                 event_id       BINARY(16) NOT NULL,
+                                                 processed_at   DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+);
+
+ALTER TABLE recommendation_processed_events
+    ADD CONSTRAINT pk_recommendation_processed_events
+        PRIMARY KEY (event_id);
+
+
+-- =================================================================
 -- 출연진
 
 CREATE TABLE content_casts (

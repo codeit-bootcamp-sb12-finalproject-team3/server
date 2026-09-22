@@ -37,7 +37,9 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         spring.json.type.mapping: notification-created:com.moduplaylist.infrastructure.kafka.event.NotificationCreatedKafkaEvent,
-                                  dm-message-created:com.moduplaylist.infrastructure.kafka.event.DmMessageCreatedKafkaEvent
+                                  dm-message-created:com.moduplaylist.infrastructure.kafka.event.DmMessageCreatedKafkaEvent,
+                                  content-activity:com.moduplaylist.infrastructure.kafka.event.ContentActivityKafkaEvent,
+                                  watchparty-participant-joined:com.moduplaylist.infrastructure.kafka.event.WatchPartyParticipantJoinedKafkaEvent
         #                           real-time과 연동되는 event에 대해서 밑에 예시 처럼 작성하시면 됩니다. Java FQCN type-mapping 한다고 알려주시면 돼요
         #                          , watchparty-playback:com.moduplaylist.infrastructure.kafka.event.WatchPartyPlaybackKafkaEvent
 
@@ -45,7 +47,9 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.type.mapping: dm-send-requested:com.moduplaylist.infrastructure.kafka.event.DmSendRequestedKafkaEvent
+        spring.json.type.mapping: dm-send-requested:com.moduplaylist.infrastructure.kafka.event.DmSendRequestedKafkaEvent,
+                                  content-activity:com.moduplaylist.infrastructure.kafka.event.ContentActivityKafkaEvent,
+                                  watchparty-participant-joined:com.moduplaylist.infrastructure.kafka.event.WatchPartyParticipantJoinedKafkaEvent
         spring.json.trusted.packages: com.moduplaylist.infrastructure.kafka.event
 
 logging:
@@ -60,6 +64,10 @@ aws:
     bucket: ${AWS_S3_BUCKET:}
 
 mopl:
+  recommendation:
+    refresh:
+      threshold: ${RECOMMENDATION_REFRESH_THRESHOLD:3.0}
+      lock-ttl: ${RECOMMENDATION_REFRESH_LOCK_TTL:5m}
   embedding:
     enabled: ${EMBEDDING_ENABLED:true}
     model: text-embedding-3-small
