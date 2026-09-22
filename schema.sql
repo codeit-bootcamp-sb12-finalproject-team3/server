@@ -180,7 +180,6 @@ CREATE TABLE sport_types (
                             id                  BINARY(16) NOT NULL,
                             code                VARCHAR(50) NOT NULL,
                             name                VARCHAR(100) NOT NULL,
-                            active              BOOLEAN NOT NULL DEFAULT TRUE,
                             created_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
                             updated_at          DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 );
@@ -193,10 +192,6 @@ ALTER TABLE sport_types
 
 ALTER TABLE sport_types
     ADD CONSTRAINT uq_sport_types_name UNIQUE (name);
-
-CREATE INDEX idx_sport_types_active_name
-    ON sport_types (active, name);
-
 
 -- 스포츠 경기
 
