@@ -1,6 +1,7 @@
 package com.moduplaylist.batch.job.contentimport;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.moduplaylist.batch.job.contentimport.SportsImportProperties.SportCode;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.core.content.entity.SportEvent;
@@ -17,6 +18,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -30,8 +32,48 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Slf4j
 public class SportsDbContentImportService {
     private static final String SOURCE = "THESPORTSDB";
-    private static final Set<String> AUTOMATIC_SPORT_CODES = Set.of(
-        "SOCCER", "BASKETBALL", "BASEBALL", "VOLLEYBALL"
+    private static final Map<String, NormalizedStatus> STATUS_MAPPING = Map.ofEntries(
+        Map.entry("NS", NormalizedStatus.SCHEDULED),
+        Map.entry("TBD", NormalizedStatus.SCHEDULED),
+        Map.entry("Q1", NormalizedStatus.LIVE),
+        Map.entry("Q2", NormalizedStatus.LIVE),
+        Map.entry("Q3", NormalizedStatus.LIVE),
+        Map.entry("Q4", NormalizedStatus.LIVE),
+        Map.entry("IN1", NormalizedStatus.LIVE),
+        Map.entry("IN2", NormalizedStatus.LIVE),
+        Map.entry("IN3", NormalizedStatus.LIVE),
+        Map.entry("IN4", NormalizedStatus.LIVE),
+        Map.entry("IN5", NormalizedStatus.LIVE),
+        Map.entry("IN6", NormalizedStatus.LIVE),
+        Map.entry("IN7", NormalizedStatus.LIVE),
+        Map.entry("IN8", NormalizedStatus.LIVE),
+        Map.entry("IN9", NormalizedStatus.LIVE),
+        Map.entry("OT", NormalizedStatus.LIVE),
+        Map.entry("BT", NormalizedStatus.LIVE),
+        Map.entry("HT", NormalizedStatus.LIVE),
+        Map.entry("1H", NormalizedStatus.LIVE),
+        Map.entry("2H", NormalizedStatus.LIVE),
+        Map.entry("ET", NormalizedStatus.LIVE),
+        Map.entry("P", NormalizedStatus.LIVE),
+        Map.entry("S1", NormalizedStatus.LIVE),
+        Map.entry("S2", NormalizedStatus.LIVE),
+        Map.entry("S3", NormalizedStatus.LIVE),
+        Map.entry("S4", NormalizedStatus.LIVE),
+        Map.entry("S5", NormalizedStatus.LIVE),
+        Map.entry("FT", NormalizedStatus.FINISHED),
+        Map.entry("AOT", NormalizedStatus.FINISHED),
+        Map.entry("AET", NormalizedStatus.FINISHED),
+        Map.entry("PEN", NormalizedStatus.FINISHED),
+        Map.entry("AWD", NormalizedStatus.FINISHED),
+        Map.entry("AW", NormalizedStatus.FINISHED),
+        Map.entry("WO", NormalizedStatus.FINISHED),
+        Map.entry("PST", NormalizedStatus.POSTPONED),
+        Map.entry("POST", NormalizedStatus.POSTPONED),
+        Map.entry("CANC", NormalizedStatus.CANCELLED),
+        Map.entry("ABD", NormalizedStatus.CANCELLED),
+        Map.entry("SUSP", NormalizedStatus.SUSPENDED),
+        Map.entry("INTR", NormalizedStatus.SUSPENDED),
+        Map.entry("INT", NormalizedStatus.SUSPENDED)
     );
 
     private final SportsDbClient client;
@@ -65,7 +107,7 @@ public class SportsDbContentImportService {
                 }
                 for (JsonNode event : events) {
                     if (!league.getExternalLeagueId().equals(text(event, "idLeague"))) continue;
-                    if (!normalizedCode(league.getSportCode()).equals(externalSportCode(event))) continue;
+                    if (!league.getSportCode().name().equals(externalSportCode(event))) continue;
                     Integer id = integer(event, "idEvent");
                     if (id != null && handled.add(id)) {
                         transactionTemplate.executeWithoutResult(status -> syncEvent(event, id, league));
@@ -77,10 +119,8 @@ public class SportsDbContentImportService {
 
     private boolean isEnabledLeague(SportsImportProperties.League league) {
         if (!league.isEnabled()) return false;
-        String sportCode = normalizedCode(league.getSportCode());
-        if (!AUTOMATIC_SPORT_CODES.contains(sportCode)) {
-            log.warn("자동 수집 대상이 아닌 종목을 건너뜁니다. sportCode={}, leagueId={}",
-                league.getSportCode(), league.getExternalLeagueId());
+        if (league.getSportCode() == null) {
+            log.warn("종목 코드가 없는 리그를 건너뜁니다. leagueId={}", league.getExternalLeagueId());
             return false;
         }
         return league.getExternalLeagueId() != null && !league.getExternalLeagueId().isBlank();
@@ -176,13 +216,11 @@ public class SportsDbContentImportService {
         eventPublisher.publishEvent(new SportSearchSyncRequested(existing.getContentId()));
     }
 
-    private SportType sportType(String configuredCode, String name) {
+    private SportType sportType(SportCode configuredCode, String name) {
         String normalizedName = limit(name, 100);
-        String code = normalizedCode(configuredCode);
-        if (code.length() > 50) code = code.substring(0, 50);
-        String finalCode = code;
-        return sportTypeRepository.findByCode(finalCode)
-            .orElseGet(() -> sportTypeRepository.save(SportType.create(finalCode, normalizedName)));
+        String code = configuredCode.name();
+        return sportTypeRepository.findByCode(code)
+            .orElseGet(() -> sportTypeRepository.save(SportType.create(code, normalizedName)));
     }
 
     private static String normalizedCode(String value) {
@@ -228,16 +266,14 @@ public class SportsDbContentImportService {
     private static NormalizedStatus normalizedStatus(JsonNode event) {
         String status = rawStatus(event);
         if (status == null) {
-            return integer(event, "intHomeScore") == null ? NormalizedStatus.SCHEDULED : NormalizedStatus.FINISHED;
+            boolean hasScore = integer(event, "intHomeScore") != null
+                || integer(event, "intAwayScore") != null;
+            return hasScore ? NormalizedStatus.UNKNOWN : NormalizedStatus.SCHEDULED;
         }
-        String value = status.toLowerCase(Locale.ROOT);
-        if (value.contains("postpon")) return NormalizedStatus.POSTPONED;
-        if (value.contains("cancel") || value.contains("aband")) return NormalizedStatus.CANCELLED;
-        if (value.contains("suspend") || value.contains("interrupt")) return NormalizedStatus.SUSPENDED;
-        if (value.equals("ft") || value.contains("finish") || value.contains("after")) return NormalizedStatus.FINISHED;
-        if (value.contains("live") || value.matches(".*\\b[0-9]{1,3}'?\\b.*") || value.equals("ht")) return NormalizedStatus.LIVE;
-        if (value.contains("not started") || value.contains("schedule") || value.equals("ns")) return NormalizedStatus.SCHEDULED;
-        return NormalizedStatus.UNKNOWN;
+        return STATUS_MAPPING.getOrDefault(
+            status.strip().toUpperCase(Locale.ROOT),
+            NormalizedStatus.UNKNOWN
+        );
     }
 
     private static String firstText(JsonNode node, String... fields) {

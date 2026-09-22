@@ -8,6 +8,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class SportsImportProperties {
     private List<League> leagues = new ArrayList<>();
 
+    public enum SportCode {
+        SOCCER,
+        BASKETBALL,
+        BASEBALL,
+        VOLLEYBALL
+    }
+
     public List<League> getLeagues() {
         return leagues;
     }
@@ -17,13 +24,13 @@ public class SportsImportProperties {
     }
 
     public static class League {
-        private String sportCode;
+        private SportCode sportCode;
         private String externalLeagueId;
         private String name;
         private boolean enabled = true;
 
-        public String getSportCode() { return sportCode; }
-        public void setSportCode(String sportCode) { this.sportCode = sportCode; }
+        public SportCode getSportCode() { return sportCode; }
+        public void setSportCode(SportCode sportCode) { this.sportCode = sportCode; }
         public String getExternalLeagueId() { return externalLeagueId; }
         public void setExternalLeagueId(String externalLeagueId) { this.externalLeagueId = externalLeagueId; }
         public String getName() { return name; }

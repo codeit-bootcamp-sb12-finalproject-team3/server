@@ -65,48 +65,6 @@ mopl:
     api-key: ${SPORTS_DB_API_KEY:123}
     timeout-seconds: ${SPORTS_DB_TIMEOUT_SECONDS:10}
     request-interval-millis: ${SPORTS_DB_REQUEST_INTERVAL_MILLIS:2000}
-  sports-import:
-    leagues:
-      - sport-code: SOCCER
-        external-league-id: "4689"
-        name: South Korean K League 1
-      - sport-code: SOCCER
-        external-league-id: "4328"
-        name: English Premier League
-      - sport-code: SOCCER
-        external-league-id: "4331"
-        name: German Bundesliga
-      - sport-code: SOCCER
-        external-league-id: "4335"
-        name: Spanish La Liga
-      - sport-code: BASKETBALL
-        external-league-id: "5124"
-        name: Korean Basketball League
-      - sport-code: BASKETBALL
-        external-league-id: "4387"
-        name: NBA
-      - sport-code: BASKETBALL
-        external-league-id: "4546"
-        name: EuroLeague Basketball
-      - sport-code: BASKETBALL
-        external-league-id: "4408"
-        name: Spanish Liga ACB
-      - sport-code: BASEBALL
-        external-league-id: "4830"
-        name: Korean KBO League
-      - sport-code: BASEBALL
-        external-league-id: "4424"
-        name: MLB
-      - sport-code: BASEBALL
-        external-league-id: "4591"
-        name: Nippon Baseball League
-      - sport-code: BASEBALL
-        external-league-id: "5111"
-        name: Chinese Professional Baseball League
-      - sport-code: VOLLEYBALL
-        external-league-id: "5757"
-        name: Korean V-League
-        enabled: false # 최신 시즌 일정 확인 후 활성화
   batch:
     content-import:
       scheduler:
