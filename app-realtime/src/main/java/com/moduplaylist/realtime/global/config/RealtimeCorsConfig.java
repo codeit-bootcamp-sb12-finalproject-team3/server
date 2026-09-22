@@ -11,7 +11,7 @@ public class RealtimeCorsConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/sse")
                 .allowedOrigins(
-                        "http://localhos\t:3000",
+                        "http://localhost:3000",
                         "http://localhost:5173"
                 )
                 .allowedMethods("GET", "OPTIONS")
