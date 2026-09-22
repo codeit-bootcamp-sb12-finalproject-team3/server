@@ -1,8 +1,11 @@
 package com.moduplaylist.api.playlist.service.impl;
 
+import com.github.f4b6a3.uuid.UuidCreator;
+import com.moduplaylist.api.playlist.event.PlaylistContentActivityEvent;
 import com.moduplaylist.api.playlist.event.PlaylistContentAddedEvent;
 import com.moduplaylist.api.playlist.event.PlaylistTagRecalculationEvent;
 import com.moduplaylist.api.playlist.service.PlaylistContentService;
+import com.moduplaylist.core.activity.enums.ContentActivityType;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.repository.ContentRepository;
@@ -83,7 +86,17 @@ public class PlaylistContentServiceImpl implements PlaylistContentService {
             contentId,
             playlist.getTitle(),
             content.getTitle(),
-            Instant.now()
+            playlistContent.getCreatedAt()
+        )
+    );
+
+    eventPublisher.publishEvent(
+        new PlaylistContentActivityEvent(
+            playlistContent.getId(),
+            ContentActivityType.PLAYLIST_CONTENT_ADDED,
+            userId,
+            contentId,
+            playlistContent.getCreatedAt()
         )
     );
   }
@@ -128,6 +141,16 @@ public class PlaylistContentServiceImpl implements PlaylistContentService {
 
     eventPublisher.publishEvent(
         new PlaylistTagRecalculationEvent(playlist.getId())
+    );
+
+    eventPublisher.publishEvent(
+        new PlaylistContentActivityEvent(
+            UuidCreator.getTimeOrderedEpoch(),
+            ContentActivityType.PLAYLIST_CONTENT_REMOVED,
+            userId,
+            contentId,
+            Instant.now()
+        )
     );
   }
 }
