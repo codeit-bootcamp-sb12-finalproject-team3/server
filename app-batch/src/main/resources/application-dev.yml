@@ -18,6 +18,8 @@ spring:
     job:
       enabled: false
       #name: contentEmbeddingJob
+    jdbc:
+      initialize-schema: never
 
   ai:
     model:
