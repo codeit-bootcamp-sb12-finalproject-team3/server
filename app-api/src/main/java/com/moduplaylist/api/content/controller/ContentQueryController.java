@@ -41,6 +41,7 @@ public class ContentQueryController {
 		"genreIdEqual",
 		"sportTypeEqual",
 		"likedByMe",
+		"likedByUserIdEqual",
 		"sortBy",
 		"cursor",
 		"idAfter",
