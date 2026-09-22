@@ -50,6 +50,7 @@ public class WatchPartyService {
     private final WatchPartyHostRegistry watchPartyHostRegistry;
     private final WatchPartyPlaybackRegistry watchPartyPlaybackRegistry;
     private final ApplicationEventPublisher eventPublisher;
+    private final WatchPartyReminderRepository watchPartyReminderRepository;
 
     public WatchPartyResponse createWatchParty(UUID hostId, CreateWatchPartyRequest request) {
 
@@ -249,6 +250,17 @@ public class WatchPartyService {
                 playback != null ? playback.getAccumulatedPauseMs() : null,
                 playback != null ? playback.getPausedAt() : null
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<WatchPartySummaryResponse> getScheduledWatchParties(UUID userId) {
+        return watchPartyReminderRepository.findScheduledByUserId(
+                userId,
+                WatchPartyStatus.SCHEDULED,
+                Instant.now()
+            ).stream()
+            .map(reminder -> toSummaryResponse(reminder.getWatchParty()))
+            .toList();
     }
 
     private WatchPartySummaryResponse toSummaryResponse(WatchParty watchParty) {
