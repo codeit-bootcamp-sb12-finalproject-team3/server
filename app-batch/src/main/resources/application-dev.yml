@@ -1,7 +1,7 @@
 spring:
   datasource:
     # example address
-    url: ${DB_URL:jdbc:mysql://localhost:3306/moduplaylist}
+    url: "${DB_URL:jdbc:mysql://localhost:3306/moduplaylist?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}"
     username: ${DB_USERNAME:mopl}
     password: ${DB_PASSWORD:mopl}
 
@@ -9,6 +9,10 @@ spring:
     hibernate:
       ddl-auto: update
     open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
 
   batch:
     job:
@@ -56,7 +60,59 @@ mopl:
     image-base-url: ${TMDB_IMAGE_BASE_URL:https://image.tmdb.org/t/p/original}
     access-token: ${TMDB_ACCESS_TOKEN:}
     timeout-seconds: ${TMDB_TIMEOUT_SECONDS:10}
+  sports-db:
+    api-base-url: ${SPORTS_DB_API_BASE_URL:https://www.thesportsdb.com/api/v1/json}
+    api-key: ${SPORTS_DB_API_KEY:123}
+    timeout-seconds: ${SPORTS_DB_TIMEOUT_SECONDS:10}
+    request-interval-millis: ${SPORTS_DB_REQUEST_INTERVAL_MILLIS:2000}
+  sports-import:
+    leagues:
+      - sport-code: SOCCER
+        external-league-id: "4689"
+        name: South Korean K League 1
+      - sport-code: SOCCER
+        external-league-id: "4328"
+        name: English Premier League
+      - sport-code: SOCCER
+        external-league-id: "4331"
+        name: German Bundesliga
+      - sport-code: SOCCER
+        external-league-id: "4335"
+        name: Spanish La Liga
+      - sport-code: BASKETBALL
+        external-league-id: "5124"
+        name: Korean Basketball League
+      - sport-code: BASKETBALL
+        external-league-id: "4387"
+        name: NBA
+      - sport-code: BASKETBALL
+        external-league-id: "4546"
+        name: EuroLeague Basketball
+      - sport-code: BASKETBALL
+        external-league-id: "4408"
+        name: Spanish Liga ACB
+      - sport-code: BASEBALL
+        external-league-id: "4830"
+        name: Korean KBO League
+      - sport-code: BASEBALL
+        external-league-id: "4424"
+        name: MLB
+      - sport-code: BASEBALL
+        external-league-id: "4591"
+        name: Nippon Baseball League
+      - sport-code: BASEBALL
+        external-league-id: "5111"
+        name: Chinese Professional Baseball League
+      - sport-code: VOLLEYBALL
+        external-league-id: "5757"
+        name: Korean V-League
+        enabled: false # 최신 시즌 일정 확인 후 활성화
   batch:
+    content-import:
+      scheduler:
+        enabled: ${CONTENT_IMPORT_SCHEDULER_ENABLED:false}
+        cron: ${CONTENT_IMPORT_CRON:0 30 0 * * *}
+        zone: UTC
     embedding:
       scheduler:
         enabled: ${EMBEDDING_SCHEDULER_ENABLED:false}
