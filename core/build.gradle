@@ -15,5 +15,7 @@ dependencies {
     // UUID v7
     implementation 'com.github.f4b6a3:uuid-creator:6.1.1'
 
+    implementation 'com.fasterxml.jackson.core:jackson-annotations'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }

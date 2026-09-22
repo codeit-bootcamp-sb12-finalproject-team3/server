@@ -1,0 +1,46 @@
+{
+  "settings": {
+    "index": {
+      "knn": true,
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    }
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "contentId": { "type": "keyword" },
+      "type": { "type": "keyword" },
+      "title": {
+        "type": "text",
+        "fields": {
+          "keyword": { "type": "keyword", "ignore_above": 255 }
+        }
+      },
+      "description": { "type": "text" },
+      "hidden": { "type": "boolean" },
+      "genres": { "type": "keyword" },
+      "tags": { "type": "keyword" },
+      "sportType": { "type": "text" },
+      "leagueName": { "type": "text" },
+      "homeTeamName": { "type": "text" },
+      "awayTeamName": { "type": "text" },
+      "embedding": {
+        "type": "knn_vector",
+        "dimension": 1536,
+        "method": {
+          "name": "hnsw",
+          "space_type": "cosinesimil",
+          "engine": "lucene",
+          "parameters": {
+            "ef_construction": 128,
+            "m": 16
+          }
+        }
+      },
+      "embeddingModel": { "type": "keyword" },
+      "sourceUpdatedAt": { "type": "date" },
+      "embeddedAt": { "type": "date" }
+    }
+  }
+}

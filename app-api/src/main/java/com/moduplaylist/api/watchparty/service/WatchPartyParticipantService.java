@@ -1,0 +1,128 @@
+package com.moduplaylist.api.watchparty.service;
+
+import com.moduplaylist.core.user.entity.User;
+import com.moduplaylist.core.user.exception.UserNotFoundException;
+import com.moduplaylist.core.user.repository.UserRepository;
+import com.moduplaylist.core.watchparty.entity.ParticipantStatus;
+import com.moduplaylist.core.watchparty.entity.WatchParty;
+import com.moduplaylist.core.watchparty.entity.WatchPartyParticipant;
+import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
+import com.moduplaylist.core.watchparty.exception.*;
+import com.moduplaylist.core.watchparty.repository.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+@Transactional
+public class WatchPartyParticipantService {
+
+    private final WatchPartyRepository watchPartyRepository;
+    private final UserRepository userRepository;
+    private final WatchPartyParticipantRepository watchPartyParticipantRepository;
+    private final WatchPartyKickedRegistry watchPartyKickedRegistry;
+    private final WatchPartyJoinedRegistry watchPartyJoinedRegistry;
+    private final WatchPartyActivePartyRegistry watchPartyActivePartyRegistry;
+
+    public void joinWatchParty(UUID partyId, UUID userId) {
+
+        if (watchPartyKickedRegistry.isKicked(partyId, userId)) {
+            throw new WatchPartyKickedCannotRejoinException(partyId, userId);
+        }
+
+        if (watchPartyParticipantRepository.existsByUser_IdAndStatusAndWatchParty_IdNotAndWatchParty_StatusNot(
+                userId, ParticipantStatus.JOINED, partyId, WatchPartyStatus.ENDED)) {
+            throw new WatchPartyAlreadyJoinedElsewhereException(userId, partyId);
+        }
+
+        WatchParty party = watchPartyRepository.findByIdForUpdate(partyId)
+                .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
+
+        if (party.getStatus() == WatchPartyStatus.ENDED) {
+            throw new WatchPartyAlreadyEndedException(partyId);
+        }
+
+        if (party.getHost().getId().equals(userId)) {
+            throw new WatchPartyHostCannotJoinException(partyId, userId);
+        }
+
+        Optional<WatchPartyParticipant> existing =
+                watchPartyParticipantRepository.findByUser_IdAndWatchParty_Id(userId, partyId);
+
+        if (existing.isPresent()) {
+            WatchPartyParticipant participant = existing.get();
+
+            if (participant.getStatus() == ParticipantStatus.JOINED) {
+                throw new WatchPartyAlreadyJoinedException(partyId, userId);
+            }
+            if (participant.getStatus() == ParticipantStatus.KICKED) {
+                throw new WatchPartyKickedCannotRejoinException(partyId, userId);
+            }
+
+            validateCapacity(party);
+            participant.rejoin();
+            watchPartyJoinedRegistry.join(partyId, userId);
+            watchPartyActivePartyRegistry.setJoinedParty(userId, partyId);
+            return;
+        }
+
+        validateCapacity(party);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        watchPartyParticipantRepository.save(new WatchPartyParticipant(user, party));
+        watchPartyJoinedRegistry.join(partyId, userId);
+        watchPartyActivePartyRegistry.setJoinedParty(userId, partyId);
+    }
+
+
+    private void validateCapacity(WatchParty party) {
+        long currentCount = watchPartyParticipantRepository
+                .countByWatchParty_IdAndStatus(party.getId(), ParticipantStatus.JOINED);
+
+        if (currentCount >= party.getMaxParticipants()) {
+            throw new WatchPartyCapacityFullException(party.getId());
+        }
+    }
+
+    public void leaveWatchParty(UUID partyId, UUID userId) {
+        WatchPartyParticipant participant = watchPartyParticipantRepository
+                .findByUser_IdAndWatchParty_Id(userId, partyId)
+                .orElseThrow(() -> new WatchPartyNotAParticipantException(partyId, userId));
+
+        if (participant.getStatus() != ParticipantStatus.JOINED) {
+            throw new WatchPartyNotJoinedException(partyId, userId);
+        }
+
+        participant.leave();
+        watchPartyJoinedRegistry.leave(partyId, userId);
+        watchPartyActivePartyRegistry.clearJoinedParty(userId);
+    }
+
+    public void kickParticipant(UUID partyId, UUID hostId, UUID targetUserId) {
+        WatchParty party = watchPartyRepository.findByIdForUpdate(partyId)
+                .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
+
+        if (!party.getHost().getId().equals(hostId)) {
+            throw new WatchPartyHostOnlyException(partyId, hostId);
+        }
+
+        WatchPartyParticipant participant = watchPartyParticipantRepository
+                .findByUser_IdAndWatchParty_Id(targetUserId, partyId)
+                .orElseThrow(() -> new WatchPartyParticipantNotFoundException(partyId, targetUserId));
+
+        if (participant.getStatus() != ParticipantStatus.JOINED) {
+            throw new WatchPartyParticipantNotJoinedException(partyId, targetUserId);
+        }
+
+        participant.kick();
+        watchPartyKickedRegistry.kick(partyId, targetUserId);
+        watchPartyJoinedRegistry.leave(partyId, targetUserId);
+        watchPartyActivePartyRegistry.clearJoinedParty(targetUserId);
+    }
+}

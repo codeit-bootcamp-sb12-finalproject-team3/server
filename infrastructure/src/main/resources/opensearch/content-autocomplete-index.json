@@ -1,0 +1,66 @@
+{
+  "settings": {
+    "index": {
+      "max_ngram_diff": 98,
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    },
+    "analysis": {
+      "filter": {
+        "content_autocomplete_ngram": {
+          "type": "ngram",
+          "min_gram": 2,
+          "max_gram": 100
+        }
+      },
+      "analyzer": {
+        "content_autocomplete_index": {
+          "type": "custom",
+          "tokenizer": "keyword",
+          "filter": ["lowercase", "content_autocomplete_ngram"]
+        },
+        "content_autocomplete_search": {
+          "type": "custom",
+          "tokenizer": "keyword",
+          "filter": ["lowercase"]
+        }
+      },
+      "normalizer": {
+        "content_title_sort": {
+          "type": "custom",
+          "filter": ["lowercase"]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "contentId": { "type": "keyword" },
+      "type": { "type": "keyword" },
+      "suggestions": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "text",
+            "fields": {
+              "autocomplete": {
+                "type": "text",
+                "analyzer": "content_autocomplete_index",
+                "search_analyzer": "content_autocomplete_search"
+              },
+              "normalized": {
+                "type": "keyword",
+                "normalizer": "content_title_sort",
+                "ignore_above": 255
+              }
+            }
+          },
+          "type": {
+            "type": "keyword"
+          }
+		}
+	  }
+	}
+  }
+}

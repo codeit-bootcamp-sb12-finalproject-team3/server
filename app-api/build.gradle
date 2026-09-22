@@ -10,6 +10,13 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
+    implementation 'org.openapitools:jackson-databind-nullable:0.2.8'
+
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+
+    // JWT
+    implementation 'com.nimbusds:nimbus-jose-jwt:10.6'
+
     // swagger
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9")
 
@@ -21,6 +28,11 @@ dependencies {
     annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
     annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 
+    // Kafka
+    implementation 'org.springframework.kafka:spring-kafka'
+
+    // UUID v7
+    implementation 'com.github.f4b6a3:uuid-creator:6.1.1'
 
     runtimeOnly 'com.mysql:mysql-connector-j'
 

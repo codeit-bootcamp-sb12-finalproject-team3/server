@@ -1,7 +1,7 @@
 spring:
   datasource:
     # example address
-    url: ${DB_URL:jdbc:mysql://localhost:3306/moduplaylist}
+    url: "${DB_URL:jdbc:mysql://localhost:3306/moduplaylist?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}"
     username: ${DB_USERNAME:mopl}
     password: ${DB_PASSWORD:mopl}
 
@@ -9,10 +9,27 @@ spring:
     hibernate:
       ddl-auto: update
     open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
 
   batch:
     job:
       enabled: false
+      #name: contentEmbeddingJob
+    jdbc:
+      initialize-schema: never
+
+  ai:
+    model:
+      chat: none
+      embedding: openai
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      embedding:
+        options:
+          model: text-embedding-3-small
 
   data:
     redis:
@@ -31,3 +48,71 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: com.moduplaylist.infrastructure.kafka.event
+
+aws:
+  access-key: ${AWS_ACCESS_KEY}
+  secret-key: ${AWS_SECRET_KEY}
+  s3:
+   region: ${AWS_REGION:ap-northeast-2}
+   bucket: ${AWS_S3_BUCKET:}
+
+mopl:
+  tmdb:
+    api-base-url: ${TMDB_API_BASE_URL:https://api.themoviedb.org/3}
+    image-base-url: ${TMDB_IMAGE_BASE_URL:https://image.tmdb.org/t/p/original}
+    access-token: ${TMDB_ACCESS_TOKEN:}
+    timeout-seconds: ${TMDB_TIMEOUT_SECONDS:10}
+  sports-db:
+    api-base-url: ${SPORTS_DB_API_BASE_URL:https://www.thesportsdb.com/api/v1/json}
+    api-key: ${SPORTS_DB_API_KEY:123}
+    timeout-seconds: ${SPORTS_DB_TIMEOUT_SECONDS:10}
+    request-interval-millis: ${SPORTS_DB_REQUEST_INTERVAL_MILLIS:2000}
+  batch:
+    content-import:
+      scheduler:
+        enabled: ${CONTENT_IMPORT_SCHEDULER_ENABLED:false}
+        cron: ${CONTENT_IMPORT_CRON:0 30 0 * * *}
+        zone: UTC
+    embedding:
+      scheduler:
+        enabled: ${EMBEDDING_SCHEDULER_ENABLED:false}
+        content-cron: ${CONTENT_EMBEDDING_CRON:0 0 2 * * *} #실제 배치 실행 시간
+#        content-cron: "0 * * * * *" #테스트
+        content-reconcile-cron: ${CONTENT_EMBEDDING_RECONCILE_CRON:0 0 1 * * SUN} #콘텐츠 배치 누락을 고려한 주배치
+        playlist-cron: ${PLAYLIST_EMBEDDING_CRON:0 30 2 * * *}
+#        playlist-cron: "0 * * * * *" #테스트
+        user-profile-cron: ${USER_PROFILE_EMBEDDING_CRON:0 0 3 * * *} #실제 배치 실행 시간
+#        user-profile-cron: "0 * * * * *" #테스트
+        user-playlist-profile-cron: ${USER_PLAYLIST_PROFILE_EMBEDDING_CRON:0 30 3 * * *}
+        zone: ${EMBEDDING_SCHEDULER_ZONE:Asia/Seoul}
+    recommendation:
+      activity-batch-size: ${RECOMMENDATION_ACTIVITY_BATCH_SIZE:500}
+      scheduler:
+        enabled: ${RECOMMENDATION_SCHEDULER_ENABLED:false}
+        cron: ${RECOMMENDATION_CRON:0 0 4 * * *}
+#        cron: "0 * * * * *" #테스트
+        playlist-cron: ${PLAYLIST_RECOMMENDATION_CRON:0 30 4 * * *}
+        zone: ${RECOMMENDATION_SCHEDULER_ZONE:Asia/Seoul}
+    playlist-popularity:
+      total-subscriber-weight: ${PLAYLIST_POPULARITY_TOTAL_SUBSCRIBER_WEIGHT:0.3}
+      weekly-new-subscriber-weight: ${PLAYLIST_POPULARITY_WEEKLY_NEW_SUBSCRIBER_WEIGHT:0.7}
+      scheduler:
+        enabled: ${PLAYLIST_POPULARITY_SCHEDULER_ENABLED:false}
+        cron: ${PLAYLIST_POPULARITY_CRON:0 10 0 * * *}
+        zone: ${PLAYLIST_POPULARITY_SCHEDULER_ZONE:UTC}
+  recommendation:
+    search-limit: ${RECOMMENDATION_SEARCH_LIMIT:100}
+    cache-ttl: ${RECOMMENDATION_CACHE_TTL:48h}
+  embedding:
+    enabled: ${EMBEDDING_ENABLED:true}
+    model: text-embedding-3-small
+    dimensions: 1536
+  opensearch:
+    enabled: ${OPENSEARCH_ENABLED:true}
+    uris: ${OPENSEARCH_URIS:http://localhost:9200}
+    username: ${OPENSEARCH_USERNAME:}
+    password: ${OPENSEARCH_PASSWORD:}
+    user-content-preference-index: user-content-preference-index
+    user-playlist-preference-index: user-playlist-preference-index
+    content-index: content-index
+    playlist-index: playlist-index

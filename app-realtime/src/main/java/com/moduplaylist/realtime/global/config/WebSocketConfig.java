@@ -1,6 +1,8 @@
 package com.moduplaylist.realtime.global.config;
 
+import com.moduplaylist.realtime.global.security.StompAuthChannelInterceptor;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
@@ -13,16 +15,23 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
  * /sub : Server -> Client 구독 경로
  * /ws  : WebSocket 연결 Endpoint
  *
- * JWT 인증/인가 Interceptor는 인증 기능 구현 시 추가한다.
+ * JWT 인증/인가 Interceptor : StompAuthChannelInterceptor (CONNECT 시점, #52)
  */
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    private final StompAuthChannelInterceptor stompAuthChannelInterceptor;
+
+    public WebSocketConfig(StompAuthChannelInterceptor stompAuthChannelInterceptor) {
+        this.stompAuthChannelInterceptor = stompAuthChannelInterceptor;
+    }
+
+
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
         // Server -> Client
-        config.enableSimpleBroker("/sub");
+        config.enableSimpleBroker("/sub", "/queue");
 
         // Client -> Server
         config.setApplicationDestinationPrefixes("/pub");
@@ -38,21 +47,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .withSockJS();
     }
 
-    /*
-     * TODO(auth):
-     * JWT 인증 구현 후 아래 항목 추가
-     * - JwtAuthenticationFilter
-     * - 인증/인가 예외 처리
-     * - 실제 URL 권한 정책
-     * - Refresh/Logout 정책
-     */
-
-    /*
-     * TODO(auth):
-     * JWT 인증 구현 후 ClientInboundChannel에
-     * 인증 및 권한 Interceptor를 추가한다.
-     *
-     * CONNECT 시 JWT 검증 후 Principal 설정,
-     * SEND/SUBSCRIBE 권한 검증 필요.
-     */
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        registration.interceptors(stompAuthChannelInterceptor);
+    }
 }

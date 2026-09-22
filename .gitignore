@@ -49,3 +49,8 @@ logs/
 *.temp
 *.swp
 *~
+
+# 로컬 인증 테스트용 쿠키
+/cookies.txt
+/admin-cookies.txt
+/cookies-before-refresh.txt

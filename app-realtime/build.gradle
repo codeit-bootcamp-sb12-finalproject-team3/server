@@ -3,18 +3,24 @@ plugins {
 }
 
 dependencies {
-    implementation project(':core')
-    implementation project(':infrastructure')
-
-    runtimeOnly 'com.mysql:mysql-connector-j'
-
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
+    // redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
     // actuator + Spring Boot Admin Client
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
+    // JWT authentication for SSE connections
+    implementation 'com.nimbusds:nimbus-jose-jwt:10.6'
+
+    // Kafka -> SSE notification delivery
+    implementation 'org.springframework.kafka:spring-kafka'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'com.tngtech.archunit:archunit-junit5:1.5.0'
+    testImplementation 'org.springframework.security:spring-security-test'
 }
