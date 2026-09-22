@@ -73,7 +73,15 @@ public class WatchPartyReminderScheduler {
                 // 그 다음 발행
                 WatchPartyReminderDueKafkaEvent event = new WatchPartyReminderDueKafkaEvent(
                         UUID.randomUUID(), partyId, userId, scheduledAt);
-                kafkaTemplate.send(KafkaTopics.WATCH_PARTY_REMINDER_DUE, event);
+                kafkaTemplate.send(KafkaTopics.WATCH_PARTY_REMINDER_DUE, event)
+                        .whenComplete((result, exception) -> {
+                            if (exception != null) {
+                                log.warn(
+                                        "watchparty reminder Kafka 발행 실패 - DB에서는 이미 삭제되어 재시도 불가. reminderId={}, partyId={}, userId={}",
+                                        reminderId, partyId, userId, exception
+                                );
+                            }
+                        });
 
                 log.info("watchparty reminder sent - partyId={}, userId={}, scheduledAt={}",
                         partyId, userId, scheduledAt);
