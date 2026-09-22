@@ -1,6 +1,6 @@
-package com.moduplaylist.api.user.service;
+package com.moduplaylist.api.auth.service;
 
-import com.moduplaylist.api.user.dto.TokenRefreshResult;
+import com.moduplaylist.api.auth.dto.TokenRefreshResult;
 
 public interface AuthService {
 
