@@ -26,6 +26,13 @@ public interface PlaylistSubscriptionRepository extends JpaRepository<PlaylistSu
   );
 
   @Query("""
+      select subscription.user.id
+      from PlaylistSubscription subscription
+      where subscription.playlist.id = :playlistId
+      """)
+  List<UUID> findSubscriberIdsByPlaylistId(@Param("playlistId") UUID playlistId);
+
+  @Query("""
       select subscription.playlist.id
       from PlaylistSubscription subscription
       where subscription.user.id = :userId
