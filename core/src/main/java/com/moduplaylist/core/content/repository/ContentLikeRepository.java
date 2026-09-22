@@ -2,6 +2,7 @@ package com.moduplaylist.core.content.repository;
 
 import com.moduplaylist.core.content.entity.ContentLike;
 import com.moduplaylist.core.content.entity.ContentType;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -64,11 +65,13 @@ public interface ContentLikeRepository extends JpaRepository<ContentLike, UUID> 
     @Query("""
             update Content content
             set content.likeCount = content.likeCount + 1,
-                content.updatedAt = CURRENT_TIMESTAMP
+                content.updatedAt = :updatedAt
             where content.id = :contentId
               and content.hidden = false
             """)
-    int incrementLikeCount(@Param("contentId") UUID contentId);
+    int incrementLikeCount(
+            @Param("contentId") UUID contentId,
+            @Param("updatedAt") Instant updatedAt);
 
     @Query("select content.likeCount from Content content where content.id = :contentId")
     Optional<Long> findLikeCountByContentId(@Param("contentId") UUID contentId);
@@ -77,11 +80,13 @@ public interface ContentLikeRepository extends JpaRepository<ContentLike, UUID> 
     @Query("""
             update Content content
             set content.likeCount = content.likeCount - 1,
-                content.updatedAt = CURRENT_TIMESTAMP
+                content.updatedAt = :updatedAt
             where content.id = :contentId
               and content.likeCount > 0
             """)
-    int decrementLikeCount(@Param("contentId") UUID contentId);
+    int decrementLikeCount(
+            @Param("contentId") UUID contentId,
+            @Param("updatedAt") Instant updatedAt);
 
     interface LikeStatus {
 

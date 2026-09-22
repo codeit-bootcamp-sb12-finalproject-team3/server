@@ -52,7 +52,7 @@ public class ContentLikeServiceImpl implements ContentLikeService {
 		User user = userRepository.findById(userId)
 			.orElseThrow(() -> new UserNotFoundException(userId));
 		ContentLike contentLike = contentLikeRepository.saveAndFlush(ContentLike.create(user, content));
-		int updated = contentLikeRepository.incrementLikeCount(contentId);
+		int updated = contentLikeRepository.incrementLikeCount(contentId, Instant.now());
 		if (updated != 1) {
 			throw new IllegalStateException("콘텐츠 좋아요 수 증가에 실패했습니다.");
 		}
@@ -77,7 +77,8 @@ public class ContentLikeServiceImpl implements ContentLikeService {
 			if (deleted != 1) {
 				throw new IllegalStateException("콘텐츠 좋아요 관계 삭제 결과가 올바르지 않습니다.");
 			}
-			int updated = contentLikeRepository.decrementLikeCount(contentId);
+			Instant occurredAt = Instant.now();
+			int updated = contentLikeRepository.decrementLikeCount(contentId, occurredAt);
 			if (updated != 1) {
 				throw new IllegalStateException("콘텐츠 좋아요 수 감소에 실패했습니다.");
 			}
@@ -86,7 +87,7 @@ public class ContentLikeServiceImpl implements ContentLikeService {
 				ContentActivityType.CONTENT_UNLIKE,
 				userId,
 				contentId,
-				Instant.now()
+				occurredAt
 			));
 		}
 		long likeCount = contentLikeRepository.findLikeCountByContentId(contentId)

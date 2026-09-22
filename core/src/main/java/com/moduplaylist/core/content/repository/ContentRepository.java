@@ -70,13 +70,14 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update Content content set content.title = :title, content.description = :description, "
-            + "content.thumbnailUrl = :thumbnailUrl, content.updatedAt = CURRENT_TIMESTAMP "
+            + "content.thumbnailUrl = :thumbnailUrl, content.updatedAt = :updatedAt "
             + "where content.id = :contentId")
     int updateSportCommonDetails(
             @Param("contentId") UUID contentId,
             @Param("title") String title,
             @Param("description") String description,
-            @Param("thumbnailUrl") String thumbnailUrl);
+            @Param("thumbnailUrl") String thumbnailUrl,
+            @Param("updatedAt") Instant updatedAt);
 
     Optional<Content> findByExternalSourceAndTypeAndExternalId(
             String externalSource, ContentType type, Integer externalId);
