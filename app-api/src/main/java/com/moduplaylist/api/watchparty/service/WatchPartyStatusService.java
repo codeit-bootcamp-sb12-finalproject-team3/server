@@ -44,7 +44,7 @@ public class WatchPartyStatusService {
                 hostId,
                 now
         );
-        eventPublisher.publishEvent(new WatchPartyStartedEvent(partyId, state));
+        eventPublisher.publishEvent(new WatchPartyStartedEvent(UUID.randomUUID(), partyId, state));
     }
 
 
@@ -57,7 +57,7 @@ public class WatchPartyStatusService {
         }
 
         party.end();
-        eventPublisher.publishEvent(new WatchPartyEndedEvent(partyId));
+        eventPublisher.publishEvent(new WatchPartyEndedEvent(UUID.randomUUID(), partyId));
 
     }
 }

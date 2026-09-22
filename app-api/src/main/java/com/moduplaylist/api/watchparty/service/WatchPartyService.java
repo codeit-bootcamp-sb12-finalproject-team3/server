@@ -3,6 +3,7 @@ package com.moduplaylist.api.watchparty.service;
 import com.moduplaylist.api.content.dto.ContentWatchPartyResponse;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
+import com.moduplaylist.api.watchparty.event.WatchPartyCreatedEvent;
 import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
 import com.moduplaylist.api.user.dto.UserSummary;
@@ -25,6 +26,7 @@ import com.moduplaylist.core.watchparty.exception.WatchPartyInvalidEpisodeRangeE
 import com.moduplaylist.core.watchparty.exception.WatchPartyNotFoundException;
 import com.moduplaylist.core.watchparty.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +49,7 @@ public class WatchPartyService {
     private final WatchPartyParticipantRepository watchPartyParticipantRepository;
     private final WatchPartyHostRegistry watchPartyHostRegistry;
     private final WatchPartyPlaybackRegistry watchPartyPlaybackRegistry;
+    private final ApplicationEventPublisher eventPublisher;
 
     public WatchPartyResponse createWatchParty(UUID hostId, CreateWatchPartyRequest request) {
 
@@ -73,6 +76,10 @@ public class WatchPartyService {
 
         WatchParty saved = watchPartyRepository.save(watchParty);
         watchPartyHostRegistry.setHost(saved.getId(), hostId);
+
+        eventPublisher.publishEvent(new WatchPartyCreatedEvent(
+                UUID.randomUUID(), saved.getId(), hostId, content.getId(), saved.getScheduledAt()
+        ));
 
         return toResponse(saved, host, content, 0);
     }

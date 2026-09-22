@@ -34,6 +34,12 @@ public class WatchPartyPlaybackEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onWatchPartyEnded(WatchPartyEndedEvent event) {
         try {
+            watchPartyPlaybackRegistry.markEnded(event.partyId());
+        } catch (Exception e) {
+            log.error("Watch Party 종료 - Redis playback 상태 갱신 실패. partyId={}", event.partyId(), e);
+        }
+
+        try {
             watchPartyKeyLifecycleRegistry.armSafetyNetTtl(event.partyId());
         } catch (Exception e) {
             log.error("Watch Party 종료 - Redis TTL 반영 실패. partyId={}", event.partyId(), e);
