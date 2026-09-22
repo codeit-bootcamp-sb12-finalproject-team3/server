@@ -7,9 +7,13 @@ import com.moduplaylist.api.playlist.dto.PlaylistCreateRequest;
 import com.moduplaylist.api.playlist.dto.PlaylistResponse;
 import com.moduplaylist.api.playlist.dto.PlaylistSummaryResponse;
 import com.moduplaylist.api.playlist.dto.PlaylistUpdateRequest;
+import com.moduplaylist.api.playlist.event.PlaylistContentAddedEvent;
+import com.moduplaylist.api.playlist.event.PlaylistSubscribedEvent;
 import com.moduplaylist.api.playlist.event.PlaylistTagRecalculationEvent;
 import com.moduplaylist.api.playlist.service.PlaylistService;
+import com.moduplaylist.api.recommendation.service.PlaylistPreferenceUpdateService;
 import com.moduplaylist.api.user.dto.UserSummary;
+import com.moduplaylist.core.activity.enums.PlaylistActivityType;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.exception.ContentTypeNotSupportedException;
@@ -63,6 +67,7 @@ public class PlaylistServiceImpl implements PlaylistService {
   private final PlaylistSubscriptionRepository playlistSubscriptionRepository;
   private final PlaylistQueryRepository playlistQueryRepository;
   private final PlaylistContentQueryRepository playlistContentQueryRepository;
+  private final PlaylistPreferenceUpdateService playlistPreferenceUpdateService;
   private final ApplicationEventPublisher eventPublisher;
 
   @Override
@@ -251,6 +256,20 @@ public class PlaylistServiceImpl implements PlaylistService {
     } catch (DataIntegrityViolationException e) {
       throw new PlaylistAlreadySubscribedException(userId, playlistId, e);
     }
+
+    playlistPreferenceUpdateService.applyActivity(
+        userId,
+        playlistId,
+        PlaylistActivityType.PLAYLIST_SUBSCRIBED
+    );
+
+    eventPublisher.publishEvent(
+        new PlaylistSubscribedEvent(
+            userId,
+            playlist.getOwner().getId(),
+            playlistId
+        )
+    );
   }
 
   @Override
@@ -264,6 +283,11 @@ public class PlaylistServiceImpl implements PlaylistService {
             .findByUser_IdAndPlaylist_Id(userId, playlistId)
             .orElseThrow(() -> new PlaylistSubscriptionNotFoundException(userId, playlistId));
 
+    playlistPreferenceUpdateService.applyActivity(
+        userId,
+        playlistId,
+        PlaylistActivityType.PLAYLIST_UNSUBSCRIBED
+    );
     playlistSubscriptionRepository.delete(subscription);
   }
 
@@ -320,9 +344,22 @@ public class PlaylistServiceImpl implements PlaylistService {
     eventPublisher.publishEvent(
         new PlaylistTagRecalculationEvent(playlist.getId())
     );
+
+    eventPublisher.publishEvent(
+        new PlaylistContentAddedEvent(
+            playlist.getOwner().getId(),
+            playlistId,
+            contentId
+        )
+    );
   }
 
   private void validatePlaylistContent(Content content) {
+
+    if (content.isHidden()) {
+      throw new ContentNotFoundException(content.getId());
+    }
+
     if (!content.getType().isPersonalizable()) {
       throw new ContentTypeNotSupportedException(content.getId(), content.getType());
     }
@@ -338,7 +375,7 @@ public class PlaylistServiceImpl implements PlaylistService {
       throw new PlaylistAccessDeniedException(playlistId);
     }
 
-    contentRepository.findById(contentId)
+    Content content = contentRepository.findById(contentId)
         .orElseThrow(() -> new ContentNotFoundException(contentId));
 
     PlaylistContent playlistContent = playlistContentRepository
@@ -347,10 +384,14 @@ public class PlaylistServiceImpl implements PlaylistService {
             () -> new PlaylistContentNotFoundException(playlistId, contentId)
         );
 
-    long contentCount = playlistContentRepository.countByPlaylist_Id(playlistId);
+    if (!content.isHidden()) {
+      long visibleContentCount =
+          playlistContentRepository
+              .countByPlaylist_IdAndContent_HiddenFalse(playlistId);
 
-    if (contentCount <= MIN_CONTENT_COUNT) {
-      throw new PlaylistMinimumContentException();
+      if (visibleContentCount <= MIN_CONTENT_COUNT) {
+        throw new PlaylistMinimumContentException();
+      }
     }
 
     playlistContentRepository.delete(playlistContent);
@@ -447,7 +488,9 @@ public class PlaylistServiceImpl implements PlaylistService {
 
     List<ContentSummary> contents =
         playlistContentRepository
-            .findAllByPlaylist_IdOrderByCreatedAtAscIdAsc(playlist.getId())
+            .findAllByPlaylist_IdAndContent_HiddenFalseOrderByCreatedAtAscIdAsc(
+                playlist.getId()
+            )
             .stream()
             .map(PlaylistContent::getContent)
             .map(ContentSummary::from)

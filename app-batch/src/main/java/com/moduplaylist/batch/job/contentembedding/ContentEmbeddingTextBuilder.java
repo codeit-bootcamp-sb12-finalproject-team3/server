@@ -1,5 +1,6 @@
 package com.moduplaylist.batch.job.contentembedding;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -20,43 +21,40 @@ public class ContentEmbeddingTextBuilder {
             throw new IllegalArgumentException("콘텐츠 유형은 필수입니다.");
         }
 
-        return """
-                제목: %s
-                콘텐츠 유형: %s
-                장르: %s
-                태그: %s
-                설명: %s""".formatted(
-                normalize(source.getTitle()),
-                normalize(source.getType()),
-                joinValues(source.getGenres()),
-                joinValues(source.getTags()),
-                normalizeOrNone(source.getDescription())
-        );
+        List<String> lines = new ArrayList<>();
+        lines.add("제목: " + normalize(source.getTitle()));
+        lines.add("콘텐츠 유형: " + normalize(source.getType()));
+        addCollectionLine(lines, "장르", source.getGenres());
+        addCollectionLine(lines, "태그", source.getTags());
+        addTextLine(lines, "설명", source.getDescription());
+        return String.join("\n", lines);
     }
 
-    private String joinValues(Collection<String> values) {
+    private void addCollectionLine(
+            List<String> lines,
+            String label,
+            Collection<String> values
+    ) {
         if (values == null || values.isEmpty()) {
-            return "없음";
+            return;
         }
 
-        List<String> normalizedValues = values.stream()
+        String normalizedValues = values.stream()
                 .filter(Objects::nonNull)
                 .map(this::normalize)
                 .filter(value -> !value.isBlank())
                 .distinct()
                 .sorted(Comparator.naturalOrder())
-                .toList();
-        if (normalizedValues.isEmpty()) {
-            return "없음";
+                .collect(Collectors.joining(", "));
+        if (!normalizedValues.isEmpty()) {
+            lines.add(label + ": " + normalizedValues);
         }
-        return normalizedValues.stream().collect(Collectors.joining(", "));
     }
 
-    private String normalizeOrNone(String value) {
-        if (value == null || value.isBlank()) {
-            return "없음";
+    private void addTextLine(List<String> lines, String label, String value) {
+        if (value != null && !value.isBlank()) {
+            lines.add(label + ": " + normalize(value));
         }
-        return normalize(value);
     }
 
     private String normalize(String value) {

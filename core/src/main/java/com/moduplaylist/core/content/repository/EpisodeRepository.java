@@ -12,6 +12,10 @@ public interface EpisodeRepository extends JpaRepository<Episode, UUID> {
     List<Episode> findAllBySeason_IdAndSeason_HiddenFalseOrderByEpisodeNumberAsc(
             UUID seasonId);
 
+    Optional<Episode> findByIdAndSeason_IdAndSeason_HiddenFalse(
+            UUID episodeId,
+            UUID seasonId);
+
     Optional<Episode> findByExternalSourceAndExternalId(
             String externalSource,
             Integer externalId);
@@ -21,6 +25,11 @@ public interface EpisodeRepository extends JpaRepository<Episode, UUID> {
             Collection<Integer> externalIds);
 
     boolean existsBySeason_IdAndEpisodeNumber(UUID seasonId, Integer episodeNumber);
+
+    boolean existsBySeason_IdAndEpisodeNumberAndIdNot(
+            UUID seasonId,
+            Integer episodeNumber,
+            UUID episodeId);
 
     long countBySeason_Id(UUID seasonId);
 }

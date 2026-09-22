@@ -2,6 +2,11 @@ spring:
   application:
     name: moduplaylist-api
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 55MB
+
   profiles:
     active: dev
 

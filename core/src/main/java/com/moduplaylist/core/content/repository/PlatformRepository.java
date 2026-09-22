@@ -12,4 +12,6 @@ public interface PlatformRepository extends JpaRepository<Platform, UUID> {
 	Optional<Platform> findByTmdbProviderId(Integer tmdbProviderId);
 
 	List<Platform> findAllByTmdbProviderIdIn(Collection<Integer> tmdbProviderIds);
+
+	List<Platform> findAllByTmdbProviderIdNotNullOrderByNameAsc();
 }

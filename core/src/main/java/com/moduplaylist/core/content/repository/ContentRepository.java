@@ -10,21 +10,29 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Pageable;
 
 
 public interface ContentRepository extends JpaRepository<Content, UUID>, ContentQueryRepository {
 
-    @Query("select content.id from Content content")
-    List<UUID> findAllIds();
+    @Query("""
+            select content.id
+            from Content content
+            where content.hidden = false
+              and content.type in :types
+            """)
+    List<UUID> findAllVisibleIdsByTypeIn(@Param("types") Collection<ContentType> types);
 
     @Query("""
             select content
             from Content content
             where content.type in :types
-              and content.updatedAt <= :through
-            order by content.updatedAt, content.id
+              and content.hidden = false
+              and content.embeddingSourceUpdatedAt <= :through
+            order by content.embeddingSourceUpdatedAt, content.id
             """)
     List<Content> findEmbeddingSourcesThrough(
             @Param("types") Collection<ContentType> types,
@@ -35,19 +43,40 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
             select content
             from Content content
             where content.type in :types
-              and content.updatedAt > :after
-              and content.updatedAt <= :through
-            order by content.updatedAt, content.id
+              and content.hidden = false
+              and content.embeddingPending = true
+            order by content.embeddingSourceUpdatedAt, content.id
             """)
-    List<Content> findModifiedEmbeddingSources(
-            @Param("types") Collection<ContentType> types,
-            @Param("after") Instant after,
-            @Param("through") Instant through
+    List<Content> findPendingEmbeddingSources(
+            @Param("types") Collection<ContentType> types
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Content content
+            set content.embeddingPending = false
+            where content.id = :contentId
+              and content.hidden = false
+              and content.embeddingSourceUpdatedAt = :sourceUpdatedAt
+            """)
+    int markEmbeddingCompleted(
+            @Param("contentId") UUID contentId,
+            @Param("sourceUpdatedAt") Instant sourceUpdatedAt
     );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select content from Content content where content.id = :contentId")
     Optional<Content> findByIdForUpdate(@Param("contentId") UUID contentId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update Content content set content.title = :title, content.description = :description, "
+            + "content.thumbnailUrl = :thumbnailUrl, content.updatedAt = CURRENT_TIMESTAMP "
+            + "where content.id = :contentId")
+    int updateSportCommonDetails(
+            @Param("contentId") UUID contentId,
+            @Param("title") String title,
+            @Param("description") String description,
+            @Param("thumbnailUrl") String thumbnailUrl);
 
     Optional<Content> findByExternalSourceAndTypeAndExternalId(
             String externalSource, ContentType type, Integer externalId);
@@ -60,10 +89,40 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
     List<Content> findAllByParentContent_IdAndHiddenFalseOrderBySeasonNumberAsc(
             UUID parentContentId);
 
-    boolean existsByParentContent_IdAndSeasonNumber(UUID parentContentId, Integer seasonNumber);
+    List<Content> findAllByTypeAndHiddenFalseOrderByIdAsc(ContentType type);
 
-    boolean existsByParentContent_IdAndSeasonNumberAndIdNot(
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Content> findByParentContent_IdAndSeasonNumber(
             UUID parentContentId,
-            Integer seasonNumber,
+            Integer seasonNumber);
+
+    boolean existsByTypeAndTitleAndReleaseDate(
+            ContentType type,
+            String title,
+            java.time.LocalDate releaseDate);
+
+    boolean existsByTypeAndTitleAndReleaseDateAndIdNot(
+            ContentType type,
+            String title,
+            java.time.LocalDate releaseDate,
             UUID contentId);
+
+    boolean existsByTypeAndTitle(ContentType type, String title);
+
+    boolean existsByTypeAndTitleAndIdNot(
+            ContentType type,
+            String title,
+            UUID contentId);
+
+    @Query("""
+            select content
+            from Content content
+            where content.type = :type
+              and lower(content.title) like lower(concat('%', :query, '%'))
+            order by content.title asc, content.id asc
+            """)
+    List<Content> searchSeriesForAdmin(
+            @Param("type") ContentType type,
+            @Param("query") String query,
+            Pageable pageable);
 }

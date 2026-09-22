@@ -25,8 +25,7 @@ public class ReviewQueryRepositoryImpl implements ReviewQueryRepository {
                         from Review review
                         join fetch review.user
                         join fetch review.content
-                        """ + filter
-                        + " order by review.createdAt desc, review.id desc",
+                        """ + filter + createOrderBy(condition),
                 Review.class);
         setParameters(query, parameters);
 
@@ -44,14 +43,11 @@ public class ReviewQueryRepositoryImpl implements ReviewQueryRepository {
     private StringBuilder createFilter(
             SearchCondition condition,
             Map<String, Object> parameters) {
-        if (condition.getContentId() != null) {
-            parameters.put("contentId", condition.getContentId());
-            return new StringBuilder(
-                    " where review.content.id = :contentId");
+        if (condition.getContentId() == null) {
+            return new StringBuilder();
         }
-
-        parameters.put("userId", condition.getUserId());
-        return new StringBuilder(" where review.user.id = :userId");
+        parameters.put("contentId", condition.getContentId());
+        return new StringBuilder(" where review.content.id = :contentId");
     }
 
     private long countReviews(
@@ -72,11 +68,34 @@ public class ReviewQueryRepositoryImpl implements ReviewQueryRepository {
             return;
         }
 
-        filter.append(" and (review.createdAt < :cursorCreatedAt")
-                .append(" or (review.createdAt = :cursorCreatedAt")
-                .append(" and review.id < :idAfter))");
-        parameters.put("cursorCreatedAt", condition.getCursorCreatedAt());
+        String sortProperty;
+        Object cursorValue;
+        if (condition.getSort() == Sort.CREATED_AT) {
+            sortProperty = "createdAt";
+            cursorValue = condition.getCursorCreatedAt();
+        } else {
+            sortProperty = "rating";
+            cursorValue = condition.getCursorRating();
+        }
+        String operator = condition.getDirection() == Direction.ASCENDING ? ">" : "<";
+        filter.append(filter.isEmpty() ? " where " : " and ")
+                .append("(review.").append(sortProperty).append(" ").append(operator)
+                .append(" :cursorValue or (review.").append(sortProperty)
+                .append(" = :cursorValue and review.id ").append(operator)
+                .append(" :idAfter))");
+        parameters.put("cursorValue", cursorValue);
         parameters.put("idAfter", condition.getIdAfter());
+    }
+
+    private String createOrderBy(SearchCondition condition) {
+        String sortProperty = condition.getSort() == Sort.CREATED_AT
+                ? "createdAt"
+                : "rating";
+        String direction = condition.getDirection() == Direction.ASCENDING
+                ? " asc"
+                : " desc";
+        return " order by review." + sortProperty + direction
+                + ", review.id" + direction;
     }
 
     private <T> void setParameters(

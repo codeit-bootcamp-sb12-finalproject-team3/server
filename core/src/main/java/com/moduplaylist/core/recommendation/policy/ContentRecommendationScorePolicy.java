@@ -10,7 +10,7 @@ public final class ContentRecommendationScorePolicy {
     private static final double PLAYLIST_CONTENT_ADDED_WEIGHT = 0.5;
     private static final double WATCH_PARTY_JOINED_WEIGHT = 0.7;
 
-    private static final double MIN_RATING = 0.0;
+    private static final double MIN_RATING = 0.5;
     private static final double MAX_RATING = 5.0;
     private static final double RATING_STEP = 0.5;
 
@@ -68,7 +68,7 @@ public final class ContentRecommendationScorePolicy {
 
         if (outsideRange || invalidStep) {
             throw new IllegalArgumentException(
-                    "rating must be between 0.0 and 5.0 in increments of 0.5: " + rating
+                    "rating must be between 0.5 and 5.0 in increments of 0.5: " + rating
             );
         }
     }

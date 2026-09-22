@@ -1,6 +1,8 @@
 package com.moduplaylist.core.review.repository;
 
 import com.moduplaylist.core.review.entity.Review;
+import com.moduplaylist.core.review.exception.InvalidReviewSearchException;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -13,36 +15,66 @@ public interface ReviewQueryRepository {
     @Getter
     class SearchCondition {
 
+        private static final BigDecimal MIN_RATING = new BigDecimal("0.5");
+        private static final BigDecimal MAX_RATING = new BigDecimal("5.0");
+        private static final BigDecimal RATING_STEP = new BigDecimal("0.5");
+
         private final UUID contentId;
-        private final UUID userId;
         private final Instant cursorCreatedAt;
+        private final BigDecimal cursorRating;
         private final UUID idAfter;
         private final int limit;
+        private final Sort sort;
+        private final Direction direction;
 
         public SearchCondition(
                 UUID contentId,
-                UUID userId,
                 Instant cursorCreatedAt,
+                BigDecimal cursorRating,
                 UUID idAfter,
-                int limit) {
-            if ((contentId == null) == (userId == null)) {
-                throw new IllegalArgumentException(
-                        "콘텐츠 ID와 사용자 ID 중 하나만 지정해야 합니다.");
+                int limit,
+                Sort sort,
+                Direction direction) {
+            if (limit < 1 || limit > 100 || sort == null || direction == null) {
+                throw new InvalidReviewSearchException();
             }
-            if ((cursorCreatedAt == null) != (idAfter == null)) {
-                throw new IllegalArgumentException(
-                        "리뷰 작성 시각과 리뷰 ID는 함께 지정해야 합니다.");
-            }
-            if (limit < 1 || limit > 100) {
-                throw new IllegalArgumentException(
-                        "limit은 1부터 100 사이여야 합니다.");
-            }
+            validateCursor(cursorCreatedAt, cursorRating, idAfter, sort);
 
             this.contentId = contentId;
-            this.userId = userId;
             this.cursorCreatedAt = cursorCreatedAt;
+            this.cursorRating = cursorRating;
             this.idAfter = idAfter;
             this.limit = limit;
+            this.sort = sort;
+            this.direction = direction;
+        }
+
+        private static void validateCursor(
+                Instant cursorCreatedAt,
+                BigDecimal cursorRating,
+                UUID idAfter,
+                Sort sort) {
+            boolean cursorAbsent = cursorCreatedAt == null
+                    && cursorRating == null
+                    && idAfter == null;
+            if (cursorAbsent) {
+                return;
+            }
+            if (idAfter == null) {
+                throw new InvalidReviewSearchException();
+            }
+            if (sort == Sort.CREATED_AT) {
+                if (cursorCreatedAt == null || cursorRating != null) {
+                    throw new InvalidReviewSearchException();
+                }
+                return;
+            }
+            if (cursorRating == null || cursorCreatedAt != null
+                    || cursorRating.compareTo(MIN_RATING) < 0
+                    || cursorRating.compareTo(MAX_RATING) > 0
+                    || cursorRating.remainder(RATING_STEP).compareTo(BigDecimal.ZERO) != 0) {
+                throw new InvalidReviewSearchException();
+            }
         }
     }
 
@@ -61,5 +93,15 @@ public interface ReviewQueryRepository {
             this.totalCount = totalCount;
             this.hasNext = hasNext;
         }
+    }
+
+    enum Sort {
+        CREATED_AT,
+        RATING
+    }
+
+    enum Direction {
+        ASCENDING,
+        DESCENDING
     }
 }

@@ -39,7 +39,7 @@ public class PlaylistTaggingService {
         .orElseThrow(() -> new PlaylistNotFoundException(playlistId));
 
     List<PlaylistContent> playlistContents =
-        playlistContentRepository.findAllByPlaylist_IdOrderByCreatedAtAscIdAsc(
+        playlistContentRepository.findAllByPlaylist_IdAndContent_HiddenFalseOrderByCreatedAtAscIdAsc(
             playlist.getId()
         );
 

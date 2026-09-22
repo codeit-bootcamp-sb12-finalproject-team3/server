@@ -3,10 +3,12 @@ package com.moduplaylist.api.content.service.impl;
 import com.moduplaylist.api.content.dto.ContentSearchRequest;
 import com.moduplaylist.api.content.dto.ContentSort;
 import com.moduplaylist.api.content.dto.ContentSummaryResponse;
-import com.moduplaylist.api.content.dto.ContentSummaryType;
 import com.moduplaylist.api.content.dto.ContentTypeFilter;
 import com.moduplaylist.api.content.dto.GenreResponse;
 import com.moduplaylist.api.content.dto.SportTypeResponse;
+import com.moduplaylist.api.content.dto.PlatformResponse;
+import com.moduplaylist.api.content.dto.ContentSeriesSearchResponse;
+import com.moduplaylist.api.content.dto.ContentSeriesSuggestionResponse;
 import com.moduplaylist.api.content.dto.TagResponse;
 import com.moduplaylist.api.content.dto.CastResponse;
 import com.moduplaylist.api.content.dto.ContentAutocompleteRequest;
@@ -15,70 +17,82 @@ import com.moduplaylist.api.content.dto.ContentPlatformItemResponse;
 import com.moduplaylist.api.content.dto.ContentPlatformResponse;
 import com.moduplaylist.api.content.dto.ContentPlaylistResponse;
 import com.moduplaylist.api.content.dto.ContentResponse;
-import com.moduplaylist.api.content.dto.ContentSuggestionResponse;
+import com.moduplaylist.api.content.dto.ContentSearchSuggestionResponse;
 import com.moduplaylist.api.content.dto.ContentWatchPartyResponse;
 import com.moduplaylist.api.content.dto.MovieDetail;
 import com.moduplaylist.api.content.dto.SportDetail;
 import com.moduplaylist.api.content.dto.TvSeasonDetail;
+import com.moduplaylist.api.content.dto.EpisodeResponse;
 import com.moduplaylist.api.content.service.ContentQueryService;
+import com.moduplaylist.api.content.service.ContentSummaryResponseAssembler;
 import com.moduplaylist.api.content.service.ContentViewActivityService;
+import com.moduplaylist.api.content.service.ContentAutocompletePopularityScoreProvider;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
 import com.moduplaylist.api.playlist.dto.PlaylistSummaryResponse;
 import com.moduplaylist.api.playlist.service.PlaylistService;
 import com.moduplaylist.api.watchparty.service.WatchPartyService;
 import com.moduplaylist.core.content.entity.Content;
-import com.moduplaylist.core.content.entity.ContentTag;
 import com.moduplaylist.core.content.entity.ContentType;
+import com.moduplaylist.core.content.entity.Episode;
 import com.moduplaylist.core.content.entity.Genre;
 import com.moduplaylist.core.content.entity.SportEvent;
 import com.moduplaylist.core.content.entity.SportType;
+import com.moduplaylist.core.content.entity.Platform;
 import com.moduplaylist.core.content.exception.ContentSearchUnavailableException;
 import com.moduplaylist.core.content.exception.GenreNotFoundException;
 import com.moduplaylist.core.content.exception.InvalidContentSearchException;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.exception.ContentTypeNotSupportedException;
 import com.moduplaylist.core.content.exception.ContentTypeNotViewableException;
-import com.moduplaylist.core.content.repository.ContentGenreRepository;
-import com.moduplaylist.core.content.repository.ContentLikeRepository;
 import com.moduplaylist.core.content.repository.ContentQueryRepository.SearchResult;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.content.repository.ContentSearch;
-import com.moduplaylist.core.content.repository.ContentTagRepository;
 import com.moduplaylist.core.content.repository.ContentRelationRepository;
 import com.moduplaylist.core.content.repository.EpisodeRepository;
 import com.moduplaylist.core.content.repository.GenreRepository;
 import com.moduplaylist.core.content.repository.SportEventRepository;
 import com.moduplaylist.core.content.repository.SportTypeRepository;
+import com.moduplaylist.core.content.repository.PlatformRepository;
 import com.moduplaylist.core.playlist.repository.PlaylistSearch;
 import com.moduplaylist.infrastructure.opensearch.content.ContentKeywordSearchRepository;
+import com.moduplaylist.infrastructure.opensearch.content.ContentAutocompleteCandidate;
+import com.moduplaylist.infrastructure.redis.content.ContentSearchSnapshotRepository;
+import com.moduplaylist.infrastructure.redis.recommendation.ContentRecommendationRedisRepository;
+import com.moduplaylist.infrastructure.redis.recommendation.RecommendationCachePage;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ContentQueryServiceImpl implements ContentQueryService {
 
 	private static final ContentSort DEFAULT_SORT = ContentSort.LATEST;
 	private static final int AUTOCOMPLETE_LIMIT = 10;
+	private static final int AUTOCOMPLETE_CANDIDATE_LIMIT = 30;
+	private static final int ADMIN_SERIES_SEARCH_LIMIT = 10;
 
 	private final ContentRepository contentRepository;
 	private final GenreRepository genreRepository;
 	private final SportTypeRepository sportTypeRepository;
-	private final ContentGenreRepository contentGenreRepository;
-	private final ContentLikeRepository contentLikeRepository;
-	private final ContentTagRepository contentTagRepository;
+	private final PlatformRepository platformRepository;
 	private final EpisodeRepository episodeRepository;
 	private final SportEventRepository sportEventRepository;
 	private final ContentRelationRepository contentRelationRepository;
@@ -86,37 +100,48 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	private final PlaylistService playlistService;
 	private final WatchPartyService watchPartyService;
 	private final ObjectProvider<ContentKeywordSearchRepository> keywordSearchRepositoryProvider;
+	private final ObjectProvider<ContentAutocompletePopularityScoreProvider>
+		popularityScoreProvider;
+	private final ContentSearchSnapshotRepository contentSearchSnapshotRepository;
+	private final ContentRecommendationRedisRepository recommendationRedisRepository;
+	private final ContentSummaryResponseAssembler contentSummaryResponseAssembler;
 
 	@Override
 	@Transactional(readOnly = true)
-	public CursorPageResponse<ContentSummaryResponse> findAll(ContentSearchRequest request) {
+	public CursorPageResponse<ContentSummaryResponse> findAll(
+		UUID userId,
+		ContentSearchRequest request
+	) {
 		ContentType contentType = request.getTypeEqual() == null
 			? null
 			: request.getTypeEqual().toQueryType();
 		ContentSort sort = request.getSortBy() == null ? DEFAULT_SORT : request.getSortBy();
+		UUID likedByUserId = Boolean.TRUE.equals(request.getLikedByMe()) ? userId : null;
 
 		validateGenre(request.getGenreIdEqual());
 		validateSportType(request.getSportTypeEqual());
 
+		SearchCursor searchCursor = parseSearchCursor(
+			request.getKeywordLike(), request.getCursor());
+		if (request.getKeywordLike() != null && !request.getKeywordLike().isBlank()) {
+			return findKeywordResults(userId, request, contentType, sort, searchCursor);
+		}
 		List<UUID> matchedContentIds = findMatchedContentIds(
-			request.getKeywordLike(),
-			contentType,
-			request.getLikedByUserIdEqual()
-		);
+			request.getKeywordLike(), contentType);
 		ParsedCursor cursor = parseCursor(
-			request.getCursor(),
+			searchCursor.value(),
 			request.getIdAfter(),
 			sort,
-			request.getLikedByUserIdEqual() != null
+			likedByUserId != null
 		);
 
 		ContentSearch search = new ContentSearch(
 			contentType,
 			request.getGenreIdEqual(),
 			request.getSportTypeEqual(),
-			request.getLikedByUserIdEqual(),
+			likedByUserId,
 			matchedContentIds,
-			request.getLikedByUserIdEqual() == null ? toRepositorySort(sort) : null,
+			likedByUserId == null ? toRepositorySort(sort) : null,
 			cursor.createdAt(),
 			cursor.likedAt(),
 			cursor.rating(),
@@ -126,18 +151,97 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		);
 
 		SearchResult result = contentRepository.search(search);
-		List<ContentSummaryResponse> data = toResponses(result.getContents());
+		List<ContentSummaryResponse> data = contentSummaryResponseAssembler
+			.toResponses(result.getContents(), userId);
 		Content lastContent = result.getContents().isEmpty()
 			? null
 			: result.getContents().get(result.getContents().size() - 1);
 
+		String nextCursor = nextCursor(result, lastContent, sort, search.isLikedContentsSearch());
+
 		return CursorPageResponse.<ContentSummaryResponse>builder()
 			.data(data)
-			.nextCursor(nextCursor(result, lastContent, sort, search.isLikedContentsSearch()))
+			.nextCursor(nextCursor)
 			.nextIdAfter(result.isHasNext() && lastContent != null ? lastContent.getId() : null)
 			.hasNext(result.isHasNext())
 			.totalCount(result.getTotalCount())
 			.sortBy(search.isLikedContentsSearch() ? "likedAt" : sort.getValue())
+			.sortDirection(SortDirection.DESCENDING)
+			.build();
+	}
+
+	private CursorPageResponse<ContentSummaryResponse> findKeywordResults(
+		UUID userId,
+		ContentSearchRequest request,
+		ContentType contentType,
+		ContentSort sort,
+		SearchCursor cursor
+	) {
+		String signature = searchSignature(request, contentType, sort);
+		UUID snapshotId = cursor.snapshotId();
+		List<UUID> orderedIds;
+		if (snapshotId == null) {
+			List<UUID> matchedIds = findMatchedContentIds(
+				request.getKeywordLike(), contentType);
+			ContentSearch initialSearch = new ContentSearch(
+				contentType,
+				null,
+				null,
+				null,
+				matchedIds,
+				toRepositorySort(sort),
+				null,
+				null,
+				null,
+				null,
+				null,
+				100
+			);
+			orderedIds = contentRepository.search(initialSearch).getContents().stream()
+				.map(Content::getId)
+				.toList();
+		} else {
+			orderedIds = contentSearchSnapshotRepository.find(snapshotId, signature)
+				.orElseThrow(InvalidContentSearchException::new);
+		}
+
+		int offset = cursor.offset() == null ? 0 : cursor.offset();
+		if (offset < 0 || offset > orderedIds.size()
+			|| (offset == 0 && request.getIdAfter() != null)
+			|| (offset > 0 && (request.getIdAfter() == null
+			|| !orderedIds.get(offset - 1).equals(request.getIdAfter())))) {
+			throw new InvalidContentSearchException();
+		}
+
+		Map<UUID, Content> visibleById = new HashMap<>();
+		contentRepository.findAllById(orderedIds).stream()
+			.filter(content -> !content.isHidden() && content.getType() != ContentType.TV_SERIES)
+			.forEach(content -> visibleById.put(content.getId(), content));
+		long totalCount = orderedIds.stream().filter(visibleById::containsKey).count();
+		List<Content> page = new ArrayList<>(request.getLimit());
+		int nextOffset = offset;
+		while (nextOffset < orderedIds.size() && page.size() < request.getLimit()) {
+			Content content = visibleById.get(orderedIds.get(nextOffset++));
+			if (content != null) {
+				page.add(content);
+			}
+		}
+		boolean hasNext = orderedIds.subList(nextOffset, orderedIds.size()).stream()
+			.anyMatch(visibleById::containsKey);
+		if (hasNext && snapshotId == null) {
+			snapshotId = contentSearchSnapshotRepository.create(signature, orderedIds);
+		}
+		UUID nextIdAfter = hasNext && !page.isEmpty()
+			? page.get(page.size() - 1).getId() : null;
+		String nextCursor = hasNext ? snapshotId + "~" + nextOffset : null;
+
+		return CursorPageResponse.<ContentSummaryResponse>builder()
+			.data(contentSummaryResponseAssembler.toResponses(page, userId))
+			.nextCursor(nextCursor)
+			.nextIdAfter(nextIdAfter)
+			.hasNext(hasNext)
+			.totalCount(totalCount)
+			.sortBy(sort.getValue())
 			.sortDirection(SortDirection.DESCENDING)
 			.build();
 	}
@@ -148,7 +252,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		if (type != ContentTypeFilter.MOVIE && type != ContentTypeFilter.TV_SERIES) {
 			throw new InvalidContentSearchException();
 		}
-		return genreRepository.findAllUsedByContentType(type.toQueryType()).stream()
+		return genreRepository.findAllByOrderByNameAsc().stream()
 			.map(this::toGenreResponse)
 			.toList();
 	}
@@ -163,6 +267,38 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 
 	@Override
 	@Transactional(readOnly = true)
+	public List<PlatformResponse> findPlatforms() {
+		return platformRepository.findAllByTmdbProviderIdNotNullOrderByNameAsc().stream()
+			.map(this::toPlatformResponse)
+			.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ContentSeriesSearchResponse searchSeriesForAdmin(String query) {
+		String normalized = query == null ? "" : query.strip();
+		if (normalized.isEmpty() || normalized.length() > 255) {
+			throw new InvalidContentSearchException();
+		}
+		List<Content> matches = contentRepository.searchSeriesForAdmin(
+			ContentType.TV_SERIES,
+			normalized,
+			PageRequest.of(0, ADMIN_SERIES_SEARCH_LIMIT)
+		);
+		List<ContentSeriesSuggestionResponse> data = matches.stream()
+			.map(content -> ContentSeriesSuggestionResponse.builder()
+				.id(content.getId())
+				.title(content.getTitle())
+				.originalTitle(content.getOriginalTitle())
+				.build())
+			.toList();
+		return ContentSeriesSearchResponse.builder()
+			.data(data)
+			.build();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
 	public ContentResponse findById(UUID userId, UUID contentId) {
 		ContentResponse response = findByIdForCommand(contentId);
 		contentViewActivityService.record(userId, contentId);
@@ -173,6 +309,35 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	@Transactional(readOnly = true)
 	public ContentResponse findByIdForCommand(UUID contentId) {
 		Content content = findVisibleContent(contentId);
+		return toContentResponse(content, false);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ContentResponse findHiddenSeasonByIdForAdmin(UUID hiddenSeasonId) {
+		Content content = contentRepository.findById(hiddenSeasonId)
+			.filter(candidate -> candidate.isHidden()
+				&& candidate.getType() == ContentType.TV_SEASON)
+			.orElseThrow(() -> new ContentNotFoundException(hiddenSeasonId));
+		return toContentResponse(content, true);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ContentPlatformResponse findHiddenSeasonOttByIdForAdmin(UUID hiddenSeasonId) {
+		requireHiddenSeason(hiddenSeasonId);
+		List<ContentPlatformItemResponse> otts = contentRelationRepository
+			.platformsIncludingHidden(hiddenSeasonId).stream()
+			.map(this::toPlatformItemResponse)
+			.toList();
+		return ContentPlatformResponse.builder()
+			.regionCode("KR")
+			.otts(otts)
+			.build();
+	}
+
+	private ContentResponse toContentResponse(Content content, boolean includeHiddenRelations) {
+		UUID contentId = content.getId();
 		if (content.getType() == ContentType.TV_SERIES) {
 			throw new ContentTypeNotViewableException(contentId, content.getType());
 		}
@@ -191,9 +356,9 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 					"스포츠 콘텐츠에 경기 정보가 없습니다. contentId=" + contentId
 				));
 		} else {
-			genres = findGenres(contentId);
-			tags = findTags(contentId);
-			cast = findCast(contentId);
+			genres = findGenres(contentId, includeHiddenRelations);
+			tags = findTags(contentId, includeHiddenRelations);
+			cast = findCast(contentId, includeHiddenRelations);
 			if (content.getType() == ContentType.MOVIE) {
 				movie = MovieDetail.builder()
 					.runtime(content.getRuntime())
@@ -201,6 +366,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			} else {
 				tvSeason = TvSeasonDetail.builder()
 					.parentContentId(content.getParentContent().getId())
+					.seriesTitle(content.getParentContent().getTitle())
 					.seasonNumber(content.getSeasonNumber())
 					.episodeCount(content.getEpisodeCount())
 					.registeredEpisodeCount(Math.toIntExact(episodeRepository.countBySeason_Id(contentId)))
@@ -218,7 +384,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			.averageRating(content.getAverageRating())
 			.reviewCount(content.getReviewCount())
 			.likeCount(content.getLikeCount())
-			.metadata(content.getMetadata())
+			.originalTitle(findOriginalTitle(content))
 			.genres(genres)
 			.tags(tags)
 			.cast(cast)
@@ -230,18 +396,40 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			.build();
 	}
 
+	private String findOriginalTitle(Content content) {
+		if (content.getType() == ContentType.TV_SEASON) {
+			return content.getParentContent().getOriginalTitle();
+		}
+		return content.getOriginalTitle();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<EpisodeResponse> findEpisodes(UUID seasonId) {
+		requireTvSeason(seasonId);
+		return episodeRepository
+			.findAllBySeason_IdAndSeason_HiddenFalseOrderByEpisodeNumberAsc(seasonId)
+			.stream()
+			.map(this::toEpisodeResponse)
+			.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public EpisodeResponse findEpisode(UUID seasonId, UUID episodeId) {
+		requireTvSeason(seasonId);
+		return episodeRepository.findByIdAndSeason_IdAndSeason_HiddenFalse(episodeId, seasonId)
+			.map(this::toEpisodeResponse)
+			.orElseThrow(() -> new ContentNotFoundException(episodeId));
+	}
+
 	@Override
 	@Transactional(readOnly = true)
 	public ContentPlatformResponse findOtt(UUID contentId) {
 		Content content = requireMovieOrSeason(contentId);
 		List<ContentPlatformItemResponse> otts = contentRelationRepository
 			.platforms(content.getId()).stream()
-			.map(value -> ContentPlatformItemResponse.builder()
-				.platformId(value.getId())
-				.name(value.getName())
-				.logoUrl(value.getLogoUrl())
-				.url(value.getUrl())
-				.build())
+			.map(this::toPlatformItemResponse)
 			.toList();
 		return ContentPlatformResponse.builder()
 			.regionCode("KR")
@@ -280,32 +468,82 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public ContentAutocompleteResponse autocomplete(ContentAutocompleteRequest request) {
+	public ContentAutocompleteResponse autocomplete(UUID userId, ContentAutocompleteRequest request) {
 		ContentKeywordSearchRepository repository = keywordSearchRepositoryProvider.getIfAvailable();
 		if (repository == null) {
 			throw new ContentSearchUnavailableException();
 		}
-		List<UUID> candidateIds = repository.findAutocompleteIds(request.getQuery(), AUTOCOMPLETE_LIMIT);
-		if (candidateIds.isEmpty()) {
+		List<ContentAutocompleteCandidate> candidates = repository.findAutocompleteCandidates(
+			request.getQuery(),
+			AUTOCOMPLETE_CANDIDATE_LIMIT
+		);
+		if (candidates.isEmpty()) {
 			return ContentAutocompleteResponse.builder().build();
 		}
-		Map<UUID, Content> visibleById = contentRepository.findAllById(candidateIds).stream()
+		List<UUID> candidateIds = candidates.stream()
+			.map(ContentAutocompleteCandidate::contentId)
+			.distinct()
+			.toList();
+		Map<UUID, Integer> personalizedRankById = findPersonalizedRanks(userId);
+		Map<UUID, Double> popularityScoreById = findPopularityScores(candidateIds);
+		Set<UUID> visibleContentIds = contentRepository.findAllById(candidateIds).stream()
 			.filter(content -> !content.isHidden() && content.getType() != ContentType.TV_SERIES)
-			.collect(Collectors.toMap(Content::getId, Function.identity(), (left, right) -> left,
-				LinkedHashMap::new));
-		List<ContentSuggestionResponse> suggestions = candidateIds.stream()
-			.map(visibleById::get)
-			.filter(java.util.Objects::nonNull)
+			.map(Content::getId)
+			.collect(java.util.stream.Collectors.toSet());
+		Set<String> seenTexts = new HashSet<>();
+
+		List<ContentSearchSuggestionResponse> suggestions = candidates.stream()
+			.filter(candidate -> visibleContentIds.contains(candidate.contentId()))
+			.sorted(Comparator
+				.comparingInt(ContentAutocompleteCandidate::matchRank)
+				.thenComparingInt(candidate -> personalizedRankById.getOrDefault(
+					candidate.contentId(), Integer.MAX_VALUE))
+				.thenComparing(Comparator.comparingDouble(
+					(ContentAutocompleteCandidate candidate) -> popularityScoreById
+						.getOrDefault(candidate.contentId(), 0.0)).reversed())
+				.thenComparing(ContentAutocompleteCandidate::text, String.CASE_INSENSITIVE_ORDER)
+				.thenComparing(ContentAutocompleteCandidate::contentId))
+			.filter(candidate -> seenTexts.add(candidate.text().toLowerCase(Locale.ROOT)))
 			.limit(AUTOCOMPLETE_LIMIT)
-			.map(content -> ContentSuggestionResponse.builder()
-				.contentId(content.getId())
-				.title(content.getTitle())
-				.type(ContentSummaryType.from(content.getType()))
-				.thumbnailUrl(content.getThumbnailUrl())
-				.matchedText(content.getTitle())
+			.map(candidate -> ContentSearchSuggestionResponse.builder()
+				.text(candidate.text())
+				.type(candidate.type())
 				.build())
 			.toList();
 		return ContentAutocompleteResponse.builder().suggestions(suggestions).build();
+	}
+
+	private Map<UUID, Integer> findPersonalizedRanks(UUID userId) {
+		try {
+			RecommendationCachePage page = recommendationRedisRepository.findPage(
+				userId,
+				0,
+				AUTOCOMPLETE_CANDIDATE_LIMIT
+			);
+			Map<UUID, Integer> ranks = new HashMap<>();
+			for (int index = 0; index < page.contentIds().size(); index++) {
+				ranks.putIfAbsent(page.contentIds().get(index), index);
+			}
+			return ranks;
+		} catch (RuntimeException exception) {
+			log.warn("자동완성 개인화 순위를 조회하지 못했습니다. userId={}", userId, exception);
+			return Map.of();
+		}
+	}
+
+	private Map<UUID, Double> findPopularityScores(List<UUID> contentIds) {
+		ContentAutocompletePopularityScoreProvider provider = popularityScoreProvider.getIfAvailable();
+		if (provider == null) {
+			// TODO: 트렌딩 도메인의 Redis ZSet 구현이 완료되면 ZMSCORE 기반 provider를 연결한다.
+			return Map.of();
+		}
+		try {
+			return provider.findScores(contentIds);
+		} catch (RuntimeException exception) {
+			// 트렌딩 장애가 자동완성 실패로 이어지지 않도록 제목 정렬로 대체한다.
+			log.warn("자동완성 트렌딩 점수를 조회하지 못했습니다.", exception);
+			return Map.of();
+		}
 	}
 
 	private Content findVisibleContent(UUID contentId) {
@@ -321,27 +559,72 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		return content;
 	}
 
-	private List<GenreResponse> findGenres(UUID contentId) {
-		return contentRelationRepository.genres(contentId).stream()
+	private Content requireTvSeason(UUID seasonId) {
+		Content content = findVisibleContent(seasonId);
+		if (content.getType() != ContentType.TV_SEASON) {
+			throw new ContentTypeNotSupportedException(seasonId, content.getType());
+		}
+		return content;
+	}
+
+	private EpisodeResponse toEpisodeResponse(Episode episode) {
+		return EpisodeResponse.builder()
+			.id(episode.getId())
+			.episodeNumber(episode.getEpisodeNumber())
+			.title(episode.getTitle())
+			.description(episode.getDescription())
+			.thumbnailUrl(episode.getThumbnailUrl())
+			.runtime(episode.getRuntime())
+			.build();
+	}
+
+	private List<GenreResponse> findGenres(UUID contentId, boolean includeHidden) {
+		var genres = includeHidden
+			? contentRelationRepository.genresIncludingHidden(contentId)
+			: contentRelationRepository.genres(contentId);
+		return genres.stream()
 			.map(value -> GenreResponse.builder().id(value.getId()).name(value.getName()).build())
 			.toList();
 	}
 
-	private List<TagResponse> findTags(UUID contentId) {
-		return contentRelationRepository.tags(contentId).stream()
+	private List<TagResponse> findTags(UUID contentId, boolean includeHidden) {
+		var tags = includeHidden
+			? contentRelationRepository.tagsIncludingHidden(contentId)
+			: contentRelationRepository.tags(contentId);
+		return tags.stream()
 			.map(value -> TagResponse.builder()
 				.id(value.getId()).name(value.getName()).build())
 			.toList();
 	}
 
-	private List<CastResponse> findCast(UUID contentId) {
-		return contentRelationRepository.casts(contentId).stream()
+	private List<CastResponse> findCast(UUID contentId, boolean includeHidden) {
+		var casts = includeHidden
+			? contentRelationRepository.castsIncludingHidden(contentId)
+			: contentRelationRepository.casts(contentId);
+		return casts.stream()
 			.map(value -> CastResponse.builder()
 				.name(value.getName())
 				.roleName(value.getRoleName())
 				.profileImageUrl(value.getProfileImageUrl())
 				.build())
 			.toList();
+	}
+
+	private Content requireHiddenSeason(UUID hiddenSeasonId) {
+		return contentRepository.findById(hiddenSeasonId)
+			.filter(content -> content.isHidden() && content.getType() == ContentType.TV_SEASON)
+			.orElseThrow(() -> new ContentNotFoundException(hiddenSeasonId));
+	}
+
+	private ContentPlatformItemResponse toPlatformItemResponse(
+		ContentRelationRepository.PlatformItem value
+	) {
+		return ContentPlatformItemResponse.builder()
+			.platformId(value.getId())
+			.name(value.getName())
+			.logoUrl(value.getLogoUrl())
+			.url(value.getUrl())
+			.build();
 	}
 
 	private SportDetail toSportDetail(SportEvent event) {
@@ -373,11 +656,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		}
 	}
 
-	private List<UUID> findMatchedContentIds(
-		String keyword,
-		ContentType contentType,
-		UUID likedByUserId
-	) {
+	private List<UUID> findMatchedContentIds(String keyword, ContentType contentType) {
 		if (keyword == null || keyword.isBlank()) {
 			return null;
 		}
@@ -387,13 +666,44 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			throw new ContentSearchUnavailableException();
 		}
 		String contentTypeValue = contentType == null ? null : contentType.getValue();
-		if (likedByUserId == null) {
-			return repository.findContentIds(keyword, contentTypeValue);
+		return repository.findContentIds(keyword, contentTypeValue);
+	}
+
+	private SearchCursor parseSearchCursor(String keyword, String cursor) {
+		boolean keywordSearch = keyword != null && !keyword.isBlank();
+		if (cursor == null || cursor.isBlank()) {
+			return new SearchCursor(null, cursor, null);
 		}
-		return repository.findContentIdsWithin(
-			keyword,
-			contentTypeValue,
-			contentLikeRepository.findContentIdsByUserId(likedByUserId)
+		int separator = cursor.indexOf('~');
+		if (!keywordSearch) {
+			if (separator >= 0) {
+				throw new InvalidContentSearchException();
+			}
+			return new SearchCursor(null, cursor, null);
+		}
+		if (separator <= 0 || separator == cursor.length() - 1) {
+			throw new InvalidContentSearchException();
+		}
+		try {
+			return new SearchCursor(
+				UUID.fromString(cursor.substring(0, separator)),
+				null,
+				Integer.parseInt(cursor.substring(separator + 1))
+			);
+		} catch (IllegalArgumentException exception) {
+			throw new InvalidContentSearchException();
+		}
+	}
+
+	private String searchSignature(
+		ContentSearchRequest request,
+		ContentType contentType,
+		ContentSort sort
+	) {
+		return String.join("|",
+			request.getKeywordLike() == null ? "" : request.getKeywordLike(),
+			contentType == null ? "" : contentType.getValue(),
+			sort.getValue()
 		);
 	}
 
@@ -462,77 +772,10 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			+ lastContent.getReviewCount();
 	}
 
-	private List<ContentSummaryResponse> toResponses(List<Content> contents) {
-		if (contents.isEmpty()) {
-			return List.of();
-		}
-		List<UUID> contentIds = contents.stream().map(Content::getId).toList();
-		Map<UUID, List<GenreResponse>> genresByContentId = contentGenreRepository
-			.findAllWithGenreByContentIdIn(contentIds).stream()
-			.collect(Collectors.groupingBy(
-				contentGenre -> contentGenre.getContent().getId(),
-				Collectors.mapping(
-					contentGenre -> toGenreResponse(contentGenre.getGenre()),
-					Collectors.toList()
-				)
-			));
-		Map<UUID, List<TagResponse>> tagsByContentId = contentTagRepository
-			.findAllWithTagByContentIdIn(contentIds).stream()
-			.collect(Collectors.groupingBy(
-				contentTag -> contentTag.getContent().getId(),
-				Collectors.mapping(this::toTagResponse, Collectors.toList())
-			));
-		Map<UUID, SportEvent> sportEventByContentId = sportEventRepository
-			.findAllWithSportTypeByContentIdIn(contentIds).stream()
-			.collect(Collectors.toMap(SportEvent::getContentId, Function.identity()));
-
-		return contents.stream()
-			.map(content -> toResponse(
-				content,
-				genresByContentId.getOrDefault(content.getId(), List.of()),
-				tagsByContentId.getOrDefault(content.getId(), List.of()),
-				sportEventByContentId.get(content.getId())
-			))
-			.toList();
-	}
-
-	private ContentSummaryResponse toResponse(
-		Content content,
-		List<GenreResponse> genres,
-		List<TagResponse> tags,
-		SportEvent sportEvent
-	) {
-		return ContentSummaryResponse.builder()
-			.id(content.getId())
-			.parentContentId(content.getParentContent() == null
-				? null
-				: content.getParentContent().getId())
-			.title(content.getTitle())
-			.type(ContentSummaryType.from(content.getType()))
-			.seasonNumber(content.getSeasonNumber())
-			.sportType(sportEvent == null ? null : sportEvent.getSportType().getCode())
-			.thumbnailUrl(content.getThumbnailUrl())
-			.releaseDate(content.getReleaseDate())
-			.runtime(content.getType() == ContentType.MOVIE ? content.getRuntime() : null)
-			.averageRating(content.getAverageRating())
-			.reviewCount(content.getReviewCount())
-			.likeCount(content.getLikeCount())
-			.genres(genres)
-			.tags(tags)
-			.build();
-	}
-
 	private GenreResponse toGenreResponse(Genre genre) {
 		return GenreResponse.builder()
 			.id(genre.getId())
 			.name(genre.getName())
-			.build();
-	}
-
-	private TagResponse toTagResponse(ContentTag contentTag) {
-		return TagResponse.builder()
-			.id(contentTag.getTag().getId())
-			.name(contentTag.getTag().getName())
 			.build();
 	}
 
@@ -541,6 +784,14 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			.id(sportType.getId())
 			.code(sportType.getCode())
 			.name(sportType.getName())
+			.build();
+	}
+
+	private PlatformResponse toPlatformResponse(Platform platform) {
+		return PlatformResponse.builder()
+			.id(platform.getId())
+			.name(platform.getName())
+			.logoUrl(platform.getLogoUrl())
 			.build();
 	}
 
@@ -565,5 +816,8 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		private static ParsedCursor rating(BigDecimal rating, long reviewCount) {
 			return new ParsedCursor(null, null, rating, reviewCount);
 		}
+	}
+
+	private record SearchCursor(UUID snapshotId, String value, Integer offset) {
 	}
 }
