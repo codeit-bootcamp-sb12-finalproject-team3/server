@@ -19,10 +19,18 @@ public final class ApiErrorStatus {
             new EnumMap<>(ErrorCode.class);
 
     static {
+        // Auth
+        STATUS_MAP.put(ErrorCode.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
+        STATUS_MAP.put(ErrorCode.USER_LOCKED, HttpStatus.UNAUTHORIZED);
+        STATUS_MAP.put(ErrorCode.FORBIDDEN, HttpStatus.FORBIDDEN);
+        STATUS_MAP.put(ErrorCode.INVALID_CSRF_TOKEN, HttpStatus.FORBIDDEN);
         STATUS_MAP.put(ErrorCode.UNAUTHORIZED, HttpStatus.UNAUTHORIZED);
 
+        // User
         STATUS_MAP.put(ErrorCode.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
         STATUS_MAP.put(ErrorCode.USER_ALREADY_EXISTS, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.USER_PROFILE_ACCESS_DENIED, HttpStatus.FORBIDDEN);
+        STATUS_MAP.put(ErrorCode.INVALID_USER_PROFILE_UPDATE, HttpStatus.BAD_REQUEST);
 
         STATUS_MAP.put(ErrorCode.CONTENT_NOT_FOUND, HttpStatus.NOT_FOUND);
         STATUS_MAP.put(ErrorCode.CONTENT_TYPE_NOT_VIEWABLE, HttpStatus.BAD_REQUEST);
@@ -47,12 +55,6 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.REVIEW_ALREADY_EXISTS, HttpStatus.CONFLICT);
         STATUS_MAP.put(ErrorCode.REVIEW_ACCESS_DENIED, HttpStatus.FORBIDDEN);
         STATUS_MAP.put(ErrorCode.CONTENT_NOT_REVIEWABLE, HttpStatus.BAD_REQUEST);
-
-        // Auth
-        STATUS_MAP.put(ErrorCode.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
-        STATUS_MAP.put(ErrorCode.USER_LOCKED, HttpStatus.UNAUTHORIZED);
-        STATUS_MAP.put(ErrorCode.FORBIDDEN, HttpStatus.FORBIDDEN);
-        STATUS_MAP.put(ErrorCode.INVALID_CSRF_TOKEN, HttpStatus.FORBIDDEN);
 
         STATUS_MAP.put(ErrorCode.INVALID_REQUEST, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.VALIDATION_ERROR, HttpStatus.BAD_REQUEST);
