@@ -1,6 +1,7 @@
 package com.moduplaylist.batch.job.userplaylistprofileembedding.tasklet;
 
 import com.moduplaylist.batch.job.userplaylistprofileembedding.UserPlaylistProfileEmbeddingTargetService;
+import com.moduplaylist.batch.job.userplaylistprofileembedding.UserPlaylistProfileRecommendationCleanupService;
 import com.moduplaylist.infrastructure.recommendation.embedding.UserPlaylistProfileEmbeddingService;
 import com.moduplaylist.infrastructure.recommendation.embedding.dto.UserProfileEmbeddingResult;
 import java.util.ArrayList;
@@ -23,14 +24,30 @@ public class UserPlaylistProfileEmbeddingTasklet implements Tasklet {
 
     private final UserPlaylistProfileEmbeddingService embeddingService;
     private final UserPlaylistProfileEmbeddingTargetService targetService;
+    private final UserPlaylistProfileRecommendationCleanupService cleanupService;
 
     @Override
     public RepeatStatus execute(
             StepContribution contribution,
             ChunkContext chunkContext
     ) {
+        List<UUID> cleanupTargetIds = targetService.findUserIdsWithoutPositivePreference();
+        List<UUID> cleanupFailedIds = new ArrayList<>();
+        for (UUID userId : cleanupTargetIds) {
+            try {
+                cleanupService.removeStaleRecommendation(userId);
+            } catch (RuntimeException exception) {
+                cleanupFailedIds.add(userId);
+                log.error(
+                        "비활성 사용자 플레이리스트 추천 데이터 삭제 실패 - userId={}",
+                        userId,
+                        exception
+                );
+            }
+        }
+
         List<UUID> targetIds = targetService.findTargetUserIds();
-        List<UUID> failedIds = new ArrayList<>();
+        List<UUID> embeddingFailedIds = new ArrayList<>();
 
         for (UUID userId : targetIds) {
             try {
@@ -41,7 +58,7 @@ public class UserPlaylistProfileEmbeddingTasklet implements Tasklet {
                         result.getDimensions()
                 );
             } catch (RuntimeException exception) {
-                failedIds.add(userId);
+                embeddingFailedIds.add(userId);
                 log.error(
                         "사용자 플레이리스트 선호 임베딩 저장 실패 - userId={}",
                         userId,
@@ -51,15 +68,22 @@ public class UserPlaylistProfileEmbeddingTasklet implements Tasklet {
         }
 
         log.info(
-                "사용자 플레이리스트 선호 임베딩 배치 완료 - targets={}, succeeded={}, failed={}",
+                "사용자 플레이리스트 선호 임베딩 배치 완료 - "
+                        + "targets={}, succeeded={}, failed={}, "
+                        + "cleanupTargets={}, cleanupFailed={}",
                 targetIds.size(),
-                targetIds.size() - failedIds.size(),
-                failedIds.size()
+                targetIds.size() - embeddingFailedIds.size(),
+                embeddingFailedIds.size(),
+                cleanupTargetIds.size(),
+                cleanupFailedIds.size()
         );
-        if (!failedIds.isEmpty()) {
+        if (!cleanupFailedIds.isEmpty() || !embeddingFailedIds.isEmpty()) {
             throw new IllegalStateException(
-                    "일부 사용자 플레이리스트 선호 임베딩 처리에 실패했습니다. failedUserIds="
-                            + failedIds
+                    "일부 사용자 플레이리스트 프로필 처리에 실패했습니다. "
+                            + "embeddingFailedUserIds="
+                            + embeddingFailedIds
+                            + ", cleanupFailedUserIds="
+                            + cleanupFailedIds
             );
         }
         return RepeatStatus.FINISHED;
