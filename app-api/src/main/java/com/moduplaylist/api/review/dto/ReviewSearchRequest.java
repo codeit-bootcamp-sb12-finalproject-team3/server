@@ -1,6 +1,7 @@
 package com.moduplaylist.api.review.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.moduplaylist.api.global.dto.SortDirection;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -16,9 +17,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class ReviewSearchRequest {
 
-	private UUID contentIdEqual;
-
-	private UUID userIdEqual;
+	private UUID contentId;
 
 	@Size(max = 2048)
 	private String cursor;
@@ -28,13 +27,13 @@ public class ReviewSearchRequest {
 	@Min(1)
 	@Max(100)
 	@NotNull
-	private Integer limit = 20;
+	private Integer limit;
 
-	@JsonIgnore
-	@AssertTrue(message = "contentIdEqual과 userIdEqual 중 하나만 전달해야 합니다.")
-	public boolean isFilterValid() {
-		return (contentIdEqual == null) != (userIdEqual == null);
-	}
+	@NotNull
+	private ReviewSort sortBy;
+
+	@NotNull
+	private SortDirection sortDirection;
 
 	@JsonIgnore
 	@AssertTrue(message = "cursor와 idAfter는 함께 전달해야 합니다.")
