@@ -78,7 +78,7 @@ public class WatchPartyService {
         watchPartyHostRegistry.setHost(saved.getId(), hostId);
 
         eventPublisher.publishEvent(new WatchPartyCreatedEvent(
-                saved.getId(), hostId, content.getId(), saved.getScheduledAt()
+                UUID.randomUUID(), saved.getId(), hostId, content.getId(), saved.getScheduledAt()
         ));
 
         return toResponse(saved, host, content, 0);

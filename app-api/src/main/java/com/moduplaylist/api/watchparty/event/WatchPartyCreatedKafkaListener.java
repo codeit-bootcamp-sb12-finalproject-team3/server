@@ -19,6 +19,7 @@ public class WatchPartyCreatedKafkaListener {
         kafkaTemplate.send(
                 KafkaTopics.WATCH_PARTY_CREATED,
                 new WatchPartyCreatedKafkaEvent(
+                        event.eventId(),
                         event.partyId(),
                         event.hostId(),
                         event.contentId(),
