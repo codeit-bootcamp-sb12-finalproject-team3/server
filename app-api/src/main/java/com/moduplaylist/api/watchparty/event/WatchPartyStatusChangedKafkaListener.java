@@ -19,18 +19,18 @@ public class WatchPartyStatusChangedKafkaListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleStarted(WatchPartyStartedEvent event) {
-        publish(event.partyId(), WatchPartyStatus.LIVE);
+        publish(event.eventId(), event.partyId(), WatchPartyStatus.LIVE);
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleEnded(WatchPartyEndedEvent event) {
-        publish(event.partyId(), WatchPartyStatus.ENDED);
+        publish(event.eventId(), event.partyId(), WatchPartyStatus.ENDED);
     }
 
-    private void publish(UUID watchPartyId, WatchPartyStatus status) {
+    private void publish(UUID eventId, UUID watchPartyId, WatchPartyStatus status) {
         kafkaTemplate.send(
                 KafkaTopics.WATCH_PARTY_STATUS_CHANGED,
-                new WatchPartyStatusChangedKafkaEvent(watchPartyId, status)
+                new WatchPartyStatusChangedKafkaEvent(eventId, watchPartyId, status)
         );
     }
 }
