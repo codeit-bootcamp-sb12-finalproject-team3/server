@@ -60,7 +60,8 @@ public class PlaylistNotificationEventListener {
         event.playlistId(),
         event.contentId(),
         event.playlistTitle(),
-        event.contentTitle()
+        event.contentTitle(),
+        event.occurredAt()
     );
 
     try {

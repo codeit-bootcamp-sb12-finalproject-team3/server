@@ -3,9 +3,11 @@ package com.moduplaylist.api.notification.consumer;
 import com.moduplaylist.api.notification.dto.NotificationCreateCommand;
 import com.moduplaylist.api.notification.service.NotificationService;
 import com.moduplaylist.core.notification.entity.NotificationLevel;
+import com.moduplaylist.core.playlist.entity.PlaylistSubscription;
 import com.moduplaylist.core.playlist.repository.PlaylistSubscriptionRepository;
 import com.moduplaylist.infrastructure.kafka.KafkaTopics;
 import com.moduplaylist.infrastructure.kafka.event.PlaylistContentAddedKafkaEvent;
+import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -27,16 +29,26 @@ public class PlaylistContentAddedNotificationConsumer {
       groupId = "notification-persistence"
   )
   public void consume(PlaylistContentAddedKafkaEvent event) {
-    int page = 0;
-    Slice<UUID> subscriberSlice;
+    Instant lastCreatedAt = null;
+    UUID lastSubscriptionId = null;
 
-    do {
-      subscriberSlice = playlistSubscriptionRepository.findSubscriberIdsByPlaylistId(
-          event.playlistId(),
-          PageRequest.of(page, SUBSCRIBER_PAGE_SIZE)
-      );
+    while (true) {
+      Slice<PlaylistSubscription> subscriberSlice =
+          playlistSubscriptionRepository.findSubscriberBatch(
+              event.playlistId(),
+              event.occurredAt(),
+              lastCreatedAt,
+              lastSubscriptionId,
+              PageRequest.of(0, SUBSCRIBER_PAGE_SIZE)
+          );
 
-      for (UUID subscriberId : subscriberSlice.getContent()) {
+      if (subscriberSlice.isEmpty()) {
+        break;
+      }
+
+      for (PlaylistSubscription subscription : subscriberSlice.getContent()) {
+        UUID subscriberId = subscription.getUser().getId();
+
         if (subscriberId.equals(event.ownerId())) {
           continue;
         }
@@ -53,7 +65,16 @@ public class PlaylistContentAddedNotificationConsumer {
         notificationService.create(command);
       }
 
-      page++;
-    } while (subscriberSlice.hasNext());
+      PlaylistSubscription lastSubscription =
+          subscriberSlice.getContent()
+              .get(subscriberSlice.getContent().size() - 1);
+
+      lastCreatedAt = lastSubscription.getCreatedAt();
+      lastSubscriptionId = lastSubscription.getId();
+
+      if (!subscriberSlice.hasNext()) {
+        break;
+      }
+    }
   }
 }

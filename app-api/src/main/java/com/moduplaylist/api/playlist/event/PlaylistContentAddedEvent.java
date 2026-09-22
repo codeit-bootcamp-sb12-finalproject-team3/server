@@ -1,5 +1,6 @@
 package com.moduplaylist.api.playlist.event;
 
+import java.time.Instant;
 import java.util.UUID;
 
 public record PlaylistContentAddedEvent(
@@ -7,6 +8,7 @@ public record PlaylistContentAddedEvent(
     UUID playlistId,
     UUID contentId,
     String playlistTitle,
-    String contentTitle
+    String contentTitle,
+    Instant occurredAt
 ) {
 }

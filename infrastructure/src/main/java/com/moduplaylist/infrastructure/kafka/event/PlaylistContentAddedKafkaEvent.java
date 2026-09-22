@@ -1,5 +1,6 @@
 package com.moduplaylist.infrastructure.kafka.event;
 
+import java.time.Instant;
 import java.util.UUID;
 
 public record PlaylistContentAddedKafkaEvent(
@@ -7,7 +8,8 @@ public record PlaylistContentAddedKafkaEvent(
     UUID playlistId,
     UUID contentId,
     String playlistTitle,
-    String contentTitle
+    String contentTitle,
+    Instant occurredAt
 ) {
 
 }

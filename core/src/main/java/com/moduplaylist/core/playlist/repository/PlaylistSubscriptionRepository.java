@@ -1,6 +1,7 @@
 package com.moduplaylist.core.playlist.repository;
 
 import com.moduplaylist.core.playlist.entity.PlaylistSubscription;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,13 +29,25 @@ public interface PlaylistSubscriptionRepository extends JpaRepository<PlaylistSu
   );
 
   @Query("""
-    select subscription.user.id
-    from PlaylistSubscription subscription
-    where subscription.playlist.id = :playlistId
-    order by subscription.id asc
-    """)
-  Slice<UUID> findSubscriberIdsByPlaylistId(
+      select subscription
+      from PlaylistSubscription subscription
+      where subscription.playlist.id = :playlistId
+        and subscription.createdAt <= :occurredAt
+        and (
+          :lastCreatedAt is null
+          or subscription.createdAt > :lastCreatedAt
+          or (
+            subscription.createdAt = :lastCreatedAt
+            and subscription.id > :lastSubscriptionId
+          )
+        )
+      order by subscription.createdAt asc, subscription.id asc
+      """)
+  Slice<PlaylistSubscription> findSubscriberBatch(
       @Param("playlistId") UUID playlistId,
+      @Param("occurredAt") Instant occurredAt,
+      @Param("lastCreatedAt") Instant lastCreatedAt,
+      @Param("lastSubscriptionId") UUID lastSubscriptionId,
       Pageable pageable
   );
 
@@ -44,5 +57,4 @@ public interface PlaylistSubscriptionRepository extends JpaRepository<PlaylistSu
       where subscription.user.id = :userId
       """)
   List<UUID> findPlaylistIdsByUserId(@Param("userId") UUID userId);
-
 }

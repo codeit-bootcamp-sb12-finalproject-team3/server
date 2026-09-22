@@ -15,6 +15,7 @@ import com.moduplaylist.core.playlist.exception.PlaylistNotFoundException;
 import com.moduplaylist.core.playlist.policy.PlaylistContentPolicy;
 import com.moduplaylist.core.playlist.repository.PlaylistContentRepository;
 import com.moduplaylist.core.playlist.repository.PlaylistRepository;
+import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -81,7 +82,8 @@ public class PlaylistContentServiceImpl implements PlaylistContentService {
             playlistId,
             contentId,
             playlist.getTitle(),
-            content.getTitle()
+            content.getTitle(),
+            Instant.now()
         )
     );
   }
