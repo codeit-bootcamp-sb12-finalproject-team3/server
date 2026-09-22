@@ -42,7 +42,9 @@ public class PlaylistNotificationEventListener {
           subscriberId,
           event.ownerId(),
           event.playlistId(),
-          event.contentId()
+          event.contentId(),
+          event.playlistTitle(),
+          event.contentTitle()
       );
 
       kafkaTemplate.send(KafkaTopics.PLAYLIST_CONTENT_ADDED, kafkaEvent);

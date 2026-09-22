@@ -23,7 +23,9 @@ public class PlaylistContentAddedNotificationConsumer {
     NotificationCreateCommand command = new NotificationCreateCommand(
         event.receiverId(),
         "플레이리스트 콘텐츠 추가",
-        "구독 중인 플레이리스트에 새로운 콘텐츠가 추가되었습니다.",
+        "구독 중인 '" + event.playlistTitle()
+        + "'에 '" + event.contentTitle()
+        + "' 콘텐츠가 추가되었습니다.",
         NotificationLevel.INFO
     );
 

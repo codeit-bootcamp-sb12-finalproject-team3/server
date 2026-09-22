@@ -349,7 +349,9 @@ public class PlaylistServiceImpl implements PlaylistService {
         new PlaylistContentAddedEvent(
             playlist.getOwner().getId(),
             playlistId,
-            contentId
+            contentId,
+            playlist.getTitle(),
+            content.getTitle()
         )
     );
   }

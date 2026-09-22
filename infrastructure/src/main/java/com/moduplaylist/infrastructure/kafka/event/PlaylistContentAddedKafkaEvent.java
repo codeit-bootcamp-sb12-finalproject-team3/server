@@ -6,7 +6,9 @@ public record PlaylistContentAddedKafkaEvent(
     UUID receiverId,
     UUID ownerId,
     UUID playlistId,
-    UUID contentId
+    UUID contentId,
+    String playlistTitle,
+    String contentTitle
 ) {
 
 }
