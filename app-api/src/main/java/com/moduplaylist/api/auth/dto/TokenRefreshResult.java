@@ -1,5 +1,6 @@
-package com.moduplaylist.api.user.dto;
+package com.moduplaylist.api.auth.dto;
 
+import com.moduplaylist.api.user.dto.UserResponse;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 

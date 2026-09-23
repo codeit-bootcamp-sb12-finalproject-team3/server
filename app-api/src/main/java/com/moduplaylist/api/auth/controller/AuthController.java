@@ -1,9 +1,9 @@
-package com.moduplaylist.api.user.controller;
+package com.moduplaylist.api.auth.controller;
 
 import com.moduplaylist.api.global.security.jwt.JwtDto;
-import com.moduplaylist.api.user.dto.CsrfTokenResponse;
-import com.moduplaylist.api.user.dto.TokenRefreshResult;
-import com.moduplaylist.api.user.service.AuthService;
+import com.moduplaylist.api.auth.dto.CsrfTokenResponse;
+import com.moduplaylist.api.auth.dto.TokenRefreshResult;
+import com.moduplaylist.api.auth.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
