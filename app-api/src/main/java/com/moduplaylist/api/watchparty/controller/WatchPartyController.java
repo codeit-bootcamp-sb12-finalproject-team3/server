@@ -4,6 +4,7 @@ import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
 import com.moduplaylist.api.global.security.CustomUserDetails;
 import com.moduplaylist.api.watchparty.dto.CreateWatchPartyRequest;
+import com.moduplaylist.api.watchparty.dto.UpdateWatchPartyRequest;
 import com.moduplaylist.api.watchparty.dto.WatchPartyResponse;
 import com.moduplaylist.api.watchparty.dto.WatchPartySummaryResponse;
 import com.moduplaylist.api.watchparty.service.WatchPartyService;
@@ -53,6 +54,26 @@ public class WatchPartyController {
         return ResponseEntity.ok(
                 watchPartyService.getWatchParties(statusEqual, contentIdEqual, cursor, idAfter, limit, direction)
         );
+    }
+
+    @PatchMapping("/{partyId}")
+    public ResponseEntity<WatchPartyResponse> update(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID partyId,
+            @Valid @RequestBody UpdateWatchPartyRequest request
+    ) {
+        return ResponseEntity.ok(
+                watchPartyService.updateWatchParty(userDetails.getUserId(), partyId, request)
+        );
+    }
+
+    @DeleteMapping("/{partyId}")
+    public ResponseEntity<Void> delete(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable UUID partyId
+    ) {
+        watchPartyService.deleteWatchParty(userDetails.getUserId(), partyId);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/scheduled-by-me")
