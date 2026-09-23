@@ -8,11 +8,9 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
@@ -60,7 +58,7 @@ public class WatchPartyQueryRepository {
         }
 
         String direction = request.isAscending() ? "asc" : "desc";
-        String jpql = "select w from WatchParty w" + listWhere
+        String jpql = "select w from WatchParty w join fetch w.host" + listWhere
                 + " order by w.scheduledAt " + direction + ", w.id " + direction;
 
         TypedQuery<WatchParty> query = em.createQuery(jpql, WatchParty.class);
@@ -106,7 +104,7 @@ public class WatchPartyQueryRepository {
             params.put("cursorId", request.getCursorId());
         }
 
-        String jpql = "select w from WatchParty w" + where
+        String jpql = "select w from WatchParty w join fetch w.host" + where
                 + " order by case when w.status = :liveOrderStatus then 0 else 1 end asc,"
                 + " w.scheduledAt asc, w.id desc";
         params.put("liveOrderStatus", WatchPartyStatus.LIVE);

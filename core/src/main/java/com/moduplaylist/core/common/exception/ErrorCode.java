@@ -96,7 +96,8 @@ public enum ErrorCode {
     WATCHPARTY_PARTICIPANT_NOT_FOUND("참가 정보를 찾을 수 없습니다."),
     WATCHPARTY_NOT_JOINED("현재 참가 중인 상태가 아닙니다."),
     WATCHPARTY_NOT_A_PARTICIPANT("참가 중인 방이 아닙니다."),
-    WATCHPARTY_PARTICIPANT_NOT_JOINED("현재 참가 중인 사용자가 아닙니다.");
+    WATCHPARTY_PARTICIPANT_NOT_JOINED("현재 참가 중인 사용자가 아닙니다."),
+    WATCHPARTY_INVALID_STATE("현재 상태에서는 처리할 수 없는 요청입니다.");
 
     private final String message;
 }
