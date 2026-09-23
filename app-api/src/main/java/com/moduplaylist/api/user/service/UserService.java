@@ -6,6 +6,7 @@ import com.moduplaylist.api.user.dto.UserProfileUpdateRequest;
 import com.moduplaylist.api.user.dto.UserResponse;
 import com.moduplaylist.core.user.entity.UserRole;
 import java.util.UUID;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface UserService {
 
@@ -20,6 +21,7 @@ public interface UserService {
   UserProfileResponse updateProfile(
       UUID userID,
       UUID authenticateUserId,
-      UserProfileUpdateRequest request
+      UserProfileUpdateRequest request,
+      MultipartFile image
   );
 }
