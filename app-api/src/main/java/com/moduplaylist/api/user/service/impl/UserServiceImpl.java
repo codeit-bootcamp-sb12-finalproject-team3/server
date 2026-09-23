@@ -7,6 +7,10 @@ import com.moduplaylist.api.user.dto.UserResponse;
 import com.moduplaylist.api.user.service.UserService;
 import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
+import com.moduplaylist.core.common.exception.ImageStorageUnavailableException;
+import com.moduplaylist.core.common.exception.ImageUploadLimitExceededException;
+import com.moduplaylist.core.common.exception.InvalidImageException;
+import com.moduplaylist.core.common.exception.UnsupportedImageTypeException;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.entity.UserRole;
 import com.moduplaylist.core.user.exception.InvalidUserProfileUpdateException;
@@ -15,22 +19,28 @@ import com.moduplaylist.core.user.exception.UserProfileAccessDeniedException;
 import com.moduplaylist.core.user.repository.UserRepository;
 import com.moduplaylist.core.user.repository.JwtRegistry;
 import com.moduplaylist.core.user.exception.UserAlreadyExistsException;
+import com.moduplaylist.infrastructure.storage.UserProfileImageStorage;
+import java.io.IOException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
   private final UserRepository userRepository;
   private final PasswordEncoder passwordEncoder;
   private final JwtRegistry jwtRegistry;
+  private final UserProfileImageStorage userProfileImageStorage;
 
 
   @Override
@@ -107,26 +117,99 @@ public class UserServiceImpl implements UserService {
   public UserProfileResponse updateProfile(
       UUID userId,
       UUID authenticatedUserId,
-      UserProfileUpdateRequest request
+      UserProfileUpdateRequest request,
+      MultipartFile image
   ) {
 
     if (!userId.equals(authenticatedUserId)) {
       throw new UserProfileAccessDeniedException(userId);
     }
 
-    if (request.getName() == null && request.getProfileImageUrl() == null) {
+    if (request.getName() == null && image == null) {
       throw new InvalidUserProfileUpdateException();
     }
 
     User user = userRepository.findById(userId)
         .orElseThrow(() -> new UserNotFoundException(userId));
 
-    user.updateProfile(
-        request.getName(),
-        request.getProfileImageUrl()
-    );
+    String previousProfileImageUrl = user.getProfileImageUrl();
+    String profileImageUrl = image == null ? null : uploadProfileImage(userId, image);
+
+    user.updateProfile(request.getName(), profileImageUrl);
+
+    if (profileImageUrl != null) {
+      registerProfileImageCleanup(userId, previousProfileImageUrl, profileImageUrl);
+    }
 
     return UserProfileResponse.from(user);
+  }
+
+  private String uploadProfileImage(UUID userId, MultipartFile image) {
+    if (image.isEmpty()) {
+      throw new InvalidImageException();
+    }
+    if (image.getSize() > 5L * 1024 * 1024) {
+      throw new ImageUploadLimitExceededException();
+    }
+    try {
+      byte[] bytes = image.getBytes();
+      String contentType = detectImageType(bytes);
+      if (contentType == null) {
+        throw new UnsupportedImageTypeException();
+      }
+      return userProfileImageStorage.upload(userId, bytes, contentType);
+    } catch (IOException exception) {
+      throw new ImageStorageUnavailableException(exception);
+    } catch (UnsupportedImageTypeException exception) {
+      throw exception;
+    } catch (RuntimeException exception) {
+      throw new ImageStorageUnavailableException(exception);
+    }
+  }
+
+  private String detectImageType(byte[] bytes) {
+    if (bytes.length >= 3 && (bytes[0] & 0xff) == 0xff
+        && (bytes[1] & 0xff) == 0xd8 && (bytes[2] & 0xff) == 0xff) {
+      return "image/jpeg";
+    }
+    if (bytes.length >= 8 && (bytes[0] & 0xff) == 0x89 && bytes[1] == 0x50
+        && bytes[2] == 0x4e && bytes[3] == 0x47 && bytes[4] == 0x0d
+        && bytes[5] == 0x0a && bytes[6] == 0x1a && bytes[7] == 0x0a) {
+      return "image/png";
+    }
+    if (bytes.length >= 12 && bytes[0] == 'R' && bytes[1] == 'I'
+        && bytes[2] == 'F' && bytes[3] == 'F' && bytes[8] == 'W'
+        && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P') {
+      return "image/webp";
+    }
+    return null;
+  }
+
+  private void registerProfileImageCleanup(
+      UUID userId,
+      String previousProfileImageUrl,
+      String uploadedProfileImageUrl
+  ) {
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCompletion(int status) {
+            if (status == STATUS_COMMITTED) {
+              deleteProfileImage(userId, previousProfileImageUrl);
+            } else {
+              deleteProfileImage(userId, uploadedProfileImageUrl);
+            }
+          }
+        }
+    );
+  }
+
+  private void deleteProfileImage(UUID userId, String profileImageUrl) {
+    try {
+      userProfileImageStorage.delete(userId, profileImageUrl);
+    } catch (RuntimeException exception) {
+      log.warn("프로필 이미지 삭제에 실패했습니다. url={}", profileImageUrl, exception);
+    }
   }
 
   private void invalidateAfterCommit(UUID userId) {

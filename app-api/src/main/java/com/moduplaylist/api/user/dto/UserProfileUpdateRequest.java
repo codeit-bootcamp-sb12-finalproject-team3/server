@@ -13,6 +13,4 @@ public class UserProfileUpdateRequest {
   @Pattern(regexp = ".*\\S.*", message = "name은 공백일 수 없습니다.")
   private String name;
 
-  @Size(max = 500)
-  private String profileImageUrl;
 }

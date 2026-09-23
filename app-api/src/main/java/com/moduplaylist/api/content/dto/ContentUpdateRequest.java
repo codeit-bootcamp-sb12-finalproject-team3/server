@@ -1,6 +1,7 @@
 package com.moduplaylist.api.content.dto;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
@@ -46,6 +47,7 @@ public class ContentUpdateRequest {
 	private JsonNullable<@PositiveOrZero Integer> awayScore = JsonNullable.undefined();
 	private JsonNullable<@Size(max = 255) String> originalTitle = JsonNullable.undefined();
 	private JsonNullable<@NotNull List<@NotNull UUID>> genreIds = JsonNullable.undefined();
+	@JsonProperty("tags")
 	private JsonNullable<@NotNull List<@NotBlank @Size(max = 100) String>> manualTags = JsonNullable.undefined();
 	private JsonNullable<@NotNull List<@NotNull @Valid ContentCastRequest>> casts = JsonNullable.undefined();
 	private JsonNullable<@NotNull List<@NotNull @Valid ContentPlatformCreateRequest>> platforms =
@@ -142,6 +144,7 @@ public class ContentUpdateRequest {
 		this.genreIds = requireWrapper(genreIds);
 	}
 
+	@JsonProperty("tags")
 	public void setManualTags(JsonNullable<List<String>> manualTags) {
 		this.manualTags = map(
 			manualTags,
