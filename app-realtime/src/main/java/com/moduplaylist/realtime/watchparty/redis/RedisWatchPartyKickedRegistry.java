@@ -8,9 +8,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class RedisWatchPartyKickedRegistry implements WatchPartyKickedRegistry {
 
-    static final String KEY_PREFIX = "watchparty:";
-    static final String KEY_SUFFIX = ":kicked";
-
     private final StringRedisTemplate redisTemplate;
 
     public RedisWatchPartyKickedRegistry(StringRedisTemplate redisTemplate) {
@@ -23,8 +20,9 @@ public class RedisWatchPartyKickedRegistry implements WatchPartyKickedRegistry {
             return false;
         }
 
-        String key = KEY_PREFIX + partyId + KEY_SUFFIX;
-        Boolean isMember = redisTemplate.opsForSet().isMember(key, userId.toString());
+        String key = WatchPartyRedisKey.kicked(partyId);
+        Boolean isMember = redisTemplate.opsForSet().isMember(
+                key, WatchPartyRedisKey.uuid(userId));
         return Boolean.TRUE.equals(isMember);
     }
 }

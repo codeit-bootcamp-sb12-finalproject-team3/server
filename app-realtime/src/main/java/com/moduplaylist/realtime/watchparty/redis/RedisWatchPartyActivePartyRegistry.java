@@ -9,9 +9,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class RedisWatchPartyActivePartyRegistry implements WatchPartyActivePartyRegistry {
 
-    static final String KEY_PREFIX = "user:";
-    static final String KEY_SUFFIX = ":joinedParty";
-
     private final StringRedisTemplate redisTemplate;
 
     public RedisWatchPartyActivePartyRegistry(StringRedisTemplate redisTemplate) {
@@ -24,12 +21,12 @@ public class RedisWatchPartyActivePartyRegistry implements WatchPartyActiveParty
             return Optional.empty();
         }
 
-        String key = KEY_PREFIX + userId + KEY_SUFFIX;
+        String key = WatchPartyRedisKey.joinedParty(userId);
         String partyId = redisTemplate.opsForValue().get(key);
         if (partyId == null || partyId.isBlank()) {
             return Optional.empty();
         }
 
-        return Optional.of(UUID.fromString(partyId));
+        return Optional.of(WatchPartyRedisKey.parseUuid(partyId));
     }
 }

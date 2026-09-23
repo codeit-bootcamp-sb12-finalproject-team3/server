@@ -8,9 +8,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class RedisWatchPartyHostRegistry implements WatchPartyHostRegistry {
 
-    static final String KEY_PREFIX = "watchparty:";
-    static final String KEY_SUFFIX = ":host";
-
     private final StringRedisTemplate redisTemplate;
 
     public RedisWatchPartyHostRegistry(StringRedisTemplate redisTemplate) {
@@ -23,8 +20,8 @@ public class RedisWatchPartyHostRegistry implements WatchPartyHostRegistry {
             return false;
         }
 
-        String key = KEY_PREFIX + partyId + KEY_SUFFIX;
+        String key = WatchPartyRedisKey.host(partyId);
         String hostId = redisTemplate.opsForValue().get(key);
-        return userId.toString().equals(hostId);
+        return WatchPartyRedisKey.uuid(userId).equals(hostId);
     }
 }

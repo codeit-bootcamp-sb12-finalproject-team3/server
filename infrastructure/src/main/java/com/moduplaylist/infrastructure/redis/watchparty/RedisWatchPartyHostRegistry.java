@@ -3,7 +3,7 @@ package com.moduplaylist.infrastructure.redis.watchparty;
 import com.moduplaylist.core.watchparty.repository.WatchPartyHostRegistry;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 
@@ -11,7 +11,7 @@ import org.springframework.util.Assert;
 @RequiredArgsConstructor
 public class RedisWatchPartyHostRegistry implements WatchPartyHostRegistry {
 
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
 
     @Override
     public void setHost(UUID partyId, UUID hostId) {
@@ -19,6 +19,6 @@ public class RedisWatchPartyHostRegistry implements WatchPartyHostRegistry {
         Assert.notNull(hostId, "hostId가 필요합니다.");
 
         String key = WatchPartyRedisKey.host(partyId);
-        redisTemplate.opsForValue().set(key, hostId.toString());
+        redisTemplate.opsForValue().set(key, WatchPartyRedisKey.uuid(hostId));
     }
 }

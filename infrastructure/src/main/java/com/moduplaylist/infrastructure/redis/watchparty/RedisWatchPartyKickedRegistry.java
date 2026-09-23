@@ -3,7 +3,7 @@ package com.moduplaylist.infrastructure.redis.watchparty;
 import com.moduplaylist.core.watchparty.repository.WatchPartyKickedRegistry;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 
@@ -11,7 +11,7 @@ import org.springframework.util.Assert;
 @RequiredArgsConstructor
 public class RedisWatchPartyKickedRegistry implements WatchPartyKickedRegistry {
 
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
 
     @Override
     public void kick(UUID partyId, UUID userId) {
@@ -19,7 +19,7 @@ public class RedisWatchPartyKickedRegistry implements WatchPartyKickedRegistry {
         Assert.notNull(userId, "userId가 필요합니다.");
 
         String key = WatchPartyRedisKey.kicked(partyId);
-        redisTemplate.opsForSet().add(key, userId.toString());
+        redisTemplate.opsForSet().add(key, WatchPartyRedisKey.uuid(userId));
     }
 
     @Override
@@ -28,7 +28,8 @@ public class RedisWatchPartyKickedRegistry implements WatchPartyKickedRegistry {
         Assert.notNull(userId, "userId가 필요합니다.");
 
         String key = WatchPartyRedisKey.kicked(partyId);
-        Boolean result = redisTemplate.opsForSet().isMember(key, userId.toString());
+        Boolean result = redisTemplate.opsForSet().isMember(
+                key, WatchPartyRedisKey.uuid(userId));
         return Boolean.TRUE.equals(result);
     }
 }

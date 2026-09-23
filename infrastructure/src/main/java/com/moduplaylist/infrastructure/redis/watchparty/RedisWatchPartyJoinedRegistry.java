@@ -5,7 +5,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 
@@ -13,7 +13,7 @@ import org.springframework.util.Assert;
 @RequiredArgsConstructor
 public class RedisWatchPartyJoinedRegistry implements WatchPartyJoinedRegistry {
 
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
 
     @Override
     public void join(UUID partyId, UUID userId) {
@@ -21,7 +21,7 @@ public class RedisWatchPartyJoinedRegistry implements WatchPartyJoinedRegistry {
         Assert.notNull(userId, "userId가 필요합니다.");
 
         String key = WatchPartyRedisKey.joined(partyId);
-        redisTemplate.opsForSet().add(key, userId.toString());
+        redisTemplate.opsForSet().add(key, WatchPartyRedisKey.uuid(userId));
     }
 
     @Override
@@ -30,7 +30,7 @@ public class RedisWatchPartyJoinedRegistry implements WatchPartyJoinedRegistry {
         Assert.notNull(userId, "userId가 필요합니다.");
 
         String key = WatchPartyRedisKey.joined(partyId);
-        redisTemplate.opsForSet().remove(key, userId.toString());
+        redisTemplate.opsForSet().remove(key, WatchPartyRedisKey.uuid(userId));
     }
 
     @Override
@@ -38,13 +38,12 @@ public class RedisWatchPartyJoinedRegistry implements WatchPartyJoinedRegistry {
         Assert.notNull(partyId, "partyId가 필요합니다.");
 
         String key = WatchPartyRedisKey.joined(partyId);
-        Set<Object> members = redisTemplate.opsForSet().members(key);
+        Set<String> members = redisTemplate.opsForSet().members(key);
         if (members == null) {
             return Set.of();
         }
         return members.stream()
-                .map(Object::toString)
-                .map(UUID::fromString)
+                .map(WatchPartyRedisKey::parseUuid)
                 .collect(Collectors.toSet());
     }
 }

@@ -43,6 +43,13 @@ public final class WatchPartyRedisKey {
         return "user:" + require(userId) + ":joinedParty";
     }
 
+    public static String uuid(UUID id) {
+        return require(id).toString();
+    }
+
+    public static UUID parseUuid(String value) {
+        return UUID.fromString(Objects.requireNonNull(value, "value must not be null"));
+    }
 
     private static UUID require(UUID id) {
         return Objects.requireNonNull(id, "id must not be null");
