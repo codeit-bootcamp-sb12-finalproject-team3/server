@@ -41,13 +41,22 @@ public class ReviewQueryRepositoryImpl implements ReviewQueryRepository {
     }
 
     private StringBuilder createFilter(
-            SearchCondition condition,
-            Map<String, Object> parameters) {
-        if (condition.getContentId() == null) {
-            return new StringBuilder();
+        SearchCondition condition,
+        Map<String, Object> parameters) {
+        StringBuilder filter = new StringBuilder();
+
+        if (condition.getContentId() != null) {
+            filter.append(" where review.content.id = :contentId");
+            parameters.put("contentId", condition.getContentId());
         }
-        parameters.put("contentId", condition.getContentId());
-        return new StringBuilder(" where review.content.id = :contentId");
+
+        if (condition.getUserIdEqual() != null) {
+            filter.append(filter.isEmpty() ? " where " : " and ")
+                .append("review.user.id = :userIdEqual");
+            parameters.put("userIdEqual", condition.getUserIdEqual());
+        }
+
+        return filter;
     }
 
     private long countReviews(

@@ -4,6 +4,8 @@ import com.moduplaylist.api.recommendation.service.UserPreferenceService;
 import com.moduplaylist.api.recommendation.dto.UserPreferenceCreateRequest;
 import com.moduplaylist.api.recommendation.dto.UserPreferenceResponse;
 import com.moduplaylist.api.user.dto.UserCreateRequest;
+import com.moduplaylist.api.user.dto.UserProfileResponse;
+import com.moduplaylist.api.user.dto.UserProfileUpdateRequest;
 import com.moduplaylist.api.user.dto.UserResponse;
 import com.moduplaylist.api.user.dto.UserRoleUpdateRequest;
 import com.moduplaylist.api.user.dto.UserLockUpdateRequest;
@@ -46,6 +48,30 @@ public class UserController {
   ) {
     UserResponse response =
         userService.updateRole(userId, request.getRole());
+
+    return ResponseEntity.ok(response);
+  }
+
+  @GetMapping("/{userId}")
+  public ResponseEntity<UserProfileResponse> getProfile(
+      @PathVariable UUID userId
+  ) {
+    UserProfileResponse response = userService.getProfile(userId);
+
+    return ResponseEntity.ok(response);
+  }
+
+  @PatchMapping("/{userId}")
+  public ResponseEntity<UserProfileResponse> updateProfile(
+      @PathVariable UUID userId,
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @Valid @RequestBody UserProfileUpdateRequest request
+  ) {
+    UserProfileResponse response = userService.updateProfile(
+        userId,
+        userDetails.getUserId(),
+        request
+    );
 
     return ResponseEntity.ok(response);
   }

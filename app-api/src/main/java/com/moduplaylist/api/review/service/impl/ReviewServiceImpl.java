@@ -60,6 +60,7 @@ public class ReviewServiceImpl implements ReviewService {
 		ParsedCursor cursor = parseCursor(request.getCursor(), request.getSortBy());
 		SearchCondition condition = new SearchCondition(
 			request.getContentId(),
+			request.getUserIdEqual(),
 			cursor.createdAt(),
 			cursor.rating(),
 			request.getIdAfter(),

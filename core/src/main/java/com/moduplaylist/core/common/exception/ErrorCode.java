@@ -12,10 +12,18 @@ public enum ErrorCode {
     VALIDATION_ERROR("요청 데이터 유효성 검사에 실패했습니다."),
     INTERNAL_SERVER_ERROR("서버 내부 오류가 발생했습니다."),
 
+    // Auth
+    INVALID_CREDENTIALS("이메일 또는 비밀번호가 올바르지 않습니다."),
+    USER_LOCKED("잠긴 계정입니다."),
+    FORBIDDEN("요청 권한이 없습니다."),
+    INVALID_CSRF_TOKEN("CSRF 토큰이 없거나 올바르지 않습니다."),
+    UNAUTHORIZED("인증이 필요합니다."),
+
     // User
     USER_NOT_FOUND("존재하지 않는 사용자입니다."),
     USER_ALREADY_EXISTS("이미 가입된 사용자입니다."),
-    UNAUTHORIZED("인증이 필요합니다."),
+    USER_PROFILE_ACCESS_DENIED("프로필을 수정할 권한이 없습니다."),
+    INVALID_USER_PROFILE_UPDATE("수정할 프로필 정보가 없습니다."),
 
     // Content
     CONTENT_NOT_FOUND("존재하지 않는 콘텐츠입니다."),
@@ -41,13 +49,6 @@ public enum ErrorCode {
     REVIEW_ALREADY_EXISTS("해당 콘텐츠에 이미 리뷰를 작성했습니다."),
     REVIEW_ACCESS_DENIED("해당 리뷰를 수정하거나 삭제할 권한이 없습니다."),
     CONTENT_NOT_REVIEWABLE("리뷰를 작성할 수 없는 콘텐츠입니다."),
-
-    // Auth
-    INVALID_CREDENTIALS("이메일 또는 비밀번호가 올바르지 않습니다."),
-    USER_LOCKED("잠긴 계정입니다."),
-    FORBIDDEN("요청 권한이 없습니다."),
-    INVALID_CSRF_TOKEN("CSRF 토큰이 없거나 올바르지 않습니다."),
-
 
     // Playlist
     PLAYLIST_NOT_FOUND("존재하지 않는 플레이리스트입니다."),

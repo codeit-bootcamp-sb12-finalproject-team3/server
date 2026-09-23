@@ -28,6 +28,8 @@ public class ContentSearchRequest {
 
 	private Boolean likedByMe;
 
+	private UUID likedByUserIdEqual;
+
 	private ContentSort sortBy;
 
 	@Size(max = 2048)
@@ -61,10 +63,18 @@ public class ContentSearchRequest {
 		boolean hasKeyword = keywordLike != null && !keywordLike.isBlank();
 		boolean hasSportType = sportTypeEqual != null && !sportTypeEqual.isBlank();
 
-		if (Boolean.TRUE.equals(likedByMe) && sortBy != null) {
+		boolean likedContentsSearch =
+				Boolean.TRUE.equals(likedByMe) || likedByUserIdEqual != null;
+
+		if (Boolean.TRUE.equals(likedByMe) && likedByUserIdEqual != null) {
 			return false;
 		}
-		if (hasKeyword && Boolean.TRUE.equals(likedByMe)) {
+
+		if (likedContentsSearch && sortBy != null) {
+			return false;
+		}
+
+		if (hasKeyword && likedContentsSearch) {
 			return false;
 		}
 		if (hasKeyword && (genreIdEqual != null || hasSportType)) {

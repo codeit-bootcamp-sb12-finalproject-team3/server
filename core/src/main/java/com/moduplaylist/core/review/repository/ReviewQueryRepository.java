@@ -20,6 +20,7 @@ public interface ReviewQueryRepository {
         private static final BigDecimal RATING_STEP = new BigDecimal("0.5");
 
         private final UUID contentId;
+        private final UUID userIdEqual;
         private final Instant cursorCreatedAt;
         private final BigDecimal cursorRating;
         private final UUID idAfter;
@@ -29,6 +30,7 @@ public interface ReviewQueryRepository {
 
         public SearchCondition(
                 UUID contentId,
+                UUID userIdEqual,
                 Instant cursorCreatedAt,
                 BigDecimal cursorRating,
                 UUID idAfter,
@@ -41,6 +43,7 @@ public interface ReviewQueryRepository {
             validateCursor(cursorCreatedAt, cursorRating, idAfter, sort);
 
             this.contentId = contentId;
+            this.userIdEqual = userIdEqual;
             this.cursorCreatedAt = cursorCreatedAt;
             this.cursorRating = cursorRating;
             this.idAfter = idAfter;
