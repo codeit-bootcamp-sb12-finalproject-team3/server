@@ -51,6 +51,10 @@ public class ContentImportMetrics {
         }
     }
 
+    public boolean hasFailures() {
+        return !failedIds.isEmpty();
+    }
+
     public void writeTo(ExecutionContext context) {
         context.putLong("candidateCount", candidateCount);
         context.putLong("existingCount", existingCount);

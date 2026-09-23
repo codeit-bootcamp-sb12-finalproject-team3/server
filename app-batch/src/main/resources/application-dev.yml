@@ -71,8 +71,9 @@ mopl:
     content-import:
       scheduler:
         enabled: ${CONTENT_IMPORT_SCHEDULER_ENABLED:false}
-        cron: ${CONTENT_IMPORT_CRON:0 30 0 * * *}
-        zone: UTC
+        cron: ${CONTENT_IMPORT_CRON:0 0 0 * * *}
+        retry-cron: ${CONTENT_IMPORT_RETRY_CRON:0 30 * * * *}
+        zone: Asia/Seoul
     embedding:
       scheduler:
         enabled: ${EMBEDDING_SCHEDULER_ENABLED:false}

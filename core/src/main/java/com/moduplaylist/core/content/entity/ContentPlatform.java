@@ -112,6 +112,10 @@ public class ContentPlatform extends ContentUuidEntity {
 		this.source = PlatformSource.MANUAL;
 	}
 
+	public void updateTmdbUrl(String url) {
+		this.url = normalizeUrl(url);
+	}
+
 	public void updateRegionCode(String regionCode) {
 		this.regionCode = normalizeRegionCode(regionCode);
 	}

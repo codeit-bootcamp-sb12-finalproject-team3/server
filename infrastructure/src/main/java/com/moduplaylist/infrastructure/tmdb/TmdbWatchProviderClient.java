@@ -17,21 +17,21 @@ public class TmdbWatchProviderClient {
     private final TmdbProperties properties;
 
     public TmdbWatchProviderResponse fetchMovie(int tmdbMovieId) {
-        return fetch("movie", tmdbMovieId);
+        return fetch("movie/" + tmdbMovieId + "/watch/providers");
     }
 
-    public TmdbWatchProviderResponse fetchTvSeries(int tmdbSeriesId) {
-        return fetch("tv", tmdbSeriesId);
+    public TmdbWatchProviderResponse fetchTvSeason(int tmdbSeriesId, int seasonNumber) {
+        return fetch("tv/" + tmdbSeriesId + "/season/" + seasonNumber + "/watch/providers");
     }
 
-    private TmdbWatchProviderResponse fetch(String contentType, int tmdbId) {
+    private TmdbWatchProviderResponse fetch(String path) {
         String accessToken = properties.getAccessToken();
         if (accessToken == null || accessToken.isBlank()) {
             throw new TmdbWatchProviderException("TMDB access token이 설정되지 않았습니다.");
         }
 
         URI uri = URI.create(trimTrailingSlash(properties.getApiBaseUrl())
-            + "/" + contentType + "/" + tmdbId + "/watch/providers");
+            + "/" + path);
         HttpRequest request = HttpRequest.newBuilder(uri)
             .timeout(Duration.ofSeconds(properties.getTimeoutSeconds()))
             .header("Authorization", "Bearer " + accessToken)

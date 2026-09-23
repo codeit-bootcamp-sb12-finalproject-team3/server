@@ -8,6 +8,7 @@ import lombok.Getter;
 @Builder
 public class ContentPlatformResponse {
 	private String regionCode;
+	private boolean justWatchAttributionRequired;
 
 	@Builder.Default
 	private List<ContentPlatformItemResponse> otts = List.of();

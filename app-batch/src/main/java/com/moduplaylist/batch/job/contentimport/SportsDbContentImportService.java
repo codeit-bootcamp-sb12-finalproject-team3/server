@@ -1,6 +1,7 @@
 package com.moduplaylist.batch.job.contentimport;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.moduplaylist.batch.job.contentembedding.ContentEmbeddingService;
 import com.moduplaylist.batch.job.contentimport.SportsImportProperties.SportCode;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentType;
@@ -12,9 +13,11 @@ import com.moduplaylist.core.content.repository.SportEventRepository;
 import com.moduplaylist.core.content.repository.SportTypeRepository;
 import com.moduplaylist.infrastructure.sportsdb.SportsDbClient;
 import com.moduplaylist.infrastructure.sportsdb.SportsDbRateLimitException;
+import com.moduplaylist.infrastructure.opensearch.content.ContentAutocompleteSynchronizer;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.HashSet;
@@ -22,10 +25,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -34,6 +37,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Slf4j
 public class SportsDbContentImportService {
     private static final String SOURCE = "THESPORTSDB";
+    private static final ZoneId CONTENT_IMPORT_ZONE = ZoneId.of("Asia/Seoul");
     private static final Set<NormalizedStatus> TRACKED_STATUSES = Set.of(
         NormalizedStatus.SCHEDULED,
         NormalizedStatus.LIVE
@@ -88,7 +92,8 @@ public class SportsDbContentImportService {
     private final ContentRepository contentRepository;
     private final SportEventRepository sportEventRepository;
     private final SportTypeRepository sportTypeRepository;
-    private final ApplicationEventPublisher eventPublisher;
+    private final ContentEmbeddingService contentEmbeddingService;
+    private final ContentAutocompleteSynchronizer autocompleteSynchronizer;
     private final TransactionTemplate transactionTemplate;
 
     public void syncEvents(LocalDate runDate, ContentImportMetrics metrics) {
@@ -124,6 +129,7 @@ public class SportsDbContentImportService {
                                 status -> syncEvent(event, id, league)
                             );
                             record(result, metrics);
+                            synchronizeSearch(result, id);
                         } catch (RuntimeException exception) {
                             rethrowIfInterrupted(exception);
                             metrics.failed("sport:" + id);
@@ -142,8 +148,8 @@ public class SportsDbContentImportService {
         Set<Integer> handled,
         ContentImportMetrics metrics
     ) {
-        Instant from = runDate.minusDays(3).atStartOfDay().toInstant(ZoneOffset.UTC);
-        Instant to = runDate.plusDays(8).atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant from = runDate.minusDays(3).atStartOfDay(CONTENT_IMPORT_ZONE).toInstant();
+        Instant to = runDate.plusDays(8).atStartOfDay(CONTENT_IMPORT_ZONE).toInstant();
         int fetchLimit = RECHECK_LIMIT + handled.size();
         int rechecked = 0;
         for (SportEvent candidate : sportEventRepository.findAllBatchUpdateCandidates(
@@ -165,9 +171,10 @@ public class SportsDbContentImportService {
                     sportEventRepository.findById(candidate.getContentId())
                         .filter(existing -> !existing.getContent().isHidden())
                         .map(existing -> update(existing, event))
-                        .orElseGet(SportSyncResult::existingResult)
+                        .orElseGet(() -> SportSyncResult.existingResult(null))
                 );
                 record(result, metrics);
+                synchronizeSearch(result, externalId);
             } catch (RuntimeException exception) {
                 rethrowIfInterrupted(exception);
                 metrics.failed("sport:" + externalId);
@@ -182,6 +189,20 @@ public class SportsDbContentImportService {
         if (result.created()) metrics.created();
         if (result.updated()) metrics.sportUpdated();
         if (result.missingRequired()) metrics.missingRequired();
+    }
+
+    private void synchronizeSearch(SportSyncResult result, int externalId) {
+        if (result == null || result.contentId() == null) return;
+        try {
+            contentEmbeddingService.indexSportSearchDocument(result.contentId());
+            autocompleteSynchronizer.synchronize(result.contentId());
+        } catch (RuntimeException exception) {
+            rethrowIfInterrupted(exception);
+            throw new IllegalStateException(
+                "TheSportsDB 검색 문서 동기화에 실패했습니다. externalEventId=" + externalId,
+                exception
+            );
+        }
     }
 
     private static void rethrowIfInterrupted(RuntimeException exception) {
@@ -202,10 +223,10 @@ public class SportsDbContentImportService {
         Content existingContent = contentRepository.findByExternalSourceAndTypeAndExternalId(
             SOURCE, ContentType.SPORT, id).orElse(null);
         if (existingContent != null) {
-            if (existingContent.isHidden()) return SportSyncResult.existingResult();
+            if (existingContent.isHidden()) return SportSyncResult.existingResult(null);
             return sportEventRepository.findById(existingContent.getId())
                 .map(existing -> update(existing, event))
-                .orElseGet(SportSyncResult::existingResult);
+                .orElseGet(() -> SportSyncResult.existingResult(null));
         }
         return importEvent(event, id, league);
     }
@@ -220,7 +241,7 @@ public class SportsDbContentImportService {
         }
         Instant scheduledAt = scheduledAt(event);
         if (sportEventRepository.existsDuplicate(title, home, away, scheduledAt)) {
-            return SportSyncResult.existingResult();
+            return SportSyncResult.existingResult(null);
         }
         SportType sportType = sportType(league.getSportCode(), sportName);
         Integer homeScore = integer(event, "intHomeScore");
@@ -239,8 +260,7 @@ public class SportsDbContentImportService {
             limit(text(event, "strVenue"), 255), limit(text(event, "strCountry"), 100), scheduledAt,
             homeScore, awayScore, limit(rawStatus(event), 100), normalizedStatus(event), Instant.now()
         ));
-        eventPublisher.publishEvent(new SportSearchSyncRequested(content.getId()));
-        return SportSyncResult.createdResult();
+        return SportSyncResult.createdResult(content.getId());
     }
 
     private SportSyncResult update(SportEvent existing, JsonNode event) {
@@ -248,12 +268,12 @@ public class SportsDbContentImportService {
         String home = limit(text(event, "strHomeTeam"), 255);
         String away = limit(text(event, "strAwayTeam"), 255);
         if (title == null || home == null || away == null) {
-            return SportSyncResult.existingWithMissingRequired();
+            return SportSyncResult.existingWithMissingRequired(existing.getContentId());
         }
         Instant scheduledAt = scheduledAt(event);
         if (sportEventRepository.existsDuplicateExcluding(
             existing.getContentId(), title, home, away, scheduledAt)) {
-            return SportSyncResult.existingResult();
+            return SportSyncResult.existingResult(existing.getContentId());
         }
         Integer homeScore = integer(event, "intHomeScore");
         Integer awayScore = integer(event, "intAwayScore");
@@ -263,19 +283,22 @@ public class SportsDbContentImportService {
         }
         String description = text(event, "strDescriptionEN");
         String thumbnailUrl = limit(firstText(event, "strThumb", "strPoster", "strFanart"), 500);
+        String leagueName = limit(text(event, "strLeague"), 255);
         String season = limit(text(event, "strSeason"), 100);
         String round = limit(text(event, "intRound"), 100);
         String venue = limit(text(event, "strVenue"), 255);
         String country = limit(text(event, "strCountry"), 100);
         String rawStatus = limit(rawStatus(event), 100);
         NormalizedStatus normalizedStatus = normalizedStatus(event);
-        boolean changed = !Objects.equals(existing.getContent().getTitle(), title)
+        boolean searchChanged = !Objects.equals(existing.getContent().getTitle(), title)
             || !Objects.equals(existing.getContent().getDescription(), description)
-            || !Objects.equals(existing.getContent().getThumbnailUrl(), thumbnailUrl)
+            || !Objects.equals(existing.getLeagueName(), leagueName)
             || !Objects.equals(existing.getSeason(), season)
-            || !Objects.equals(existing.getRound(), round)
             || !Objects.equals(existing.getHomeTeamName(), home)
-            || !Objects.equals(existing.getAwayTeamName(), away)
+            || !Objects.equals(existing.getAwayTeamName(), away);
+        boolean changed = searchChanged
+            || !Objects.equals(existing.getContent().getThumbnailUrl(), thumbnailUrl)
+            || !Objects.equals(existing.getRound(), round)
             || !Objects.equals(existing.getVenue(), venue)
             || !Objects.equals(existing.getCountry(), country)
             || !Objects.equals(existing.getScheduledAt(), scheduledAt)
@@ -286,17 +309,17 @@ public class SportsDbContentImportService {
 
         if (!changed) {
             existing.updateStatus(existing.getRawStatus(), existing.getNormalizedStatus(), Instant.now());
-            return SportSyncResult.existingResult();
+            return SportSyncResult.existingResult(existing.getContentId());
         }
         existing.getContent().updateCommonDetails(title, text(event, "strDescriptionEN"), null, null);
         existing.getContent().replaceThumbnailUrl(thumbnailUrl);
-        existing.updateMutableDetails(
-            season, round, home, away, venue, country, scheduledAt, homeScore, awayScore
+        existing.updateDetails(
+            existing.getSportType(), leagueName, season, round, home, away, venue, country,
+            scheduledAt, homeScore, awayScore
         );
         existing.updateStatus(rawStatus, normalizedStatus, Instant.now());
         existing.getContent().markUpdated();
-        eventPublisher.publishEvent(new SportSearchSyncRequested(existing.getContentId()));
-        return SportSyncResult.updatedResult();
+        return SportSyncResult.updatedResult(existing.getContentId());
     }
 
     private SportType sportType(SportCode configuredCode, String name) {
@@ -383,29 +406,30 @@ public class SportsDbContentImportService {
     }
 
     private record SportSyncResult(
+        UUID contentId,
         boolean existing,
         boolean created,
         boolean updated,
         boolean missingRequired
     ) {
-        private static SportSyncResult existingResult() {
-            return new SportSyncResult(true, false, false, false);
+        private static SportSyncResult existingResult(UUID contentId) {
+            return new SportSyncResult(contentId, true, false, false, false);
         }
 
-        private static SportSyncResult createdResult() {
-            return new SportSyncResult(false, true, false, false);
+        private static SportSyncResult createdResult(UUID contentId) {
+            return new SportSyncResult(contentId, false, true, false, false);
         }
 
-        private static SportSyncResult updatedResult() {
-            return new SportSyncResult(true, false, true, false);
+        private static SportSyncResult updatedResult(UUID contentId) {
+            return new SportSyncResult(contentId, true, false, true, false);
         }
 
         private static SportSyncResult missingRequiredResult() {
-            return new SportSyncResult(false, false, false, true);
+            return new SportSyncResult(null, false, false, false, true);
         }
 
-        private static SportSyncResult existingWithMissingRequired() {
-            return new SportSyncResult(true, false, false, true);
+        private static SportSyncResult existingWithMissingRequired(UUID contentId) {
+            return new SportSyncResult(contentId, true, false, false, true);
         }
     }
 }

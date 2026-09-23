@@ -1,5 +1,6 @@
 package com.moduplaylist.core.content.repository;
 
+import com.moduplaylist.core.content.entity.ContentPlatform.PlatformSource;
 import com.moduplaylist.core.content.entity.TagSource;
 import jakarta.persistence.EntityManager;
 import java.nio.ByteBuffer;
@@ -45,6 +46,7 @@ public class ContentRelationRepository {
         private final String name;
         private final String logoUrl;
         private final String url;
+        private final PlatformSource source;
     }
 
     @SuppressWarnings("unchecked")
@@ -78,23 +80,33 @@ public class ContentRelationRepository {
     }
     public List<PlatformItem> platforms(UUID id) {
         @SuppressWarnings("unchecked")
-        List<Object[]> rows = em.createNativeQuery("SELECT p.id,p.name,p.logo_url,cp.url FROM contents c JOIN content_platforms cp ON cp.content_id=c.id JOIN platforms p ON p.id=cp.platform_id WHERE c.id=:id AND c.hidden=false AND cp.region_code='KR' ORDER BY p.name,p.id")
+        List<Object[]> rows = em.createNativeQuery("SELECT p.id,p.name,p.logo_url,cp.url,cp.source FROM contents c JOIN content_platforms cp ON cp.content_id=c.id JOIN platforms p ON p.id=cp.platform_id WHERE c.id=:id AND c.hidden=false AND cp.region_code='KR' ORDER BY p.name,p.id")
                 .setParameter("id", bytes(id))
                 .getResultList();
         return rows
-                .stream().map(r -> new PlatformItem(uuid(r[0]), (String) r[1], (String) r[2], (String) r[3])).toList();
+                .stream().map(this::toPlatformItem).toList();
     }
     public List<PlatformItem> platformsIncludingHidden(UUID id) {
         @SuppressWarnings("unchecked")
-        List<Object[]> rows = em.createNativeQuery("SELECT p.id,p.name,p.logo_url,cp.url FROM contents c JOIN content_platforms cp ON cp.content_id=c.id JOIN platforms p ON p.id=cp.platform_id WHERE c.id=:id AND cp.region_code='KR' ORDER BY p.name,p.id")
+        List<Object[]> rows = em.createNativeQuery("SELECT p.id,p.name,p.logo_url,cp.url,cp.source FROM contents c JOIN content_platforms cp ON cp.content_id=c.id JOIN platforms p ON p.id=cp.platform_id WHERE c.id=:id AND cp.region_code='KR' ORDER BY p.name,p.id")
                 .setParameter("id", bytes(id))
                 .getResultList();
         return rows
-                .stream().map(r -> new PlatformItem(uuid(r[0]), (String) r[1], (String) r[2], (String) r[3])).toList();
+                .stream().map(this::toPlatformItem).toList();
     }
 
     private Tag toTag(Object[] row) {
         return new Tag(uuid(row[0]), (String) row[1], TagSource.valueOf((String) row[2]));
+    }
+
+    private PlatformItem toPlatformItem(Object[] row) {
+        return new PlatformItem(
+                uuid(row[0]),
+                (String) row[1],
+                (String) row[2],
+                (String) row[3],
+                PlatformSource.valueOf((String) row[4])
+        );
     }
 
     private byte[] bytes(UUID id) {

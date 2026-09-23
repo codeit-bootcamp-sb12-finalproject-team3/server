@@ -53,6 +53,7 @@ public class ContentImportJobConfig {
             .on("*").to(contentImportResultDecider)
             .on(FlowExecutionStatus.FAILED.getName()).fail()
             .from(contentImportResultDecider).on("*").end()
+            .end()
             .build();
     }
 
@@ -117,6 +118,9 @@ public class ContentImportJobConfig {
         boolean completed = false;
         try {
             action.accept(metrics);
+            if (metrics.hasFailures()) {
+                throw new IllegalStateException(source + " 콘텐츠 수집에 부분 실패가 발생했습니다.");
+            }
             completed = true;
             return RepeatStatus.FINISHED;
         } finally {

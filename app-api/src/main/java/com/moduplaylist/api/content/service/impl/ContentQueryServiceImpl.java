@@ -33,6 +33,7 @@ import com.moduplaylist.api.playlist.dto.PlaylistSummaryResponse;
 import com.moduplaylist.api.playlist.service.PlaylistQueryService;
 import com.moduplaylist.api.watchparty.service.WatchPartyService;
 import com.moduplaylist.core.content.entity.Content;
+import com.moduplaylist.core.content.entity.ContentPlatform;
 import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.core.content.entity.Episode;
 import com.moduplaylist.core.content.entity.Genre;
@@ -328,12 +329,14 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	@Transactional(readOnly = true)
 	public ContentPlatformResponse findHiddenSeasonOttByIdForAdmin(UUID hiddenSeasonId) {
 		requireHiddenSeason(hiddenSeasonId);
-		List<ContentPlatformItemResponse> otts = contentRelationRepository
-			.platformsIncludingHidden(hiddenSeasonId).stream()
+		List<ContentRelationRepository.PlatformItem> platformItems = contentRelationRepository
+			.platformsIncludingHidden(hiddenSeasonId);
+		List<ContentPlatformItemResponse> otts = platformItems.stream()
 			.map(this::toPlatformItemResponse)
 			.toList();
 		return ContentPlatformResponse.builder()
 			.regionCode("KR")
+			.justWatchAttributionRequired(requiresJustWatchAttribution(platformItems))
 			.otts(otts)
 			.build();
 	}
@@ -429,12 +432,14 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	@Transactional(readOnly = true)
 	public ContentPlatformResponse findOtt(UUID contentId) {
 		Content content = requireMovieOrSeason(contentId);
-		List<ContentPlatformItemResponse> otts = contentRelationRepository
-			.platforms(content.getId()).stream()
+		List<ContentRelationRepository.PlatformItem> platformItems = contentRelationRepository
+			.platforms(content.getId());
+		List<ContentPlatformItemResponse> otts = platformItems.stream()
 			.map(this::toPlatformItemResponse)
 			.toList();
 		return ContentPlatformResponse.builder()
 			.regionCode("KR")
+			.justWatchAttributionRequired(requiresJustWatchAttribution(platformItems))
 			.otts(otts)
 			.build();
 	}
@@ -627,6 +632,13 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			.logoUrl(value.getLogoUrl())
 			.url(value.getUrl())
 			.build();
+	}
+
+	private static boolean requiresJustWatchAttribution(
+		List<ContentRelationRepository.PlatformItem> platformItems
+	) {
+		return platformItems.stream().anyMatch(item ->
+			item.getSource() == ContentPlatform.PlatformSource.TMDB);
 	}
 
 	private SportDetail toSportDetail(SportEvent event) {
