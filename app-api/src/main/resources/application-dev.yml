@@ -66,6 +66,14 @@ aws:
     bucket: ${AWS_S3_BUCKET:}
 
 mopl:
+  trending:
+    processed-event-ttl: ${TRENDING_PROCESSED_EVENT_TTL:7d}
+    weight:
+      content-view: ${TRENDING_CONTENT_VIEW_WEIGHT:0.5}
+      content-like: ${TRENDING_CONTENT_LIKE_WEIGHT:2.0}
+      rating: ${TRENDING_RATING_WEIGHT:1.5}
+      playlist-content: ${TRENDING_PLAYLIST_CONTENT_WEIGHT:1.0}
+      watch-party-participation: ${TRENDING_WATCH_PARTY_PARTICIPATION_WEIGHT:1.0}
   recommendation:
     refresh:
       threshold: ${RECOMMENDATION_REFRESH_THRESHOLD:3.0}
