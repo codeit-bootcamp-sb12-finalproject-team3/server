@@ -293,6 +293,10 @@ public class WatchPartyService {
     }
 
     private Map<UUID, Integer> fetchParticipantCountMap(List<WatchParty> watchParties) {
+        if (watchParties.isEmpty()) {
+            return Map.of();
+        }
+
         List<UUID> watchPartyIds = watchParties.stream()
                 .map(WatchParty::getId)
                 .toList();
