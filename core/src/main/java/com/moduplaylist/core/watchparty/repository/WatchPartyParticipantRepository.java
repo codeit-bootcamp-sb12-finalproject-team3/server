@@ -23,6 +23,14 @@ public interface WatchPartyParticipantRepository extends JpaRepository<WatchPart
             @Param("watchPartyIds") List<UUID> watchPartyIds,
             @Param("status") ParticipantStatus status);
 
+    @Query("select wpp from WatchPartyParticipant wpp " +
+            "join fetch wpp.user " +
+            "where wpp.watchParty.id = :watchPartyId and wpp.status = :status " +
+            "order by wpp.joinedAt asc")
+    List<WatchPartyParticipant> findJoinedParticipants(
+            @Param("watchPartyId") UUID watchPartyId,
+            @Param("status") ParticipantStatus status);
+
     interface ParticipantCount {
         UUID getWatchPartyId();
         long getCount();
