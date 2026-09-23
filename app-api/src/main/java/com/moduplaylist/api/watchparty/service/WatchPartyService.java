@@ -33,7 +33,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -139,8 +142,12 @@ public class WatchPartyService {
 
         WatchPartyQueryRepository.SearchResult result = watchPartyQueryRepository.search(search);
 
-        List<WatchPartySummaryResponse> data = result.getWatchParties().stream()
-                .map(this::toSummaryResponse)
+        List<WatchParty> watchParties = result.getWatchParties();
+        Map<UUID, Content> contentById = fetchContentMap(watchParties);
+        Map<UUID, Integer> participantCountById = fetchParticipantCountMap(watchParties);
+
+        List<WatchPartySummaryResponse> data = watchParties.stream()
+                .map(wp -> toSummaryResponse(wp, contentById, participantCountById))
                 .toList();
 
         String nextCursor = null;
@@ -172,8 +179,12 @@ public class WatchPartyService {
                 .limit(CONTENT_WIDGET_LIMIT)
                 .build();
         WatchPartyQueryRepository.SearchResult result = watchPartyQueryRepository.search(search);
-        List<WatchPartySummaryResponse> items = result.getWatchParties().stream()
-                .map(this::toSummaryResponse)
+        List<WatchParty> watchParties = result.getWatchParties();
+        Map<UUID, Content> contentById = fetchContentMap(watchParties);
+        Map<UUID, Integer> participantCountById = fetchParticipantCountMap(watchParties);
+
+        List<WatchPartySummaryResponse> items = watchParties.stream()
+                .map(wp -> toSummaryResponse(wp, contentById, participantCountById))
                 .toList();
 
         return ContentWatchPartyResponse.builder()
@@ -251,11 +262,13 @@ public class WatchPartyService {
         );
     }
 
-    private WatchPartySummaryResponse toSummaryResponse(WatchParty watchParty) {
-        Content content = contentRepository.findById(watchParty.getContentId())
-                .orElseThrow(() -> new ContentNotFoundException(watchParty.getContentId()));
-        int currentParticipants = (int) watchPartyParticipantRepository
-                .countByWatchParty_IdAndStatus(watchParty.getId(), ParticipantStatus.JOINED);
+    private WatchPartySummaryResponse toSummaryResponse(
+            WatchParty watchParty, Map<UUID, Content> contentById, Map<UUID, Integer> participantCountById) {
+        Content content = contentById.get(watchParty.getContentId());
+        if (content == null) {
+            throw new ContentNotFoundException(watchParty.getContentId());
+        }
+        int currentParticipants = participantCountById.getOrDefault(watchParty.getId(), 0);
 
         return WatchPartySummaryResponse.builder()
                 .id(watchParty.getId())
@@ -268,6 +281,30 @@ public class WatchPartyService {
                 .currentParticipantCount(currentParticipants)
                 .createdAt(watchParty.getCreatedAt())
                 .build();
+    }
+
+    private Map<UUID, Content> fetchContentMap(List<WatchParty> watchParties) {
+        List<UUID> contentIds = watchParties.stream()
+                .map(WatchParty::getContentId)
+                .distinct()
+                .toList();
+        return contentRepository.findAllById(contentIds).stream()
+                .collect(Collectors.toMap(Content::getId, Function.identity()));
+    }
+
+    private Map<UUID, Integer> fetchParticipantCountMap(List<WatchParty> watchParties) {
+        List<UUID> watchPartyIds = watchParties.stream()
+                .map(WatchParty::getId)
+                .toList();
+        Map<UUID, Integer> counts = watchPartyParticipantRepository
+                .countByWatchPartyIdsAndStatus(watchPartyIds, ParticipantStatus.JOINED)
+                .stream()
+                .collect(Collectors.toMap(
+                        WatchPartyParticipantRepository.ParticipantCount::getWatchPartyId,
+                        p -> (int) p.getCount()
+                ));
+        watchParties.forEach(wp -> counts.putIfAbsent(wp.getId(), 0));
+        return counts;
     }
 
     private UserSummary toHostSummary(User host) {

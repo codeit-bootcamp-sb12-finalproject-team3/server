@@ -2,6 +2,7 @@ package com.moduplaylist.core.watchparty.entity;
 
 import com.moduplaylist.core.common.BaseEntity;
 import com.moduplaylist.core.user.entity.User;
+import com.moduplaylist.core.watchparty.exception.WatchPartyInvalidStateException;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -57,14 +58,14 @@ public class WatchParty extends BaseEntity {
 
     public void start() {
         if (this.status != WatchPartyStatus.SCHEDULED) {
-            throw new IllegalStateException("시작 대기 상태의 방만 시작할 수 있습니다.");
+            throw new WatchPartyInvalidStateException(this.getId(), "시작 대기 상태의 방만 시작할 수 있습니다.");
         }
         this.status = WatchPartyStatus.LIVE;
     }
 
     public void end() {
         if (this.status != WatchPartyStatus.LIVE) {
-            throw new IllegalStateException("진행 중인 방만 종료할 수 있습니다.");
+            throw new WatchPartyInvalidStateException(this.getId(), "진행 중인 방만 종료할 수 있습니다.");
         }
         this.status = WatchPartyStatus.ENDED;
         this.endedAt = Instant.now();
