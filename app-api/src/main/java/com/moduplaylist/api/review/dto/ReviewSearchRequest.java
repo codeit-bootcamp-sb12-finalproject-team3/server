@@ -19,6 +19,8 @@ public class ReviewSearchRequest {
 
 	private UUID contentId;
 
+	private UUID userIdEqual;
+
 	@Size(max = 2048)
 	private String cursor;
 

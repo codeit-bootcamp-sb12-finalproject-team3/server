@@ -5,6 +5,8 @@ import com.moduplaylist.core.common.exception.ErrorCode;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -102,6 +105,8 @@ public class GlobalExceptionHandler {
     // 처리되지 않은 예외가 클라이언트에 그대로 노출되지 않도록 500 응답으로 처리한다.
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(Exception e) {
+        log.error("처리되지 않은 예외 발생", e);
+
         ErrorResponse response = ErrorResponse.builder()
                 .timestamp(Instant.now())
                 .code(ErrorCode.INTERNAL_SERVER_ERROR.name())

@@ -1,12 +1,17 @@
 package com.moduplaylist.api.user.service.impl;
 
 import com.moduplaylist.api.user.dto.UserCreateRequest;
+import com.moduplaylist.api.user.dto.UserProfileResponse;
+import com.moduplaylist.api.user.dto.UserProfileUpdateRequest;
 import com.moduplaylist.api.user.dto.UserResponse;
 import com.moduplaylist.api.user.service.UserService;
 import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.entity.UserRole;
+import com.moduplaylist.core.user.exception.InvalidUserProfileUpdateException;
+import com.moduplaylist.core.user.exception.UserNotFoundException;
+import com.moduplaylist.core.user.exception.UserProfileAccessDeniedException;
 import com.moduplaylist.core.user.repository.UserRepository;
 import com.moduplaylist.core.user.repository.JwtRegistry;
 import com.moduplaylist.core.user.exception.UserAlreadyExistsException;
@@ -86,6 +91,42 @@ public class UserServiceImpl implements UserService {
     }
 
     return UserResponse.from(user);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public UserProfileResponse getProfile(UUID userId) {
+    User user = userRepository.findById(userId)
+        .orElseThrow(() -> new UserNotFoundException(userId));
+
+    return UserProfileResponse.from(user);
+  }
+
+  @Override
+  @Transactional
+  public UserProfileResponse updateProfile(
+      UUID userId,
+      UUID authenticatedUserId,
+      UserProfileUpdateRequest request
+  ) {
+
+    if (!userId.equals(authenticatedUserId)) {
+      throw new UserProfileAccessDeniedException(userId);
+    }
+
+    if (request.getName() == null && request.getProfileImageUrl() == null) {
+      throw new InvalidUserProfileUpdateException();
+    }
+
+    User user = userRepository.findById(userId)
+        .orElseThrow(() -> new UserNotFoundException(userId));
+
+    user.updateProfile(
+        request.getName(),
+        request.getProfileImageUrl()
+    );
+
+    return UserProfileResponse.from(user);
   }
 
   private void invalidateAfterCommit(UUID userId) {
