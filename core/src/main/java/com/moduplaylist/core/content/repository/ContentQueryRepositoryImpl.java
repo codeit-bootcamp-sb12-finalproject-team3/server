@@ -29,6 +29,44 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
                 : searchContents(request);
     }
 
+    @Override
+    public SearchResult searchNewContents(NewContentSearch request) {
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("excludedType", ContentType.TV_SERIES);
+        parameters.put("createdAtFrom", request.getCreatedAtFrom());
+        StringBuilder filter = new StringBuilder(
+                " where content.hidden = false"
+                        + " and content.type <> :excludedType"
+                        + " and content.createdAt >= :createdAtFrom");
+        long totalCount = countContents(filter, parameters);
+
+        if (request.getIdAfter() != null) {
+            filter.append(" and (content.createdAt < :cursorCreatedAt")
+                    .append(" or (content.createdAt = :cursorCreatedAt")
+                    .append(" and content.id < :idAfter))");
+            parameters.put("cursorCreatedAt", request.getCursorCreatedAt());
+            parameters.put("idAfter", request.getIdAfter());
+        }
+
+        TypedQuery<Content> query = entityManager.createQuery(
+                "select content from Content content"
+                        + filter
+                        + " order by content.createdAt desc, content.id desc",
+                Content.class);
+        setParameters(query, parameters);
+
+        List<Content> fetched = query
+                .setMaxResults(request.getLimit() + 1)
+                .getResultList();
+        boolean hasNext = fetched.size() > request.getLimit();
+        return new SearchResult(
+                limit(fetched, request.getLimit(), hasNext),
+                totalCount,
+                hasNext,
+                null
+        );
+    }
+
     private SearchResult searchContents(ContentSearch request) {
         Map<String, Object> parameters = new HashMap<>();
         StringBuilder filter = createContentFilter(request, parameters, "content");

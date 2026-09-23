@@ -27,4 +27,6 @@ public interface ContentQueryRepository {
     }
 
     SearchResult search(ContentSearch request);
+
+    SearchResult searchNewContents(NewContentSearch request);
 }
