@@ -95,6 +95,13 @@ public class WatchPartyService {
         if (hasEpisodeRange && !isEpisodicContent) {
             throw new WatchPartyInvalidEpisodeRangeException(content.getId());
         }
+
+        if (hasEpisodeRange && isEpisodicContent) {
+            Integer episodeCount = content.getEpisodeCount();
+            if (endEpisode != null && episodeCount != null && endEpisode > episodeCount) {
+                throw new WatchPartyInvalidEpisodeRangeException(content.getId(), episodeCount, endEpisode);
+            }
+        }
     }
 
     private void validateWatchPartyContent(Content content) {

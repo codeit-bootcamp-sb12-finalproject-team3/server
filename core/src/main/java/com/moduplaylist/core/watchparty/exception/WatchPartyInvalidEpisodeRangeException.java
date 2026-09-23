@@ -10,4 +10,11 @@ public class WatchPartyInvalidEpisodeRangeException extends BaseException {
         super(ErrorCode.WATCHPARTY_INVALID_EPISODE_RANGE);
         addDetail("contentId", contentId);
     }
+
+    public WatchPartyInvalidEpisodeRangeException(UUID contentId, Integer episodeCount, Integer requestedEndEpisode) {
+        super(ErrorCode.WATCHPARTY_INVALID_EPISODE_RANGE);
+        addDetail("contentId", contentId);
+        addDetail("episodeCount", episodeCount);
+        addDetail("requestedEndEpisode", requestedEndEpisode);
+    }
 }
