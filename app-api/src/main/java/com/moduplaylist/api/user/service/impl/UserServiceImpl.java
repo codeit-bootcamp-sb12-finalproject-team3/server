@@ -7,10 +7,10 @@ import com.moduplaylist.api.user.dto.UserResponse;
 import com.moduplaylist.api.user.service.UserService;
 import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
-import com.moduplaylist.core.content.exception.ContentStorageUnavailableException;
-import com.moduplaylist.core.content.exception.ContentUploadLimitExceededException;
-import com.moduplaylist.core.content.exception.InvalidContentImageException;
-import com.moduplaylist.core.content.exception.UnsupportedContentImageTypeException;
+import com.moduplaylist.core.common.exception.ImageStorageUnavailableException;
+import com.moduplaylist.core.common.exception.ImageUploadLimitExceededException;
+import com.moduplaylist.core.common.exception.InvalidImageException;
+import com.moduplaylist.core.common.exception.UnsupportedImageTypeException;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.entity.UserRole;
 import com.moduplaylist.core.user.exception.InvalidUserProfileUpdateException;
@@ -146,24 +146,24 @@ public class UserServiceImpl implements UserService {
 
   private String uploadProfileImage(UUID userId, MultipartFile image) {
     if (image.isEmpty()) {
-      throw new InvalidContentImageException();
+      throw new InvalidImageException();
     }
     if (image.getSize() > 5L * 1024 * 1024) {
-      throw new ContentUploadLimitExceededException();
+      throw new ImageUploadLimitExceededException();
     }
     try {
       byte[] bytes = image.getBytes();
       String contentType = detectImageType(bytes);
       if (contentType == null) {
-        throw new UnsupportedContentImageTypeException();
+        throw new UnsupportedImageTypeException();
       }
       return userProfileImageStorage.upload(userId, bytes, contentType);
     } catch (IOException exception) {
-      throw new ContentStorageUnavailableException(exception);
-    } catch (UnsupportedContentImageTypeException exception) {
+      throw new ImageStorageUnavailableException(exception);
+    } catch (UnsupportedImageTypeException exception) {
       throw exception;
     } catch (RuntimeException exception) {
-      throw new ContentStorageUnavailableException(exception);
+      throw new ImageStorageUnavailableException(exception);
     }
   }
 
