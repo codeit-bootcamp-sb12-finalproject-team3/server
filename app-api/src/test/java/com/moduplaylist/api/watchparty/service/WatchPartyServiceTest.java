@@ -6,11 +6,7 @@ import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.watchparty.entity.WatchParty;
 import com.moduplaylist.core.watchparty.exception.WatchPartyInvalidEpisodeRangeException;
-import com.moduplaylist.core.watchparty.repository.WatchPartyHostRegistry;
-import com.moduplaylist.core.watchparty.repository.WatchPartyParticipantRepository;
-import com.moduplaylist.core.watchparty.repository.WatchPartyPlaybackRegistry;
-import com.moduplaylist.core.watchparty.repository.WatchPartyQueryRepository;
-import com.moduplaylist.core.watchparty.repository.WatchPartyRepository;
+import com.moduplaylist.core.watchparty.repository.*;
 import com.moduplaylist.core.user.repository.UserRepository;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,6 +37,7 @@ class WatchPartyServiceTest {
     @Mock private WatchPartyHostRegistry watchPartyHostRegistry;
     @Mock private WatchPartyPlaybackRegistry watchPartyPlaybackRegistry;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private WatchPartyReminderRepository watchPartyReminderRepository;
 
     @InjectMocks
     private WatchPartyService watchPartyService;
