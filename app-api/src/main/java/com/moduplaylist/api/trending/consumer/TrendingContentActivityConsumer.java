@@ -4,7 +4,7 @@ import com.moduplaylist.api.trending.policy.TrendingScorePolicy;
 import com.moduplaylist.infrastructure.kafka.KafkaTopics;
 import com.moduplaylist.infrastructure.kafka.event.ContentActivityKafkaEvent;
 import com.moduplaylist.infrastructure.redis.trending.TrendingContentRedisRepository;
-import com.moduplaylist.infrastructure.trending.TrendingProperties;
+import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -17,7 +17,6 @@ public class TrendingContentActivityConsumer {
 
     private final TrendingScorePolicy scorePolicy;
     private final TrendingContentRedisRepository trendingRedisRepository;
-    private final TrendingProperties properties;
 
     @KafkaListener(
             topics = KafkaTopics.CONTENT_ACTIVITIES,
@@ -38,7 +37,8 @@ public class TrendingContentActivityConsumer {
                 event.eventId(),
                 event.contentId(),
                 delta,
-                properties.getProcessedEventTtl()
+                event.occurredAt(),
+                Instant.now()
         );
     }
 

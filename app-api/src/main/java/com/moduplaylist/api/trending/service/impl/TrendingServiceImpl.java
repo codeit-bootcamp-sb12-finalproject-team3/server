@@ -9,6 +9,7 @@ import com.moduplaylist.api.trending.service.TrendingService;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.infrastructure.redis.trending.TrendingContentRedisRepository;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +33,7 @@ public class TrendingServiceImpl implements TrendingService {
     @Transactional(readOnly = true)
     public CursorPageResponse<ContentSummaryResponse> findTrendingContents(UUID userId) {
         List<UUID> rankedContentIds = trendingRedisRepository
-                .findTopContentIds(CANDIDATE_LIMIT);
+                .findTopContentIds(CANDIDATE_LIMIT, Instant.now());
         List<Content> rankedContents = loadVisibleContentsInRankOrder(rankedContentIds);
         List<ContentSummaryResponse> data = contentSummaryResponseAssembler
                 .toResponses(rankedContents, userId);

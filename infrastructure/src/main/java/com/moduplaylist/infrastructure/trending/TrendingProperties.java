@@ -9,6 +9,9 @@ import org.springframework.stereotype.Component;
 public class TrendingProperties {
 
     private Duration processedEventTtl = Duration.ofDays(7);
+    private int windowHours = 24;
+    private Duration bucketTtl = Duration.ofHours(26);
+    private Duration resultCacheTtl = Duration.ofSeconds(30);
     private final Weight weight = new Weight();
 
     public Duration getProcessedEventTtl() {
@@ -16,24 +19,56 @@ public class TrendingProperties {
     }
 
     public void setProcessedEventTtl(Duration processedEventTtl) {
-        if (processedEventTtl == null
-                || processedEventTtl.isZero()
-                || processedEventTtl.isNegative()) {
-            throw new IllegalArgumentException("트렌딩 이벤트 중복 방지 TTL은 0보다 커야 합니다.");
+        this.processedEventTtl = requirePositive(
+                processedEventTtl,
+                "트렌딩 이벤트 중복 방지 TTL"
+        );
+    }
+
+    public int getWindowHours() {
+        return windowHours;
+    }
+
+    public void setWindowHours(int windowHours) {
+        if (windowHours < 1) {
+            throw new IllegalArgumentException("트렌딩 집계 시간은 1시간 이상이어야 합니다.");
         }
-        this.processedEventTtl = processedEventTtl;
+        this.windowHours = windowHours;
+    }
+
+    public Duration getBucketTtl() {
+        return bucketTtl;
+    }
+
+    public void setBucketTtl(Duration bucketTtl) {
+        this.bucketTtl = requirePositive(bucketTtl, "트렌딩 시간 버킷 TTL");
+    }
+
+    public Duration getResultCacheTtl() {
+        return resultCacheTtl;
+    }
+
+    public void setResultCacheTtl(Duration resultCacheTtl) {
+        this.resultCacheTtl = requirePositive(resultCacheTtl, "트렌딩 결과 캐시 TTL");
     }
 
     public Weight getWeight() {
         return weight;
     }
 
+    private static Duration requirePositive(Duration value, String name) {
+        if (value == null || value.isZero() || value.isNegative()) {
+            throw new IllegalArgumentException(name + "은 0보다 커야 합니다.");
+        }
+        return value;
+    }
+
     public static class Weight {
 
-        private double contentView = 0.5;
-        private double contentLike = 2.0;
-        private double rating = 1.5;
-        private double playlistContent = 1.0;
+        private double contentView = 0.1;
+        private double contentLike = 1.5;
+        private double rating = 1.0;
+        private double playlistContent = 0.7;
         private double watchPartyParticipation = 1.0;
 
         public double getContentView() {

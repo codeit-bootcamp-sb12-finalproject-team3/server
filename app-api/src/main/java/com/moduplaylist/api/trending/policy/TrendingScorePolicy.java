@@ -35,14 +35,16 @@ public class TrendingScorePolicy {
             ContentActivityKafkaEvent event,
             double ratingWeight
     ) {
-        if (event.oldRating() == null && event.newRating() != null) {
-            return ratingWeight;
-        }
-        if (event.oldRating() != null && event.newRating() == null) {
-            return -ratingWeight;
+        if (event.oldRating() == null && event.newRating() == null) {
+            throw new IllegalArgumentException("평점 활동에는 이전 평점 또는 신규 평점이 필요합니다.");
         }
 
-        // 트렌딩은 평점의 높낮이가 아닌 평점 활동의 존재를 반영하므로 수정 시 총 기여도는 유지한다.
+        if (event.oldRating() == null) {
+            return ratingWeight;
+        }
+        if (event.newRating() == null) {
+            return -ratingWeight;
+        }
         return 0.0;
     }
 }
