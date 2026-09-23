@@ -1,10 +1,10 @@
-package com.moduplaylist.api.user.service.impl;
+package com.moduplaylist.api.auth.service.impl;
 
 import com.moduplaylist.api.global.security.CustomUserDetails;
 import com.moduplaylist.api.global.security.CustomUserDetailsService;
 import com.moduplaylist.api.global.security.jwt.JwtTokenProvider;
-import com.moduplaylist.api.user.dto.TokenRefreshResult;
-import com.moduplaylist.api.user.service.AuthService;
+import com.moduplaylist.api.auth.dto.TokenRefreshResult;
+import com.moduplaylist.api.auth.service.AuthService;
 import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
 import com.moduplaylist.core.user.repository.JwtRegistry;

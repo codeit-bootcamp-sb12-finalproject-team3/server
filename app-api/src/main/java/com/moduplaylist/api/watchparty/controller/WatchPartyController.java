@@ -11,6 +11,7 @@ import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -51,6 +52,15 @@ public class WatchPartyController {
         SortDirection direction = parseDirection(sortDirection);
         return ResponseEntity.ok(
                 watchPartyService.getWatchParties(statusEqual, contentIdEqual, cursor, idAfter, limit, direction)
+        );
+    }
+
+    @GetMapping("/scheduled-by-me")
+    public ResponseEntity<List<WatchPartySummaryResponse>> findScheduledByMe(
+        @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        return ResponseEntity.ok(
+            watchPartyService.getScheduledWatchParties(userDetails.getUserId())
         );
     }
 

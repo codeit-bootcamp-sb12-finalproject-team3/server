@@ -53,6 +53,7 @@ public class WatchPartyService {
     private final WatchPartyHostRegistry watchPartyHostRegistry;
     private final WatchPartyPlaybackRegistry watchPartyPlaybackRegistry;
     private final ApplicationEventPublisher eventPublisher;
+    private final WatchPartyReminderRepository watchPartyReminderRepository;
 
     public WatchPartyResponse createWatchParty(UUID hostId, CreateWatchPartyRequest request) {
 
@@ -269,25 +270,47 @@ public class WatchPartyService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public List<WatchPartySummaryResponse> getScheduledWatchParties(UUID userId) {
+        List<WatchParty> watchParties = watchPartyReminderRepository.findScheduledByUserId(
+                userId,
+                WatchPartyStatus.SCHEDULED,
+                Instant.now()
+            ).stream()
+            .map(reminder -> reminder.getWatchParty())
+            .toList();
+
+        Map<UUID, Content> contentById = fetchContentMap(watchParties);
+        Map<UUID, Integer> participantCountById = fetchParticipantCountMap(watchParties);
+
+        return watchParties.stream()
+            .map(wp -> toSummaryResponse(wp, contentById, participantCountById))
+            .toList();
+    }
+
     private WatchPartySummaryResponse toSummaryResponse(
-            WatchParty watchParty, Map<UUID, Content> contentById, Map<UUID, Integer> participantCountById) {
+        WatchParty watchParty,
+        Map<UUID, Content> contentById,
+        Map<UUID, Integer> participantCountById) {
+
         Content content = contentById.get(watchParty.getContentId());
         if (content == null) {
             throw new ContentNotFoundException(watchParty.getContentId());
         }
+
         int currentParticipants = participantCountById.getOrDefault(watchParty.getId(), 0);
 
         return WatchPartySummaryResponse.builder()
-                .id(watchParty.getId())
-                .host(toHostSummary(watchParty.getHost()))
-                .content(toContentSummary(content))
-                .title(watchParty.getTitle())
-                .scheduledAt(watchParty.getScheduledAt())
-                .status(watchParty.getStatus())
-                .maxParticipants(watchParty.getMaxParticipants())
-                .currentParticipantCount(currentParticipants)
-                .createdAt(watchParty.getCreatedAt())
-                .build();
+            .id(watchParty.getId())
+            .host(toHostSummary(watchParty.getHost()))
+            .content(toContentSummary(content))
+            .title(watchParty.getTitle())
+            .scheduledAt(watchParty.getScheduledAt())
+            .status(watchParty.getStatus())
+            .maxParticipants(watchParty.getMaxParticipants())
+            .currentParticipantCount(currentParticipants)
+            .createdAt(watchParty.getCreatedAt())
+            .build();
     }
 
     private Map<UUID, Content> fetchContentMap(List<WatchParty> watchParties) {

@@ -1,4 +1,4 @@
-package com.moduplaylist.api.user.dto;
+package com.moduplaylist.api.auth.dto;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

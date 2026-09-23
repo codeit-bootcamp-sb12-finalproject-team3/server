@@ -23,4 +23,19 @@ public interface WatchPartyReminderRepository extends JpaRepository<WatchPartyRe
     List<WatchPartyReminder> findDueReminders(
             @Param("status") WatchPartyStatus status,
             @Param("threshold") Instant threshold);
+
+    @Query("""
+    select reminder
+    from WatchPartyReminder reminder
+    join fetch reminder.watchParty watchParty
+    where reminder.user.id = :userId
+      and watchParty.status = :status
+      and watchParty.scheduledAt > :now
+    order by watchParty.scheduledAt asc
+    """)
+    List<WatchPartyReminder> findScheduledByUserId(
+        @Param("userId") UUID userId,
+        @Param("status") WatchPartyStatus status,
+        @Param("now") Instant now
+    );
 }

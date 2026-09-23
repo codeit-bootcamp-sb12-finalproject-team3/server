@@ -116,7 +116,9 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			? null
 			: request.getTypeEqual().toQueryType();
 		ContentSort sort = request.getSortBy() == null ? DEFAULT_SORT : request.getSortBy();
-		UUID likedByUserId = Boolean.TRUE.equals(request.getLikedByMe()) ? userId : null;
+		UUID likedByUserId = request.getLikedByUserIdEqual() != null
+				? request.getLikedByUserIdEqual()
+				: Boolean.TRUE.equals(request.getLikedByMe()) ? userId : null;
 
 		validateGenre(request.getGenreIdEqual());
 		validateSportType(request.getSportTypeEqual());
