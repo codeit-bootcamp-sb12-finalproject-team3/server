@@ -30,7 +30,7 @@ import com.moduplaylist.api.content.service.ContentAutocompletePopularityScorePr
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
 import com.moduplaylist.api.playlist.dto.PlaylistSummaryResponse;
-import com.moduplaylist.api.playlist.service.PlaylistService;
+import com.moduplaylist.api.playlist.service.PlaylistQueryService;
 import com.moduplaylist.api.watchparty.service.WatchPartyService;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentType;
@@ -97,7 +97,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	private final SportEventRepository sportEventRepository;
 	private final ContentRelationRepository contentRelationRepository;
 	private final ContentViewActivityService contentViewActivityService;
-	private final PlaylistService playlistService;
+	private final PlaylistQueryService playlistQueryService;
 	private final WatchPartyService watchPartyService;
 	private final ObjectProvider<ContentKeywordSearchRepository> keywordSearchRepositoryProvider;
 	private final ObjectProvider<ContentAutocompletePopularityScoreProvider>
@@ -452,7 +452,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			PlaylistSearch.Sort.WEEKLY_POPULARITY_SCORE,
 			PlaylistSearch.Direction.DESCENDING
 		);
-		CursorPageResponse<PlaylistSummaryResponse> result = playlistService.findAll(userId, search);
+		CursorPageResponse<PlaylistSummaryResponse> result = playlistQueryService.findAll(userId, search);
 		return ContentPlaylistResponse.builder()
 			.data(result.getData())
 			.hasMore(Boolean.TRUE.equals(result.getHasNext()))

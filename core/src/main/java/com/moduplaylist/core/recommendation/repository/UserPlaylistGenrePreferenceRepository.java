@@ -15,6 +15,9 @@ public interface UserPlaylistGenrePreferenceRepository
 
     List<UserPlaylistGenrePreference> findAllByUser_Id(UUID userId);
 
+    @Query("select distinct preference.user.id from UserPlaylistGenrePreference preference")
+    List<UUID> findDistinctUserIds();
+
     @Query("""
             select distinct preference.user.id
             from UserPlaylistGenrePreference preference

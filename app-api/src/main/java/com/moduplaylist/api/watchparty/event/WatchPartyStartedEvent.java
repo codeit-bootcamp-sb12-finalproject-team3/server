@@ -4,4 +4,4 @@ import com.moduplaylist.core.watchparty.repository.WatchPartyPlaybackState;
 
 import java.util.UUID;
 
-public record WatchPartyStartedEvent(UUID partyId, WatchPartyPlaybackState playbackState) {}
+public record WatchPartyStartedEvent(UUID eventId, UUID partyId, WatchPartyPlaybackState playbackState) {}

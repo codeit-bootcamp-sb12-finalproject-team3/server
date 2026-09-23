@@ -1,5 +1,8 @@
 package com.moduplaylist.api.watchparty.service;
 
+import com.moduplaylist.api.recommendation.service.ContentPreferenceUpdateService;
+import com.moduplaylist.api.watchparty.event.WatchPartyParticipantChangedEvent;
+import com.moduplaylist.core.activity.enums.ContentActivityType;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.exception.UserNotFoundException;
 import com.moduplaylist.core.user.repository.UserRepository;
@@ -10,6 +13,7 @@ import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import com.moduplaylist.core.watchparty.exception.*;
 import com.moduplaylist.core.watchparty.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +31,7 @@ public class WatchPartyParticipantService {
     private final WatchPartyKickedRegistry watchPartyKickedRegistry;
     private final WatchPartyJoinedRegistry watchPartyJoinedRegistry;
     private final WatchPartyActivePartyRegistry watchPartyActivePartyRegistry;
+    private final ApplicationEventPublisher eventPublisher;
 
     public void joinWatchParty(UUID partyId, UUID userId) {
 
@@ -65,6 +70,9 @@ public class WatchPartyParticipantService {
 
             validateCapacity(party);
             participant.rejoin();
+            eventPublisher.publishEvent(
+                    new WatchPartyParticipantChangedEvent(
+                            UUID.randomUUID(), partyId, userId, ParticipantStatus.JOINED, true));
             watchPartyJoinedRegistry.join(partyId, userId);
             watchPartyActivePartyRegistry.setJoinedParty(userId, partyId);
             return;
@@ -76,6 +84,9 @@ public class WatchPartyParticipantService {
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
         watchPartyParticipantRepository.save(new WatchPartyParticipant(user, party));
+        eventPublisher.publishEvent(
+                new WatchPartyParticipantChangedEvent(
+                        UUID.randomUUID(), partyId, userId, ParticipantStatus.JOINED, false));
         watchPartyJoinedRegistry.join(partyId, userId);
         watchPartyActivePartyRegistry.setJoinedParty(userId, partyId);
     }
@@ -100,6 +111,9 @@ public class WatchPartyParticipantService {
         }
 
         participant.leave();
+        eventPublisher.publishEvent(
+                new WatchPartyParticipantChangedEvent(
+                        UUID.randomUUID(), partyId, userId, ParticipantStatus.LEFT, false));
         watchPartyJoinedRegistry.leave(partyId, userId);
         watchPartyActivePartyRegistry.clearJoinedParty(userId);
     }
@@ -121,6 +135,9 @@ public class WatchPartyParticipantService {
         }
 
         participant.kick();
+        eventPublisher.publishEvent(
+                new WatchPartyParticipantChangedEvent(
+                        UUID.randomUUID(), partyId, targetUserId, ParticipantStatus.KICKED, false));
         watchPartyKickedRegistry.kick(partyId, targetUserId);
         watchPartyJoinedRegistry.leave(partyId, targetUserId);
         watchPartyActivePartyRegistry.clearJoinedParty(targetUserId);
