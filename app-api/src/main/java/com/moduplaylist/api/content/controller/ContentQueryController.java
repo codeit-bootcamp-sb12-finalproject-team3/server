@@ -12,6 +12,7 @@ import com.moduplaylist.api.content.dto.ContentPlaylistResponse;
 import com.moduplaylist.api.content.dto.ContentWatchPartyResponse;
 import com.moduplaylist.api.content.dto.EpisodeResponse;
 import com.moduplaylist.api.content.service.ContentQueryService;
+import com.moduplaylist.api.content.service.NewContentService;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.security.CustomUserDetails;
 import com.moduplaylist.core.content.exception.InvalidContentSearchException;
@@ -47,8 +48,14 @@ public class ContentQueryController {
 		"idAfter",
 		"limit"
 	);
+	private static final Set<String> ALLOWED_NEW_CONTENT_PARAMETERS = Set.of(
+		"cursor",
+		"idAfter",
+		"limit"
+	);
 
 	private final ContentQueryService contentQueryService;
+	private final NewContentService newContentService;
 
 	@GetMapping
 	public ResponseEntity<CursorPageResponse<ContentSummaryResponse>> findAll(
@@ -58,6 +65,25 @@ public class ContentQueryController {
 	) {
 		validateSearchParameters(httpRequest);
 		return ResponseEntity.ok(contentQueryService.findAll(userDetails.getUserId(), request));
+	}
+
+	@GetMapping("/new")
+	public ResponseEntity<CursorPageResponse<ContentSummaryResponse>> findNewContents(
+		@AuthenticationPrincipal CustomUserDetails userDetails,
+		@RequestParam(required = false) String cursor,
+		@RequestParam(required = false) UUID idAfter,
+		@RequestParam(defaultValue = "20") int limit,
+		HttpServletRequest httpRequest
+	) {
+		validateParameters(httpRequest, ALLOWED_NEW_CONTENT_PARAMETERS);
+		return ResponseEntity.ok(
+			newContentService.findNewContents(
+				userDetails.getUserId(),
+				cursor,
+				idAfter,
+				limit
+			)
+		);
 	}
 
 	@GetMapping("/genres")
@@ -121,8 +147,12 @@ public class ContentQueryController {
 	}
 
 	private void validateSearchParameters(HttpServletRequest request) {
+		validateParameters(request, ALLOWED_SEARCH_PARAMETERS);
+	}
+
+	private void validateParameters(HttpServletRequest request, Set<String> allowedParameters) {
 		boolean hasUnknownParameter = request.getParameterMap().keySet().stream()
-			.anyMatch(parameter -> !ALLOWED_SEARCH_PARAMETERS.contains(parameter));
+			.anyMatch(parameter -> !allowedParameters.contains(parameter));
 		if (hasUnknownParameter) {
 			throw new InvalidContentSearchException();
 		}
