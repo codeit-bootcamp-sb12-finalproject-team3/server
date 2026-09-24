@@ -828,7 +828,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		Episode episode = episodeRepository.saveAndFlush(Episode.builder()
 			.season(season)
 			.episodeNumber(request.getEpisodeNumber())
-			.title(request.getTitle())
+			.title(resolveEpisodeTitle(request.getTitle(), request.getEpisodeNumber()))
 			.description(request.getDescription())
 			.thumbnailUrl(thumbnailUrl)
 			.runtime(request.getRuntime())
@@ -892,9 +892,12 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			registerPreviousImageCleanup(previousThumbnailUrl);
 		}
 
+		String title = request.getTitle().isPresent()
+			? resolveEpisodeTitle(request.getTitle().orElse(null), episodeNumber)
+			: episode.getTitle();
 		episode.updateDetails(
 			episodeNumber,
-			value(request.getTitle(), episode.getTitle()),
+			title,
 			value(request.getDescription(), episode.getDescription()),
 			thumbnailUrl,
 			value(request.getRuntime(), episode.getRuntime())
@@ -902,6 +905,10 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		season.markUpdated();
 		episodeRepository.flush();
 		return toEpisodeResponse(episode);
+	}
+
+	private String resolveEpisodeTitle(String title, Integer episodeNumber) {
+		return title == null || title.isBlank() ? episodeNumber + "화" : title;
 	}
 
 	@Override

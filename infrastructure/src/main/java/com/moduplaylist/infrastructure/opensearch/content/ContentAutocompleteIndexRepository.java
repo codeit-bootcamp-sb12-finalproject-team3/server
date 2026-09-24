@@ -19,10 +19,12 @@ public class ContentAutocompleteIndexRepository {
 
 	public void upsert(ContentAutocompleteDocument document) {
 		try {
-			openSearchClient.index(request -> request
+			openSearchClient.update(request -> request
 				.index(properties.getContentAutocompleteIndex())
 				.id(document.getContentId().toString())
-				.document(document));
+				.doc(document)
+				.docAsUpsert(true)
+				.detectNoop(true), ContentAutocompleteDocument.class);
 		} catch (IOException exception) {
 			throw new ContentSearchUnavailableException(exception);
 		}

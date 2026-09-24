@@ -2,6 +2,7 @@ package com.moduplaylist.batch.job.contentimport;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.moduplaylist.batch.job.contentembedding.ContentEmbeddingService;
+import com.moduplaylist.batch.job.contentimport.ContentImportMetrics.SportsRetryTarget;
 import com.moduplaylist.batch.job.contentimport.SportsImportProperties.SportCode;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentType;
@@ -11,8 +12,8 @@ import com.moduplaylist.core.content.entity.SportType;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.content.repository.SportEventRepository;
 import com.moduplaylist.core.content.repository.SportTypeRepository;
+import com.moduplaylist.infrastructure.externalapi.ExternalApiException;
 import com.moduplaylist.infrastructure.sportsdb.SportsDbClient;
-import com.moduplaylist.infrastructure.sportsdb.SportsDbRateLimitException;
 import com.moduplaylist.infrastructure.opensearch.content.ContentAutocompleteSynchronizer;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -100,6 +101,12 @@ public class SportsDbContentImportService {
         Set<Integer> handled = new HashSet<>();
         Set<UUID> attemptedSearchContentIds = new HashSet<>();
         Set<UUID> attemptedAutocompleteContentIds = new HashSet<>();
+        retryFailedSportImports(
+            handled,
+            attemptedSearchContentIds,
+            attemptedAutocompleteContentIds,
+            metrics
+        );
         retryFailedSportSynchronizations(
             metrics,
             attemptedSearchContentIds,
@@ -131,6 +138,11 @@ public class SportsDbContentImportService {
                     Integer id = integer(event, "idEvent");
                     if (id != null && handled.add(id)) {
                         metrics.candidate();
+                        SportsRetryTarget retryTarget = new SportsRetryTarget(
+                            id,
+                            league.getExternalLeagueId(),
+                            league.getSportCode()
+                        );
                         try {
                             SportSyncResult result = transactionTemplate.execute(
                                 status -> syncEvent(event, id, league)
@@ -143,7 +155,8 @@ public class SportsDbContentImportService {
                                 metrics
                             );
                         } catch (RuntimeException exception) {
-                            rethrowIfInterrupted(exception);
+                            rethrowIfFatal(exception);
+                            metrics.addSportsRetry(retryTarget);
                             metrics.failed("sport:" + id);
                             log.warn("TheSportsDB 경기 저장에 실패해 다음 경기를 처리합니다. externalEventId={}",
                                 id, exception);
@@ -178,10 +191,12 @@ public class SportsDbContentImportService {
             if (externalId == null || !handled.add(externalId)) continue;
             if (rechecked++ >= RECHECK_LIMIT) break;
             metrics.candidate();
+            SportsRetryTarget retryTarget = sportsRetryTarget(candidate);
 
             try {
                 JsonNode event = client.event(externalId);
                 if (!event.isObject()) {
+                    if (retryTarget != null) metrics.addSportsRetry(retryTarget);
                     metrics.failed("sport:" + externalId);
                     log.warn("TheSportsDB 기존 경기 조회 결과가 없습니다. externalEventId={}", externalId);
                     continue;
@@ -201,7 +216,8 @@ public class SportsDbContentImportService {
                     metrics
                 );
             } catch (RuntimeException exception) {
-                rethrowIfInterrupted(exception);
+                rethrowIfFatal(exception);
+                if (retryTarget != null) metrics.addSportsRetry(retryTarget);
                 metrics.failed("sport:" + externalId);
                 log.warn("TheSportsDB 기존 경기 갱신에 실패해 다음 경기를 처리합니다. externalEventId={}",
                     externalId, exception);
@@ -222,10 +238,15 @@ public class SportsDbContentImportService {
         Set<UUID> attemptedAutocompleteContentIds,
         ContentImportMetrics metrics
     ) {
-        if (result == null || result.contentId() == null || !result.searchSyncRequired()) return;
+        if (result == null || result.contentId() == null) return;
         UUID contentId = result.contentId();
-        if (attemptedSearchContentIds.add(contentId)) {
-            synchronizeSportSearchDocumentSafely(contentId, metrics);
+        if (result.searchSyncRequired() && attemptedSearchContentIds.add(contentId)) {
+            try {
+                synchronizeSportSearchDocumentSafely(contentId, metrics);
+            } catch (RuntimeException exception) {
+                metrics.addSportsAutocompleteRetry(contentId);
+                throw exception;
+            }
         }
         if (attemptedAutocompleteContentIds.add(contentId)) {
             synchronizeSportAutocompleteSafely(contentId, metrics);
@@ -241,7 +262,7 @@ public class SportsDbContentImportService {
             metrics.completeSportsSearchRetry(contentId);
         } catch (RuntimeException exception) {
             metrics.addSportsSearchRetry(contentId);
-            rethrowIfInterrupted(exception);
+            rethrowIfFatal(exception);
             metrics.failed("sport-search:" + contentId);
             log.warn("TheSportsDB 검색 문서 동기화에 실패했습니다. contentId={}",
                 contentId, exception);
@@ -257,7 +278,7 @@ public class SportsDbContentImportService {
             metrics.completeSportsAutocompleteRetry(contentId);
         } catch (RuntimeException exception) {
             metrics.addSportsAutocompleteRetry(contentId);
-            rethrowIfInterrupted(exception);
+            rethrowIfFatal(exception);
             metrics.failed("sport-autocomplete:" + contentId);
             log.warn("TheSportsDB 자동완성 동기화에 실패했습니다. contentId={}",
                 contentId, exception);
@@ -279,9 +300,70 @@ public class SportsDbContentImportService {
         }
     }
 
-    private static void rethrowIfInterrupted(RuntimeException exception) {
+    private void retryFailedSportImports(
+        Set<Integer> handled,
+        Set<UUID> attemptedSearchContentIds,
+        Set<UUID> attemptedAutocompleteContentIds,
+        ContentImportMetrics metrics
+    ) {
+        for (SportsRetryTarget target : metrics.sportsRetryTargets()) {
+            if (!handled.add(target.eventId())) continue;
+            try {
+                JsonNode event = client.event(target.eventId());
+                if (!event.isObject()) {
+                    metrics.failed("sport:" + target.eventId());
+                    log.warn(
+                        "TheSportsDB 재시도 경기 조회 결과가 없습니다. externalEventId={}",
+                        target.eventId()
+                    );
+                    continue;
+                }
+                SportSyncResult result = transactionTemplate.execute(status ->
+                    syncEvent(event, target.eventId(), league(target))
+                );
+                record(result, metrics);
+                synchronizePostProcessing(
+                    result,
+                    attemptedSearchContentIds,
+                    attemptedAutocompleteContentIds,
+                    metrics
+                );
+                metrics.completeSportsRetry(target);
+            } catch (RuntimeException exception) {
+                rethrowIfFatal(exception);
+                metrics.failed("sport:" + target.eventId());
+                log.warn(
+                    "TheSportsDB 경기 재처리에 실패했습니다. externalEventId={}",
+                    target.eventId(),
+                    exception
+                );
+            }
+        }
+    }
+
+    private static SportsImportProperties.League league(SportsRetryTarget target) {
+        SportsImportProperties.League league = new SportsImportProperties.League();
+        league.setExternalLeagueId(target.externalLeagueId());
+        league.setSportCode(target.sportCode());
+        return league;
+    }
+
+    private static SportsRetryTarget sportsRetryTarget(SportEvent event) {
+        try {
+            return new SportsRetryTarget(
+                event.getContent().getExternalId(),
+                event.getExternalLeagueId(),
+                SportCode.valueOf(event.getSportType().getCode())
+            );
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
+    }
+
+    private static void rethrowIfFatal(RuntimeException exception) {
         if (Thread.currentThread().isInterrupted()
-            || exception instanceof SportsDbRateLimitException) throw exception;
+            || exception instanceof ExternalApiException externalApiException
+                && externalApiException.isFatal()) throw exception;
     }
 
     private boolean isEnabledLeague(SportsImportProperties.League league) {

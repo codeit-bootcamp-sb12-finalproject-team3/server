@@ -1,6 +1,7 @@
 package com.moduplaylist.infrastructure.tmdb;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moduplaylist.infrastructure.externalapi.ExternalApiException.FailureType;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest;
@@ -25,7 +26,10 @@ public class TmdbWatchProviderClient {
     private TmdbWatchProviderResponse fetch(String path) {
         String accessToken = properties.getAccessToken();
         if (accessToken == null || accessToken.isBlank()) {
-            throw new TmdbWatchProviderException("TMDB access token이 설정되지 않았습니다.");
+            throw new TmdbWatchProviderException(
+                FailureType.UNAUTHORIZED,
+                "TMDB access token이 설정되지 않았습니다."
+            );
         }
 
         URI uri = URI.create(trimTrailingSlash(properties.getApiBaseUrl())

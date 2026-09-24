@@ -6,7 +6,16 @@ spring:
     active: dev
 
   main:
-    web-application-type: none
+    web-application-type: servlet
+
+server:
+  port: ${BATCH_MANAGEMENT_PORT:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
 
 mopl:
   sports-import:

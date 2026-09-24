@@ -200,7 +200,8 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 				null,
 				100
 			);
-			orderedIds = contentRepository.search(initialSearch).getContents().stream()
+			orderedIds = contentRepository.searchWithoutTotalCount(initialSearch)
+				.getContents().stream()
 				.map(Content::getId)
 				.toList();
 		} else {
@@ -220,7 +221,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		contentRepository.findAllById(orderedIds).stream()
 			.filter(content -> !content.isHidden() && content.getType() != ContentType.TV_SERIES)
 			.forEach(content -> visibleById.put(content.getId(), content));
-		long totalCount = orderedIds.stream().filter(visibleById::containsKey).count();
+		long totalCount = orderedIds.size();
 		List<Content> page = new ArrayList<>(request.getLimit());
 		int nextOffset = offset;
 		while (nextOffset < orderedIds.size() && page.size() < request.getLimit()) {

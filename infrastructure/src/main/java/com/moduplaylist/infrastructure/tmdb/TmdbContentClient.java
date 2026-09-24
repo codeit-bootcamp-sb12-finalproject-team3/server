@@ -2,6 +2,7 @@ package com.moduplaylist.infrastructure.tmdb;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moduplaylist.infrastructure.externalapi.ExternalApiException.FailureType;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -77,7 +78,10 @@ public class TmdbContentClient {
 
     private JsonNode get(String path, Map<String, String> query) {
         if (properties.getAccessToken() == null || properties.getAccessToken().isBlank()) {
-            throw new TmdbWatchProviderException("TMDB access token이 설정되지 않았습니다.");
+            throw new TmdbWatchProviderException(
+                FailureType.UNAUTHORIZED,
+                "TMDB access token이 설정되지 않았습니다."
+            );
         }
         String queryString = query.entrySet().stream()
             .map(entry -> encode(entry.getKey()) + "=" + encode(entry.getValue()))

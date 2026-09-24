@@ -1,8 +1,11 @@
 package com.moduplaylist.infrastructure.sportsdb;
 
-public class SportsDbRateLimitException extends IllegalStateException {
+import com.moduplaylist.infrastructure.externalapi.ExternalApiException;
+import com.moduplaylist.infrastructure.externalapi.ExternalApiException.FailureType;
+
+public class SportsDbRateLimitException extends ExternalApiException {
 
     public SportsDbRateLimitException(String message) {
-        super(message);
+        super(FailureType.RATE_LIMITED, message);
     }
 }

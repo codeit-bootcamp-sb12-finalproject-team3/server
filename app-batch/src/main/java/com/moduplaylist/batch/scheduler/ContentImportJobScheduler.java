@@ -3,7 +3,6 @@ package com.moduplaylist.batch.scheduler;
 import com.moduplaylist.batch.job.contentimport.ContentImportJobConfig;
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.BatchStatus;
@@ -71,9 +70,7 @@ public class ContentImportJobScheduler {
             : jobExplorer.getLastJobExecution(jobInstance);
         if (lastExecution == null
             || lastExecution.getStatus() != BatchStatus.FAILED
-            || lastExecution.getEndTime() == null
-            || lastExecution.getEndTime().isAfter(
-                LocalDateTime.now(Clock.systemUTC()).minusHours(1))) {
+            || lastExecution.getEndTime() == null) {
             return;
         }
         int executionCount = jobExplorer.getJobExecutions(lastExecution.getJobInstance()).size();

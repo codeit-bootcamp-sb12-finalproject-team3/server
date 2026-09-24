@@ -1,5 +1,6 @@
 package com.moduplaylist.batch.job.contentimport;
 
+import com.moduplaylist.batch.job.contentimport.SportsImportProperties.SportCode;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -22,6 +23,9 @@ public class ContentImportMetrics {
     private static final String SPORTS_SEARCH_RETRY_CONTENT_IDS = "sportsSearchRetryContentIds";
     private static final String SPORTS_AUTOCOMPLETE_RETRY_CONTENT_IDS =
         "sportsAutocompleteRetryContentIds";
+    private static final String MOVIE_RETRY_IDS = "movieRetryIds";
+    private static final String TV_SERIES_RETRY_IDS = "tvSeriesRetryIds";
+    private static final String SPORTS_RETRY_TARGETS = "sportsRetryTargets";
 
     private long candidateCount;
     private long existingCount;
@@ -37,6 +41,9 @@ public class ContentImportMetrics {
     private final Set<UUID> autocompleteRetryContentIds = new LinkedHashSet<>();
     private final Set<UUID> sportsSearchRetryContentIds = new LinkedHashSet<>();
     private final Set<UUID> sportsAutocompleteRetryContentIds = new LinkedHashSet<>();
+    private final Set<Integer> movieRetryIds = new LinkedHashSet<>();
+    private final Set<Integer> tvSeriesRetryIds = new LinkedHashSet<>();
+    private final Set<SportsRetryTarget> sportsRetryTargets = new LinkedHashSet<>();
 
     public ContentImportMetrics() {
     }
@@ -47,6 +54,9 @@ public class ContentImportMetrics {
         restoreAutocompleteRetryContentIds(context);
         restoreSportsSearchRetryContentIds(context);
         restoreSportsAutocompleteRetryContentIds(context);
+        restoreMovieRetryIds(context);
+        restoreTvSeriesRetryIds(context);
+        restoreSportsRetryTargets(context);
     }
 
     public void candidate() {
@@ -148,6 +158,42 @@ public class ContentImportMetrics {
         sportsAutocompleteRetryContentIds.remove(contentId);
     }
 
+    public Set<Integer> movieRetryIds() {
+        return Set.copyOf(movieRetryIds);
+    }
+
+    public void addMovieRetry(int movieId) {
+        movieRetryIds.add(movieId);
+    }
+
+    public void completeMovieRetry(int movieId) {
+        movieRetryIds.remove(movieId);
+    }
+
+    public Set<Integer> tvSeriesRetryIds() {
+        return Set.copyOf(tvSeriesRetryIds);
+    }
+
+    public void addTvSeriesRetry(int seriesId) {
+        tvSeriesRetryIds.add(seriesId);
+    }
+
+    public void completeTvSeriesRetry(int seriesId) {
+        tvSeriesRetryIds.remove(seriesId);
+    }
+
+    public Set<SportsRetryTarget> sportsRetryTargets() {
+        return Set.copyOf(sportsRetryTargets);
+    }
+
+    public void addSportsRetry(SportsRetryTarget target) {
+        sportsRetryTargets.add(target);
+    }
+
+    public void completeSportsRetry(SportsRetryTarget target) {
+        sportsRetryTargets.remove(target);
+    }
+
     public void writeTo(ExecutionContext context) {
         context.putLong(CANDIDATE_COUNT, candidateCount);
         context.putLong(EXISTING_COUNT, existingCount);
@@ -175,6 +221,15 @@ public class ContentImportMetrics {
             sportsAutocompleteRetryContentIds.stream()
                 .map(UUID::toString)
                 .collect(Collectors.joining(",")));
+        context.putString(MOVIE_RETRY_IDS, movieRetryIds.stream()
+            .map(String::valueOf)
+            .collect(Collectors.joining(",")));
+        context.putString(TV_SERIES_RETRY_IDS, tvSeriesRetryIds.stream()
+            .map(String::valueOf)
+            .collect(Collectors.joining(",")));
+        context.putString(SPORTS_RETRY_TARGETS, sportsRetryTargets.stream()
+            .map(SportsRetryTarget::serialize)
+            .collect(Collectors.joining(",")));
     }
 
     public String summary() {
@@ -229,6 +284,30 @@ public class ContentImportMetrics {
         }
     }
 
+    private void restoreMovieRetryIds(ExecutionContext context) {
+        String serialized = context.getString(MOVIE_RETRY_IDS, "");
+        if (serialized.isBlank()) return;
+        for (String value : serialized.split(",")) {
+            movieRetryIds.add(Integer.parseInt(value));
+        }
+    }
+
+    private void restoreTvSeriesRetryIds(ExecutionContext context) {
+        String serialized = context.getString(TV_SERIES_RETRY_IDS, "");
+        if (serialized.isBlank()) return;
+        for (String value : serialized.split(",")) {
+            tvSeriesRetryIds.add(Integer.parseInt(value));
+        }
+    }
+
+    private void restoreSportsRetryTargets(ExecutionContext context) {
+        String serialized = context.getString(SPORTS_RETRY_TARGETS, "");
+        if (serialized.isBlank()) return;
+        for (String value : serialized.split(",")) {
+            sportsRetryTargets.add(SportsRetryTarget.parse(value));
+        }
+    }
+
     public record TmdbMovieProviderRetryTarget(
         UUID contentId,
         int movieId
@@ -267,6 +346,28 @@ public class ContentImportMetrics {
                 UUID.fromString(parts[0]),
                 Integer.parseInt(parts[1]),
                 Integer.parseInt(parts[2])
+            );
+        }
+    }
+
+    public record SportsRetryTarget(
+        int eventId,
+        String externalLeagueId,
+        SportCode sportCode
+    ) {
+        private String serialize() {
+            return eventId + "|" + externalLeagueId + "|" + sportCode.name();
+        }
+
+        private static SportsRetryTarget parse(String value) {
+            String[] parts = value.split("\\|", -1);
+            if (parts.length != 3) {
+                throw new IllegalStateException("잘못된 스포츠 재시도 대상입니다: " + value);
+            }
+            return new SportsRetryTarget(
+                Integer.parseInt(parts[0]),
+                parts[1],
+                SportCode.valueOf(parts[2])
             );
         }
     }
