@@ -80,6 +80,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class ContentCommandServiceImpl implements ContentCommandService {
 	private static final String ORIGINAL_TITLE_METADATA_KEY = "originalTitle";
+	private static final String TMDB_SOURCE = "TMDB";
 
 	private final ContentRepository contentRepository;
 	private final GenreRepository genreRepository;
@@ -109,13 +110,12 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			return createTvSeries(request, images, uploadedKeys);
 		}
 		String thumbnailUrl = uploadImage(images.get("thumbnail"), uploadedKeys);
-		ContentCreationResult creationResult = createContent(request, thumbnailUrl);
-		Content content = creationResult.content();
+		Content content = createContent(request, thumbnailUrl);
 		contentRepository.saveAndFlush(content);
 
 		if (content.getType() == ContentType.MOVIE || content.getType() == ContentType.TV_SEASON) {
 			replaceRelations(content, request.getGenreIds(), request.getManualTags(), request.getCasts(),
-				request.getPlatforms(), creationResult.reusedHiddenSeason());
+				request.getPlatforms(), false);
 		}
 		if (content.getType() == ContentType.SPORT) {
 			createSportEvent(content, request);
@@ -142,7 +142,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			return;
 		}
 		boolean duplicate = switch (request.getType()) {
-			case MOVIE -> contentRepository.existsByTypeAndTitleAndReleaseDate(
+			case MOVIE -> contentRepository.existsByTypeAndTitleAndReleaseDateAndHiddenFalse(
 				ContentType.MOVIE, request.getTitle(), request.getReleaseDate());
 			case TV_SERIES -> contentRepository.existsByTypeAndTitle(
 				ContentType.TV_SERIES, request.getTitle());
@@ -206,10 +206,12 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			|| hasSportFields(request)) {
 			throw new InvalidContentSearchException();
 		}
+		if (isTmdbContent(requireSeries(request.getParentContentId()))) {
+			throw new InvalidContentSearchException();
+		}
 	}
 
 	private void validateSportCreateRequest(ContentCreateRequest request) {
-		requireDescription(request);
 		if (request.getSportTypeId() == null
 			|| request.getHomeTeam() == null || request.getHomeTeam().isBlank()
 			|| request.getAwayTeam() == null || request.getAwayTeam().isBlank()
@@ -285,6 +287,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 	) {
 		Content content = lockContentForUpdate(contentId, request, true);
 		validateUpdateFields(content.getType(), request);
+		validateTmdbSeasonHierarchyUpdate(content, request);
 		if (content.getType() == ContentType.TV_SERIES) {
 			if (thumbnail != null) {
 				throw new InvalidContentSearchException();
@@ -425,22 +428,23 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 
 	@Override
 	@Transactional
-	public ContentResponse restoreSeason(
-		UUID hiddenSeasonId,
-		ContentUpdateRequest request,
-		MultipartFile thumbnail
-	) {
-		Content season = lockContentForUpdate(hiddenSeasonId, request, false);
-		if (!season.isHidden() || season.getType() != ContentType.TV_SEASON) {
-			throw new ContentNotFoundException(hiddenSeasonId);
-		}
-		Content parent = season.getParentContent();
+	public ContentResponse restoreSeason(UUID hiddenSeasonId) {
+		Content snapshot = contentRepository.findById(hiddenSeasonId)
+			.filter(content -> content.isHidden() && content.getType() == ContentType.TV_SEASON)
+			.orElseThrow(() -> new ContentNotFoundException(hiddenSeasonId));
+		Content parent = requireSeries(snapshot.getParentContent().getId());
+		Content season = contentRepository.findByIdForUpdate(hiddenSeasonId)
+			.filter(content -> content.isHidden()
+				&& content.getType() == ContentType.TV_SEASON
+				&& content.getParentContent().getId().equals(parent.getId()))
+			.orElseThrow(() -> new ContentNotFoundException(hiddenSeasonId));
 		boolean parentWasHidden = parent.isHidden();
 		season.show();
 		parent.show();
 		season.markEmbeddingSourceUpdated();
-
-		ContentResponse response = update(hiddenSeasonId, request, thumbnail, true);
+		contentRepository.flush();
+		ContentResponse response = contentQueryService.findByIdForCommand(hiddenSeasonId);
+		publishContentLifecycleEvent(hiddenSeasonId, ContentLifecycleEvent.Type.UPSERTED);
 		if (parentWasHidden && !parent.isHidden()) {
 			publishContentLifecycleEvent(parent.getId(), ContentLifecycleEvent.Type.UPSERTED);
 		}
@@ -486,7 +490,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 				boolean candidateChanged = !Objects.equals(title, content.getTitle())
 					|| !Objects.equals(releaseDate, content.getReleaseDate());
 				yield candidateChanged
-					&& contentRepository.existsByTypeAndTitleAndReleaseDateAndIdNot(
+					&& contentRepository.existsByTypeAndTitleAndReleaseDateAndIdNotAndHiddenFalse(
 						ContentType.MOVIE, title, releaseDate, content.getId());
 			}
 			case TV_SERIES -> {
@@ -540,6 +544,9 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		} else if (request.getParentContentId().isPresent()) {
 			UUID targetParentId = request.getParentContentId().orElseThrow();
 			targetParent = requireSeries(targetParentId);
+		}
+		if (!targetParent.getId().equals(previousParent.getId()) && isTmdbContent(targetParent)) {
+			throw new InvalidContentSearchException();
 		}
 
 		validateSeasonSlot(targetParent.getId(), seasonNumber, season.getId());
@@ -720,7 +727,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		String homeTeam = value(request.getHomeTeam(), sportEvent.getHomeTeamName());
 		String awayTeam = value(request.getAwayTeam(), sportEvent.getAwayTeamName());
 		Instant scheduledAt = value(request.getScheduledAt(), sportEvent.getScheduledAt());
-		if (title == null || title.isBlank() || description == null || description.isBlank()
+		if (title == null || title.isBlank()
 			|| homeTeam == null || homeTeam.isBlank() || awayTeam == null || awayTeam.isBlank()) {
 			throw new InvalidContentSearchException();
 		}
@@ -803,13 +810,16 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		EpisodeCreateRequest request,
 		MultipartFile thumbnail
 	) {
+		Content season = requireVisibleSeasonForUpdate(seasonId);
+		if (isTmdbContent(season)) {
+			throw new InvalidContentSearchException();
+		}
 		if (thumbnail != null) {
 			validateImage(thumbnail);
 		}
 		List<String> uploadedKeys = new ArrayList<>();
 		registerImageRollbackCleanup(uploadedKeys);
 		String thumbnailUrl = uploadImage(thumbnail, uploadedKeys);
-		Content season = requireVisibleSeasonForUpdate(seasonId);
 		if (episodeRepository.existsBySeason_IdAndEpisodeNumber(
 			seasonId, request.getEpisodeNumber())) {
 			throw new EpisodeAlreadyExistsException(seasonId, request.getEpisodeNumber());
@@ -843,6 +853,10 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		}
 
 		Integer episodeNumber = value(request.getEpisodeNumber(), episode.getEpisodeNumber());
+		if (isTmdbEpisode(episode)
+			&& !Objects.equals(episodeNumber, episode.getEpisodeNumber())) {
+			throw new InvalidContentSearchException();
+		}
 		if (!Objects.equals(episodeNumber, episode.getEpisodeNumber())) {
 			if (episodeRepository.existsBySeason_IdAndEpisodeNumberAndIdNot(
 				seasonId, episodeNumber, episodeId)) {
@@ -897,6 +911,9 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		Episode episode = episodeRepository.findByIdAndSeason_IdAndSeason_HiddenFalse(
 			episodeId, seasonId)
 			.orElseThrow(() -> new ContentNotFoundException(episodeId));
+		if (isTmdbEpisode(episode)) {
+			throw new InvalidContentSearchException();
+		}
 		if (dependencyQueryRepository.existsActiveWatchPartyForEpisode(
 			seasonId, episode.getEpisodeNumber())) {
 			throw new ContentDeletionBlockedException(seasonId);
@@ -916,6 +933,36 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			throw new InvalidContentSearchException();
 		}
 		return season;
+	}
+
+	private static void validateTmdbSeasonHierarchyUpdate(
+		Content content,
+		ContentUpdateRequest request
+	) {
+		if (content.getType() != ContentType.TV_SEASON || !isTmdbContent(content)) {
+			return;
+		}
+		if (request.isCreateNewSeries()
+			|| (request.getParentContentId().isPresent()
+			&& !Objects.equals(
+				request.getParentContentId().orElse(null),
+				content.getParentContent().getId()
+			))
+			|| (request.getSeasonNumber().isPresent()
+			&& !Objects.equals(
+				request.getSeasonNumber().orElse(null),
+				content.getSeasonNumber()
+			))) {
+			throw new InvalidContentSearchException();
+		}
+	}
+
+	private static boolean isTmdbContent(Content content) {
+		return TMDB_SOURCE.equals(content.getExternalSource());
+	}
+
+	private static boolean isTmdbEpisode(Episode episode) {
+		return TMDB_SOURCE.equals(episode.getExternalSource());
 	}
 
 	private EpisodeResponse toEpisodeResponse(Episode episode) {
@@ -1051,7 +1098,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			.build();
 	}
 
-	private ContentCreationResult createContent(
+	private Content createContent(
 		ContentCreateRequest request,
 		String thumbnailUrl
 	) {
@@ -1067,29 +1114,8 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 					throw new ContentSeasonAlreadyExistsException(
 						parent.getId(), request.getSeasonNumber());
 				}
-				validateEpisodeCount(existingSeason.getId(), request.getEpisodeCount());
-				String previousThumbnailUrl = existingSeason.getThumbnailUrl();
-				existingSeason.show();
-				existingSeason.updateCommonDetails(
-					request.getTitle(),
-					request.getDescription(),
-					request.getReleaseDate(),
-					null
-				);
-				existingSeason.updateTvSeasonDetails(
-					parent,
-					request.getSeasonNumber(),
-					request.getEpisodeCount(),
-					null
-				);
-				existingSeason.replaceThumbnailUrl(thumbnailUrl);
-				existingSeason.markEmbeddingSourceUpdated();
-				if (previousThumbnailUrl != null
-					&& !Objects.equals(previousThumbnailUrl, thumbnailUrl)) {
-					registerPreviousImageCleanup(previousThumbnailUrl);
-				}
-				parent.show();
-				return new ContentCreationResult(existingSeason, true);
+				throw new HiddenSeasonAlreadyExistsException(
+					parent.getId(), request.getSeasonNumber(), existingSeason.getId());
 			}
 			parent.show();
 		}
@@ -1106,7 +1132,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			.metadata(request.getType() == ContentType.MOVIE
 				? originalTitleMetadata(request.getOriginalTitle()) : null)
 			.build();
-		return new ContentCreationResult(content, false);
+		return content;
 	}
 
 	private void validateImages(ContentCreateRequest request, Map<String, MultipartFile> images) {
@@ -1437,9 +1463,4 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 	) {
 	}
 
-	private record ContentCreationResult(
-		Content content,
-		boolean reusedHiddenSeason
-	) {
-	}
 }

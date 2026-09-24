@@ -80,7 +80,9 @@ public class ContentAutocompleteSynchronizer {
 	) {
 		Content series = season.getParentContent();
 		addSuggestion(suggestions, series.getTitle(), "title");
-		addSuggestion(suggestions, series.getTitle() + " " + season.getTitle(), "title");
+		if (!season.getTitle().startsWith(series.getTitle())) {
+			addSuggestion(suggestions, series.getTitle() + " " + season.getTitle(), "title");
+		}
 
 		String originalTitle = series.getOriginalTitle();
 		addSuggestion(suggestions, originalTitle, "title");

@@ -255,7 +255,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		if (type != ContentTypeFilter.MOVIE && type != ContentTypeFilter.TV_SERIES) {
 			throw new InvalidContentSearchException();
 		}
-		return genreRepository.findAllByOrderByNameAsc().stream()
+		return genreRepository.findAllUsedByContentType(type.toQueryType()).stream()
 			.map(this::toGenreResponse)
 			.toList();
 	}

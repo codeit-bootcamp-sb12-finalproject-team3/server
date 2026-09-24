@@ -3,6 +3,7 @@ package com.moduplaylist.batch.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moduplaylist.infrastructure.tmdb.TmdbKrWatchProviderExtractor;
 import com.moduplaylist.infrastructure.tmdb.TmdbContentClient;
+import com.moduplaylist.infrastructure.tmdb.TmdbHttpExecutor;
 import com.moduplaylist.infrastructure.tmdb.TmdbProperties;
 import com.moduplaylist.infrastructure.tmdb.TmdbWatchProviderClient;
 import java.net.http.HttpClient;
@@ -23,21 +24,26 @@ public class TmdbConfig {
     }
 
     @Bean
+    public TmdbHttpExecutor tmdbHttpExecutor(HttpClient tmdbHttpClient) {
+        return new TmdbHttpExecutor(tmdbHttpClient);
+    }
+
+    @Bean
     public TmdbWatchProviderClient tmdbWatchProviderClient(
-        HttpClient tmdbHttpClient,
+        TmdbHttpExecutor tmdbHttpExecutor,
         ObjectMapper objectMapper,
         TmdbProperties properties
     ) {
-        return new TmdbWatchProviderClient(tmdbHttpClient, objectMapper, properties);
+        return new TmdbWatchProviderClient(tmdbHttpExecutor, objectMapper, properties);
     }
 
     @Bean
     public TmdbContentClient tmdbContentClient(
-        HttpClient tmdbHttpClient,
+        TmdbHttpExecutor tmdbHttpExecutor,
         ObjectMapper objectMapper,
         TmdbProperties properties
     ) {
-        return new TmdbContentClient(tmdbHttpClient, objectMapper, properties);
+        return new TmdbContentClient(tmdbHttpExecutor, objectMapper, properties);
     }
 
     @Bean

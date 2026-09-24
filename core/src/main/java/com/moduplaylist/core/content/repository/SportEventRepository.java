@@ -18,6 +18,7 @@ public interface SportEventRepository extends JpaRepository<SportEvent, UUID> {
 		select count(sportEvent) > 0
 		from SportEvent sportEvent
 		where sportEvent.content.title = :title
+		  and sportEvent.content.hidden = false
 		  and sportEvent.homeTeamName = :homeTeam
 		  and sportEvent.awayTeamName = :awayTeam
 		  and ((:scheduledAt is null and sportEvent.scheduledAt is null)
@@ -33,6 +34,7 @@ public interface SportEventRepository extends JpaRepository<SportEvent, UUID> {
 		select count(sportEvent) > 0
 		from SportEvent sportEvent
 		where sportEvent.contentId <> :contentId
+		  and sportEvent.content.hidden = false
 		  and sportEvent.content.title = :title
 		  and sportEvent.homeTeamName = :homeTeam
 		  and sportEvent.awayTeamName = :awayTeam

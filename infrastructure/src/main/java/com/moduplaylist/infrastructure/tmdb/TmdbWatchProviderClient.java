@@ -3,16 +3,14 @@ package com.moduplaylist.infrastructure.tmdb;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public class TmdbWatchProviderClient {
 
-    private final HttpClient tmdbHttpClient;
+    private final TmdbHttpExecutor httpExecutor;
     private final ObjectMapper objectMapper;
     private final TmdbProperties properties;
 
@@ -39,22 +37,13 @@ public class TmdbWatchProviderClient {
             .GET()
             .build();
 
+        String body = httpExecutor.execute(request, "TMDB Watch Providers 조회");
         try {
-            HttpResponse<String> response = tmdbHttpClient.send(
-                request,
-                HttpResponse.BodyHandlers.ofString()
+            return objectMapper.readValue(body, TmdbWatchProviderResponse.class);
+        } catch (IOException exception) {
+            throw new TmdbWatchProviderException(
+                "TMDB Watch Providers 응답 처리에 실패했습니다.", exception
             );
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new TmdbWatchProviderException(
-                    "TMDB Watch Providers 조회에 실패했습니다. status=" + response.statusCode()
-                );
-            }
-            return objectMapper.readValue(response.body(), TmdbWatchProviderResponse.class);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new TmdbWatchProviderException("TMDB Watch Providers 조회가 중단되었습니다.", e);
-        } catch (IOException e) {
-            throw new TmdbWatchProviderException("TMDB Watch Providers 응답 처리에 실패했습니다.", e);
         }
     }
 

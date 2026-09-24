@@ -5,9 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -18,7 +16,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class TmdbContentClient {
 
-    private final HttpClient httpClient;
+    private final TmdbHttpExecutor httpExecutor;
     private final ObjectMapper objectMapper;
     private final TmdbProperties properties;
 
@@ -92,15 +90,9 @@ public class TmdbContentClient {
             .header("Accept", "application/json")
             .GET()
             .build();
+        String body = httpExecutor.execute(request, "TMDB 콘텐츠 조회");
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new TmdbWatchProviderException("TMDB 콘텐츠 조회에 실패했습니다. status=" + response.statusCode());
-            }
-            return objectMapper.readTree(response.body());
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new TmdbWatchProviderException("TMDB 콘텐츠 조회가 중단되었습니다.", exception);
+            return objectMapper.readTree(body);
         } catch (IOException exception) {
             throw new TmdbWatchProviderException("TMDB 콘텐츠 응답 처리에 실패했습니다.", exception);
         }

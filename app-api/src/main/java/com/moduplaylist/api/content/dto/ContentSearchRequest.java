@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.util.Locale;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -47,7 +48,10 @@ public class ContentSearchRequest {
 	}
 
 	public void setSportTypeEqual(String value) {
-		this.sportTypeEqual = normalize(value);
+		String normalized = normalize(value);
+		this.sportTypeEqual = normalized == null
+			? null
+			: normalized.toUpperCase(Locale.ROOT);
 	}
 
 	@JsonIgnore

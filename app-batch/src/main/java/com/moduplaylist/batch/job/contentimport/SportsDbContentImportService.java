@@ -98,6 +98,13 @@ public class SportsDbContentImportService {
 
     public void syncEvents(LocalDate runDate, ContentImportMetrics metrics) {
         Set<Integer> handled = new HashSet<>();
+        Set<UUID> attemptedSearchContentIds = new HashSet<>();
+        Set<UUID> attemptedAutocompleteContentIds = new HashSet<>();
+        retryFailedSportSynchronizations(
+            metrics,
+            attemptedSearchContentIds,
+            attemptedAutocompleteContentIds
+        );
         Set<String> handledLeagueIds = new HashSet<>();
         int activeLeagueCount = 0;
         for (SportsImportProperties.League league : properties.getLeagues()) {
@@ -129,7 +136,12 @@ public class SportsDbContentImportService {
                                 status -> syncEvent(event, id, league)
                             );
                             record(result, metrics);
-                            synchronizeSearch(result, id);
+                            synchronizePostProcessing(
+                                result,
+                                attemptedSearchContentIds,
+                                attemptedAutocompleteContentIds,
+                                metrics
+                            );
                         } catch (RuntimeException exception) {
                             rethrowIfInterrupted(exception);
                             metrics.failed("sport:" + id);
@@ -140,12 +152,20 @@ public class SportsDbContentImportService {
                 }
             }
         }
-        syncStoredEvents(runDate, handled, metrics);
+        syncStoredEvents(
+            runDate,
+            handled,
+            attemptedSearchContentIds,
+            attemptedAutocompleteContentIds,
+            metrics
+        );
     }
 
     private void syncStoredEvents(
         LocalDate runDate,
         Set<Integer> handled,
+        Set<UUID> attemptedSearchContentIds,
+        Set<UUID> attemptedAutocompleteContentIds,
         ContentImportMetrics metrics
     ) {
         Instant from = runDate.minusDays(3).atStartOfDay(CONTENT_IMPORT_ZONE).toInstant();
@@ -174,7 +194,12 @@ public class SportsDbContentImportService {
                         .orElseGet(() -> SportSyncResult.existingResult(null))
                 );
                 record(result, metrics);
-                synchronizeSearch(result, externalId);
+                synchronizePostProcessing(
+                    result,
+                    attemptedSearchContentIds,
+                    attemptedAutocompleteContentIds,
+                    metrics
+                );
             } catch (RuntimeException exception) {
                 rethrowIfInterrupted(exception);
                 metrics.failed("sport:" + externalId);
@@ -191,17 +216,66 @@ public class SportsDbContentImportService {
         if (result.missingRequired()) metrics.missingRequired();
     }
 
-    private void synchronizeSearch(SportSyncResult result, int externalId) {
-        if (result == null || result.contentId() == null) return;
+    private void synchronizePostProcessing(
+        SportSyncResult result,
+        Set<UUID> attemptedSearchContentIds,
+        Set<UUID> attemptedAutocompleteContentIds,
+        ContentImportMetrics metrics
+    ) {
+        if (result == null || result.contentId() == null || !result.searchSyncRequired()) return;
+        UUID contentId = result.contentId();
+        if (attemptedSearchContentIds.add(contentId)) {
+            synchronizeSportSearchDocumentSafely(contentId, metrics);
+        }
+        if (attemptedAutocompleteContentIds.add(contentId)) {
+            synchronizeSportAutocompleteSafely(contentId, metrics);
+        }
+    }
+
+    private void synchronizeSportSearchDocumentSafely(
+        UUID contentId,
+        ContentImportMetrics metrics
+    ) {
         try {
-            contentEmbeddingService.indexSportSearchDocument(result.contentId());
-            autocompleteSynchronizer.synchronize(result.contentId());
+            contentEmbeddingService.indexSportSearchDocument(contentId);
+            metrics.completeSportsSearchRetry(contentId);
         } catch (RuntimeException exception) {
+            metrics.addSportsSearchRetry(contentId);
             rethrowIfInterrupted(exception);
-            throw new IllegalStateException(
-                "TheSportsDB 검색 문서 동기화에 실패했습니다. externalEventId=" + externalId,
-                exception
-            );
+            metrics.failed("sport-search:" + contentId);
+            log.warn("TheSportsDB 검색 문서 동기화에 실패했습니다. contentId={}",
+                contentId, exception);
+        }
+    }
+
+    private void synchronizeSportAutocompleteSafely(
+        UUID contentId,
+        ContentImportMetrics metrics
+    ) {
+        try {
+            autocompleteSynchronizer.synchronize(contentId);
+            metrics.completeSportsAutocompleteRetry(contentId);
+        } catch (RuntimeException exception) {
+            metrics.addSportsAutocompleteRetry(contentId);
+            rethrowIfInterrupted(exception);
+            metrics.failed("sport-autocomplete:" + contentId);
+            log.warn("TheSportsDB 자동완성 동기화에 실패했습니다. contentId={}",
+                contentId, exception);
+        }
+    }
+
+    private void retryFailedSportSynchronizations(
+        ContentImportMetrics metrics,
+        Set<UUID> attemptedSearchContentIds,
+        Set<UUID> attemptedAutocompleteContentIds
+    ) {
+        for (UUID contentId : metrics.sportsSearchRetryContentIds()) {
+            attemptedSearchContentIds.add(contentId);
+            synchronizeSportSearchDocumentSafely(contentId, metrics);
+        }
+        for (UUID contentId : metrics.sportsAutocompleteRetryContentIds()) {
+            attemptedAutocompleteContentIds.add(contentId);
+            synchronizeSportAutocompleteSafely(contentId, metrics);
         }
     }
 
@@ -226,7 +300,10 @@ public class SportsDbContentImportService {
             if (existingContent.isHidden()) return SportSyncResult.existingResult(null);
             return sportEventRepository.findById(existingContent.getId())
                 .map(existing -> update(existing, event))
-                .orElseGet(() -> SportSyncResult.existingResult(null));
+                .orElseThrow(() -> new IllegalStateException(
+                    "외부 스포츠 콘텐츠에 경기 정보가 없습니다. contentId="
+                        + existingContent.getId() + ", externalEventId=" + id
+                ));
         }
         return importEvent(event, id, league);
     }
@@ -240,9 +317,6 @@ public class SportsDbContentImportService {
             return SportSyncResult.missingRequiredResult();
         }
         Instant scheduledAt = scheduledAt(event);
-        if (sportEventRepository.existsDuplicate(title, home, away, scheduledAt)) {
-            return SportSyncResult.existingResult(null);
-        }
         SportType sportType = sportType(league.getSportCode(), sportName);
         Integer homeScore = integer(event, "intHomeScore");
         Integer awayScore = integer(event, "intAwayScore");
@@ -271,10 +345,6 @@ public class SportsDbContentImportService {
             return SportSyncResult.existingWithMissingRequired(existing.getContentId());
         }
         Instant scheduledAt = scheduledAt(event);
-        if (sportEventRepository.existsDuplicateExcluding(
-            existing.getContentId(), title, home, away, scheduledAt)) {
-            return SportSyncResult.existingResult(existing.getContentId());
-        }
         Integer homeScore = integer(event, "intHomeScore");
         Integer awayScore = integer(event, "intAwayScore");
         if ((homeScore == null) != (awayScore == null)) {
@@ -319,7 +389,7 @@ public class SportsDbContentImportService {
         );
         existing.updateStatus(rawStatus, normalizedStatus, Instant.now());
         existing.getContent().markUpdated();
-        return SportSyncResult.updatedResult(existing.getContentId());
+        return SportSyncResult.updatedResult(existing.getContentId(), searchChanged);
     }
 
     private SportType sportType(SportCode configuredCode, String name) {
@@ -410,26 +480,29 @@ public class SportsDbContentImportService {
         boolean existing,
         boolean created,
         boolean updated,
-        boolean missingRequired
+        boolean missingRequired,
+        boolean searchSyncRequired
     ) {
         private static SportSyncResult existingResult(UUID contentId) {
-            return new SportSyncResult(contentId, true, false, false, false);
+            return new SportSyncResult(contentId, true, false, false, false, false);
         }
 
         private static SportSyncResult createdResult(UUID contentId) {
-            return new SportSyncResult(contentId, false, true, false, false);
+            return new SportSyncResult(contentId, false, true, false, false, true);
         }
 
-        private static SportSyncResult updatedResult(UUID contentId) {
-            return new SportSyncResult(contentId, true, false, true, false);
+        private static SportSyncResult updatedResult(UUID contentId, boolean searchSyncRequired) {
+            return new SportSyncResult(
+                contentId, true, false, true, false, searchSyncRequired
+            );
         }
 
         private static SportSyncResult missingRequiredResult() {
-            return new SportSyncResult(null, false, false, false, true);
+            return new SportSyncResult(null, false, false, false, true, false);
         }
 
         private static SportSyncResult existingWithMissingRequired(UUID contentId) {
-            return new SportSyncResult(contentId, true, false, false, true);
+            return new SportSyncResult(contentId, true, false, false, true, false);
         }
     }
 }

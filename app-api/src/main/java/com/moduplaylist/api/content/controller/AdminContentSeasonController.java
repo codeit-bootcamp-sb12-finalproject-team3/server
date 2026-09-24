@@ -2,10 +2,8 @@ package com.moduplaylist.api.content.controller;
 
 import com.moduplaylist.api.content.dto.ContentResponse;
 import com.moduplaylist.api.content.dto.ContentPlatformResponse;
-import com.moduplaylist.api.content.dto.ContentUpdateRequest;
 import com.moduplaylist.api.content.service.ContentCommandService;
 import com.moduplaylist.api.content.service.ContentQueryService;
-import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -14,9 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequiredArgsConstructor
@@ -43,13 +39,11 @@ public class AdminContentSeasonController {
 			contentQueryService.findHiddenSeasonOttByIdForAdmin(hiddenSeasonId));
 	}
 
-	@PatchMapping(value = "/{hiddenSeasonId}/restore", consumes = "multipart/form-data")
+	@PatchMapping("/{hiddenSeasonId}/restore")
 	public ResponseEntity<ContentResponse> restoreSeason(
-		@PathVariable UUID hiddenSeasonId,
-		@Valid @RequestPart("request") ContentUpdateRequest request,
-		@RequestPart(value = "thumbnail", required = false) MultipartFile thumbnail
+		@PathVariable UUID hiddenSeasonId
 	) {
 		return ResponseEntity.ok(
-			contentCommandService.restoreSeason(hiddenSeasonId, request, thumbnail));
+			contentCommandService.restoreSeason(hiddenSeasonId));
 	}
 }

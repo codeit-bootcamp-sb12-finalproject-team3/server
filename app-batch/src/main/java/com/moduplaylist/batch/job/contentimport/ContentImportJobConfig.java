@@ -1,5 +1,6 @@
 package com.moduplaylist.batch.job.contentimport;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -68,7 +69,7 @@ public class ContentImportJobConfig {
 
     @Bean
     public Step tmdbMovieImportStep(JobRepository repository, PlatformTransactionManager transactionManager,
-        TmdbContentImportService service) {
+        TmdbContentImportService service, MeterRegistry meterRegistry) {
         return new StepBuilder("tmdbMovieImportStep", repository)
             .tasklet((contribution, context) -> executeImport(
                 contribution,
@@ -77,12 +78,13 @@ public class ContentImportJobConfig {
                 metrics -> service.importMovies(runDate(context), metrics)
             ), transactionManager)
             .transactionAttribute(noStepTransaction())
+            .listener(new ContentImportMetricsStepListener(meterRegistry, "TMDB_MOVIE"))
             .build();
     }
 
     @Bean
     public Step tmdbTvImportStep(JobRepository repository, PlatformTransactionManager transactionManager,
-        TmdbContentImportService service) {
+        TmdbContentImportService service, MeterRegistry meterRegistry) {
         return new StepBuilder("tmdbTvImportStep", repository)
             .tasklet((contribution, context) -> executeImport(
                 contribution,
@@ -91,12 +93,13 @@ public class ContentImportJobConfig {
                 metrics -> service.importTvSeasons(runDate(context), metrics)
             ), transactionManager)
             .transactionAttribute(noStepTransaction())
+            .listener(new ContentImportMetricsStepListener(meterRegistry, "TMDB_TV"))
             .build();
     }
 
     @Bean
     public Step sportsDbEventSyncStep(JobRepository repository, PlatformTransactionManager transactionManager,
-        SportsDbContentImportService service) {
+        SportsDbContentImportService service, MeterRegistry meterRegistry) {
         return new StepBuilder("sportsDbEventSyncStep", repository)
             .tasklet((contribution, context) -> executeImport(
                 contribution,
@@ -105,6 +108,7 @@ public class ContentImportJobConfig {
                 metrics -> service.syncEvents(runDate(context), metrics)
             ), transactionManager)
             .transactionAttribute(noStepTransaction())
+            .listener(new ContentImportMetricsStepListener(meterRegistry, "THESPORTSDB"))
             .build();
     }
 
@@ -114,7 +118,8 @@ public class ContentImportJobConfig {
         String source,
         Consumer<ContentImportMetrics> action
     ) {
-        ContentImportMetrics metrics = new ContentImportMetrics();
+        ContentImportMetrics metrics = new ContentImportMetrics(
+            context.getStepContext().getStepExecution().getExecutionContext());
         boolean completed = false;
         try {
             action.accept(metrics);

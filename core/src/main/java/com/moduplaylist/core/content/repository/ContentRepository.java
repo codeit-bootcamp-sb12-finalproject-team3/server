@@ -114,12 +114,12 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
             UUID parentContentId,
             Integer seasonNumber);
 
-    boolean existsByTypeAndTitleAndReleaseDate(
+    boolean existsByTypeAndTitleAndReleaseDateAndHiddenFalse(
             ContentType type,
             String title,
             java.time.LocalDate releaseDate);
 
-    boolean existsByTypeAndTitleAndReleaseDateAndIdNot(
+    boolean existsByTypeAndTitleAndReleaseDateAndIdNotAndHiddenFalse(
             ContentType type,
             String title,
             java.time.LocalDate releaseDate,
