@@ -21,4 +21,14 @@ public class RedisWatchPartyHostRegistry implements WatchPartyHostRegistry {
         String key = WatchPartyRedisKey.host(partyId);
         redisTemplate.opsForValue().set(key, WatchPartyRedisKey.uuid(hostId));
     }
+  
+    @Override
+    public void removeHost(UUID partyId) {
+        Assert.notNull(partyId, "partyId가 필요합니다.");
+
+        String key = WatchPartyRedisKey.host(partyId);
+        redisTemplate.delete(key);
+    }
 }
+
+

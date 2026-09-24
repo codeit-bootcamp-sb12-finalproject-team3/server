@@ -70,4 +70,23 @@ public class WatchParty extends BaseEntity {
         this.status = WatchPartyStatus.ENDED;
         this.endedAt = Instant.now();
     }
+
+    public void validateEditable() {
+        if (this.status != WatchPartyStatus.SCHEDULED) {
+            throw new WatchPartyInvalidStateException(this.getId(), "시작 대기 상태의 방만 수정/삭제할 수 있습니다.");
+        }
+    }
+
+    public void update(String title, String description, Instant scheduledAt,
+                       Integer maxParticipants, Integer sessionDurationMinutes,
+                       Integer startEpisode, Integer endEpisode) {
+        validateEditable();
+        this.title = title;
+        this.description = description;
+        this.scheduledAt = scheduledAt;
+        this.maxParticipants = maxParticipants;
+        this.sessionDurationMinutes = sessionDurationMinutes;
+        this.startEpisode = startEpisode;
+        this.endEpisode = endEpisode;
+    }
 }

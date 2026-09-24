@@ -4,6 +4,7 @@ import com.moduplaylist.api.content.dto.ContentWatchPartyResponse;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
 import com.moduplaylist.api.watchparty.dto.CreateWatchPartyRequest;
+import com.moduplaylist.api.watchparty.dto.UpdateWatchPartyRequest;
 import com.moduplaylist.api.watchparty.dto.WatchPartyResponse;
 import com.moduplaylist.api.watchparty.dto.WatchPartySummaryResponse;
 import com.moduplaylist.core.common.exception.BaseException;
@@ -14,7 +15,9 @@ import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.watchparty.entity.ParticipantStatus;
 import com.moduplaylist.core.watchparty.entity.WatchParty;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
+import com.moduplaylist.core.watchparty.exception.WatchPartyHostOnlyException;
 import com.moduplaylist.core.watchparty.exception.WatchPartyInvalidEpisodeRangeException;
+import com.moduplaylist.core.watchparty.exception.WatchPartyInvalidStateException;
 import com.moduplaylist.core.watchparty.exception.WatchPartyNotFoundException;
 import com.moduplaylist.core.watchparty.repository.*;
 import com.moduplaylist.core.user.repository.UserRepository;
@@ -93,6 +96,29 @@ class WatchPartyServiceTest {
                 .type(ContentType.TV_SEASON)
                 .thumbnailUrl("https://example.com/thumb.png")
                 .build();
+    }
+
+    private WatchParty buildWatchParty(WatchPartyStatus status) {
+        ReflectionTestUtils.setField(host, "id", hostId);
+        WatchParty watchParty = WatchParty.builder()
+                .host(host)
+                .contentId(contentId)
+                .title("기존 제목")
+                .description("기존 설명")
+                .scheduledAt(Instant.now().plusSeconds(3600))
+                .maxParticipants(4)
+                .sessionDurationMinutes(120)
+                .build();
+        ReflectionTestUtils.setField(watchParty, "id", UUID.randomUUID());
+        ReflectionTestUtils.setField(watchParty, "status", status);
+        return watchParty;
+    }
+
+    private UpdateWatchPartyRequest buildUpdateRequest(Integer startEpisode, Integer endEpisode) {
+        return new UpdateWatchPartyRequest(
+                "수정된 제목", "수정된 설명", Instant.now().plusSeconds(7200),
+                6, 90, startEpisode, endEpisode
+        );
     }
 
     // ===== 1. createWatchParty() =====
@@ -361,4 +387,136 @@ class WatchPartyServiceTest {
         // then
         assertThat(response.getData()).isEmpty();
     }
+
+
+    // ===== 5. updateWatchParty() =====
+
+    // 케이스 5-1: 정상 수정
+    @Test
+    void updateWatchParty_정상_수정() {
+        WatchParty watchParty = buildWatchParty(WatchPartyStatus.SCHEDULED);
+        UpdateWatchPartyRequest request = buildUpdateRequest(null, null);
+        Content movieContent = Content.builder()
+                .title("영화 콘텐츠").type(ContentType.MOVIE)
+                .thumbnailUrl("https://example.com/thumb.png").build();
+
+        given(watchPartyRepository.findById(watchParty.getId())).willReturn(Optional.of(watchParty));
+        given(contentRepository.findById(contentId)).willReturn(Optional.of(movieContent));
+        given(watchPartyParticipantRepository.countByWatchParty_IdAndStatus(any(), any())).willReturn(0L);
+
+        WatchPartyResponse response = watchPartyService.updateWatchParty(hostId, watchParty.getId(), request);
+
+        assertThat(response.getTitle()).isEqualTo("수정된 제목");
+        assertThat(watchParty.getMaxParticipants()).isEqualTo(6);
+    }
+
+    // 케이스 5-2: host 아니면 예외
+    @Test
+    void updateWatchParty_host_아니면_예외() {
+        WatchParty watchParty = buildWatchParty(WatchPartyStatus.SCHEDULED);
+        UpdateWatchPartyRequest request = buildUpdateRequest(null, null);
+        UUID otherUserId = UUID.randomUUID();
+
+        given(watchPartyRepository.findById(watchParty.getId())).willReturn(Optional.of(watchParty));
+
+        assertThatThrownBy(() -> watchPartyService.updateWatchParty(otherUserId, watchParty.getId(), request))
+                .isInstanceOf(WatchPartyHostOnlyException.class);
+
+        verify(contentRepository, never()).findById(any());
+    }
+
+    // 케이스 5-3: SCHEDULED 아니면 예외
+    @Test
+    void updateWatchParty_SCHEDULED_아니면_예외() {
+        WatchParty watchParty = buildWatchParty(WatchPartyStatus.LIVE);
+        UpdateWatchPartyRequest request = buildUpdateRequest(null, null);
+        Content movieContent = Content.builder()
+                .title("영화 콘텐츠").type(ContentType.MOVIE)
+                .thumbnailUrl("https://example.com/thumb.png").build();
+
+        given(watchPartyRepository.findById(watchParty.getId())).willReturn(Optional.of(watchParty));
+        given(contentRepository.findById(contentId)).willReturn(Optional.of(movieContent));
+
+        assertThatThrownBy(() -> watchPartyService.updateWatchParty(hostId, watchParty.getId(), request))
+                .isInstanceOf(WatchPartyInvalidStateException.class);
+    }
+
+    // 케이스 5-4: 회차 범위 초과 예외
+    @Test
+    void updateWatchParty_회차범위_초과하면_예외() {
+        WatchParty watchParty = buildWatchParty(WatchPartyStatus.SCHEDULED);
+        UpdateWatchPartyRequest request = buildUpdateRequest(1, 20);
+        Content tvSeasonContent = buildTvSeasonContent(10);
+
+        given(watchPartyRepository.findById(watchParty.getId())).willReturn(Optional.of(watchParty));
+        given(contentRepository.findById(contentId)).willReturn(Optional.of(tvSeasonContent));
+
+        assertThatThrownBy(() -> watchPartyService.updateWatchParty(hostId, watchParty.getId(), request))
+                .isInstanceOf(WatchPartyInvalidEpisodeRangeException.class);
+    }
+
+    // 케이스 5-5: 파티 없으면 예외
+    @Test
+    void updateWatchParty_존재하지않으면_예외() {
+        UUID unknownPartyId = UUID.randomUUID();
+        UpdateWatchPartyRequest request = buildUpdateRequest(null, null);
+
+        given(watchPartyRepository.findById(unknownPartyId)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> watchPartyService.updateWatchParty(hostId, unknownPartyId, request))
+                .isInstanceOf(WatchPartyNotFoundException.class);
+    }
+
+
+    // ===== 6. deleteWatchParty() =====
+
+    // 케이스 6-1: 정상 삭제
+    @Test
+    void deleteWatchParty_정상_삭제() {
+        WatchParty watchParty = buildWatchParty(WatchPartyStatus.SCHEDULED);
+        given(watchPartyRepository.findById(watchParty.getId())).willReturn(Optional.of(watchParty));
+
+        watchPartyService.deleteWatchParty(hostId, watchParty.getId());
+
+        verify(watchPartyRepository).delete(watchParty);
+        verify(watchPartyHostRegistry).removeHost(watchParty.getId());
+    }
+
+    // 케이스 6-2: host 아니면 예외
+    @Test
+    void deleteWatchParty_host_아니면_예외() {
+        WatchParty watchParty = buildWatchParty(WatchPartyStatus.SCHEDULED);
+        UUID otherUserId = UUID.randomUUID();
+        given(watchPartyRepository.findById(watchParty.getId())).willReturn(Optional.of(watchParty));
+
+        assertThatThrownBy(() -> watchPartyService.deleteWatchParty(otherUserId, watchParty.getId()))
+                .isInstanceOf(WatchPartyHostOnlyException.class);
+
+        verify(watchPartyRepository, never()).delete(any());
+        verify(watchPartyHostRegistry, never()).removeHost(any());
+    }
+
+    // 케이스 6-3: SCHEDULED 아니면 예외
+    @Test
+    void deleteWatchParty_SCHEDULED_아니면_예외() {
+        WatchParty watchParty = buildWatchParty(WatchPartyStatus.ENDED);
+        given(watchPartyRepository.findById(watchParty.getId())).willReturn(Optional.of(watchParty));
+
+        assertThatThrownBy(() -> watchPartyService.deleteWatchParty(hostId, watchParty.getId()))
+                .isInstanceOf(WatchPartyInvalidStateException.class);
+
+        verify(watchPartyRepository, never()).delete(any());
+        verify(watchPartyHostRegistry, never()).removeHost(any());
+    }
+
+    // 케이스 6-4: 파티 없으면 예외
+    @Test
+    void deleteWatchParty_존재하지않으면_예외() {
+        UUID unknownPartyId = UUID.randomUUID();
+        given(watchPartyRepository.findById(unknownPartyId)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> watchPartyService.deleteWatchParty(hostId, unknownPartyId))
+                .isInstanceOf(WatchPartyNotFoundException.class);
+    }
+
 }
