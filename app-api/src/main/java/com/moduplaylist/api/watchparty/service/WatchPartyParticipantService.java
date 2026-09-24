@@ -1,6 +1,7 @@
 package com.moduplaylist.api.watchparty.service;
 
 import com.moduplaylist.api.recommendation.service.ContentPreferenceUpdateService;
+import com.moduplaylist.api.watchparty.dto.WatchPartyParticipantResponse;
 import com.moduplaylist.api.watchparty.event.WatchPartyParticipantChangedEvent;
 import com.moduplaylist.core.activity.enums.ContentActivityType;
 import com.moduplaylist.core.user.entity.User;
@@ -17,6 +18,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -141,5 +143,18 @@ public class WatchPartyParticipantService {
         watchPartyKickedRegistry.kick(partyId, targetUserId);
         watchPartyJoinedRegistry.leave(partyId, targetUserId);
         watchPartyActivePartyRegistry.clearJoinedParty(targetUserId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<WatchPartyParticipantResponse> getParticipants(UUID partyId) {
+        if (!watchPartyRepository.existsById(partyId)) {
+            throw new WatchPartyNotFoundException(partyId);
+        }
+
+        return watchPartyParticipantRepository
+                .findJoinedParticipants(partyId, ParticipantStatus.JOINED)
+                .stream()
+                .map(WatchPartyParticipantResponse::from)
+                .toList();
     }
 }
