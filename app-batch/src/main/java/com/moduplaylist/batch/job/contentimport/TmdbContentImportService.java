@@ -763,9 +763,15 @@ public class TmdbContentImportService {
     }
 
     private static void rethrowIfFatal(RuntimeException exception) {
-        if (Thread.currentThread().isInterrupted()
-            || exception instanceof ExternalApiException externalApiException
-                && externalApiException.isFatal()) throw exception;
+        if (Thread.currentThread().isInterrupted()) {
+            throw exception;
+        }
+        if (!(exception instanceof ExternalApiException externalApiException)) {
+            throw exception;
+        }
+        if (externalApiException.isFatal()) {
+            throw exception;
+        }
     }
 
     private void saveEpisodes(

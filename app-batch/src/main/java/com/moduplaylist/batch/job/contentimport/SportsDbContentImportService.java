@@ -13,6 +13,7 @@ import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.content.repository.SportEventRepository;
 import com.moduplaylist.core.content.repository.SportTypeRepository;
 import com.moduplaylist.infrastructure.externalapi.ExternalApiException;
+import com.moduplaylist.infrastructure.externalapi.ExternalApiException.FailureType;
 import com.moduplaylist.infrastructure.sportsdb.SportsDbClient;
 import com.moduplaylist.infrastructure.opensearch.content.ContentAutocompleteSynchronizer;
 import java.time.Instant;
@@ -205,7 +206,7 @@ public class SportsDbContentImportService {
                 SportSyncResult result = transactionTemplate.execute(status ->
                     sportEventRepository.findById(candidate.getContentId())
                         .filter(existing -> !existing.getContent().isHidden())
-                        .map(existing -> update(existing, event))
+                        .map(existing -> update(existing, event, externalId))
                         .orElseGet(() -> SportSyncResult.existingResult(null))
                 );
                 record(result, metrics);
@@ -240,15 +241,18 @@ public class SportsDbContentImportService {
     ) {
         if (result == null || result.contentId() == null) return;
         UUID contentId = result.contentId();
-        if (result.searchSyncRequired() && attemptedSearchContentIds.add(contentId)) {
+        if (result.searchDocumentSyncRequired() && attemptedSearchContentIds.add(contentId)) {
             try {
                 synchronizeSportSearchDocumentSafely(contentId, metrics);
             } catch (RuntimeException exception) {
-                metrics.addSportsAutocompleteRetry(contentId);
+                if (result.autocompleteSyncRequired()) {
+                    metrics.addSportsAutocompleteRetry(contentId);
+                }
                 throw exception;
             }
         }
-        if (attemptedAutocompleteContentIds.add(contentId)) {
+        if (result.autocompleteSyncRequired()
+            && attemptedAutocompleteContentIds.add(contentId)) {
             synchronizeSportAutocompleteSafely(contentId, metrics);
         }
     }
@@ -361,9 +365,15 @@ public class SportsDbContentImportService {
     }
 
     private static void rethrowIfFatal(RuntimeException exception) {
-        if (Thread.currentThread().isInterrupted()
-            || exception instanceof ExternalApiException externalApiException
-                && externalApiException.isFatal()) throw exception;
+        if (Thread.currentThread().isInterrupted()) {
+            throw exception;
+        }
+        if (!(exception instanceof ExternalApiException externalApiException)) {
+            throw exception;
+        }
+        if (externalApiException.isFatal()) {
+            throw exception;
+        }
     }
 
     private boolean isEnabledLeague(SportsImportProperties.League league) {
@@ -376,12 +386,13 @@ public class SportsDbContentImportService {
     }
 
     private SportSyncResult syncEvent(JsonNode event, int id, SportsImportProperties.League league) {
+        validateExternalEventId(id);
         Content existingContent = contentRepository.findByExternalSourceAndTypeAndExternalId(
             SOURCE, ContentType.SPORT, id).orElse(null);
         if (existingContent != null) {
             if (existingContent.isHidden()) return SportSyncResult.existingResult(null);
             return sportEventRepository.findById(existingContent.getId())
-                .map(existing -> update(existing, event))
+                .map(existing -> update(existing, event, id))
                 .orElseThrow(() -> new IllegalStateException(
                     "외부 스포츠 콘텐츠에 경기 정보가 없습니다. contentId="
                         + existingContent.getId() + ", externalEventId=" + id
@@ -402,6 +413,7 @@ public class SportsDbContentImportService {
         SportType sportType = sportType(league.getSportCode(), sportName);
         Integer homeScore = integer(event, "intHomeScore");
         Integer awayScore = integer(event, "intAwayScore");
+        validateExternalScores(id, homeScore, awayScore);
         if ((homeScore == null) != (awayScore == null)) {
             homeScore = null;
             awayScore = null;
@@ -419,19 +431,26 @@ public class SportsDbContentImportService {
         return SportSyncResult.createdResult(content.getId());
     }
 
-    private SportSyncResult update(SportEvent existing, JsonNode event) {
+    private SportSyncResult update(SportEvent existing, JsonNode event, int externalEventId) {
+        validateExternalEventId(externalEventId);
         String title = limit(text(event, "strEvent"), 255);
         String home = limit(text(event, "strHomeTeam"), 255);
         String away = limit(text(event, "strAwayTeam"), 255);
         if (title == null || home == null || away == null) {
+            existing.updateStatus(
+                existing.getRawStatus(),
+                existing.getNormalizedStatus(),
+                Instant.now()
+            );
             return SportSyncResult.existingWithMissingRequired(existing.getContentId());
         }
         Instant scheduledAt = scheduledAt(event);
         Integer homeScore = integer(event, "intHomeScore");
         Integer awayScore = integer(event, "intAwayScore");
-        if ((homeScore == null) != (awayScore == null)) {
-            homeScore = null;
-            awayScore = null;
+        validateExternalScores(externalEventId, homeScore, awayScore);
+        if (homeScore == null || awayScore == null) {
+            homeScore = existing.getHomeScore();
+            awayScore = existing.getAwayScore();
         }
         String description = text(event, "strDescriptionEN");
         String thumbnailUrl = limit(firstText(event, "strThumb", "strPoster", "strFanart"), 500);
@@ -442,13 +461,15 @@ public class SportsDbContentImportService {
         String country = limit(text(event, "strCountry"), 100);
         String rawStatus = limit(rawStatus(event), 100);
         NormalizedStatus normalizedStatus = normalizedStatus(event);
-        boolean searchChanged = !Objects.equals(existing.getContent().getTitle(), title)
-            || !Objects.equals(existing.getContent().getDescription(), description)
+        boolean commonSearchChanged = !Objects.equals(existing.getContent().getTitle(), title)
             || !Objects.equals(existing.getLeagueName(), leagueName)
             || !Objects.equals(existing.getSeason(), season)
             || !Objects.equals(existing.getHomeTeamName(), home)
             || !Objects.equals(existing.getAwayTeamName(), away);
-        boolean changed = searchChanged
+        boolean descriptionChanged = !Objects.equals(
+            existing.getContent().getDescription(), description);
+        boolean searchDocumentChanged = commonSearchChanged || descriptionChanged;
+        boolean changed = searchDocumentChanged
             || !Objects.equals(existing.getContent().getThumbnailUrl(), thumbnailUrl)
             || !Objects.equals(existing.getRound(), round)
             || !Objects.equals(existing.getVenue(), venue)
@@ -471,7 +492,34 @@ public class SportsDbContentImportService {
         );
         existing.updateStatus(rawStatus, normalizedStatus, Instant.now());
         existing.getContent().markUpdated();
-        return SportSyncResult.updatedResult(existing.getContentId(), searchChanged);
+        return SportSyncResult.updatedResult(
+            existing.getContentId(),
+            searchDocumentChanged,
+            commonSearchChanged
+        );
+    }
+
+    private static void validateExternalEventId(int eventId) {
+        if (eventId <= 0) {
+            throw new ExternalApiException(
+                FailureType.ITEM_FAILURE,
+                "TheSportsDB 경기 ID가 유효하지 않습니다. eventId=" + eventId
+            );
+        }
+    }
+
+    private static void validateExternalScores(
+        int eventId,
+        Integer homeScore,
+        Integer awayScore
+    ) {
+        if (homeScore != null && homeScore < 0
+            || awayScore != null && awayScore < 0) {
+            throw new ExternalApiException(
+                FailureType.ITEM_FAILURE,
+                "TheSportsDB 경기 점수가 유효하지 않습니다. eventId=" + eventId
+            );
+        }
     }
 
     private SportType sportType(SportCode configuredCode, String name) {
@@ -563,28 +611,43 @@ public class SportsDbContentImportService {
         boolean created,
         boolean updated,
         boolean missingRequired,
-        boolean searchSyncRequired
+        boolean searchDocumentSyncRequired,
+        boolean autocompleteSyncRequired
     ) {
         private static SportSyncResult existingResult(UUID contentId) {
-            return new SportSyncResult(contentId, true, false, false, false, false);
+            return new SportSyncResult(
+                contentId, true, false, false, false, false, false);
         }
 
         private static SportSyncResult createdResult(UUID contentId) {
-            return new SportSyncResult(contentId, false, true, false, false, true);
+            return new SportSyncResult(
+                contentId, false, true, false, false, true, true);
         }
 
-        private static SportSyncResult updatedResult(UUID contentId, boolean searchSyncRequired) {
+        private static SportSyncResult updatedResult(
+            UUID contentId,
+            boolean searchDocumentSyncRequired,
+            boolean autocompleteSyncRequired
+        ) {
             return new SportSyncResult(
-                contentId, true, false, true, false, searchSyncRequired
+                contentId,
+                true,
+                false,
+                true,
+                false,
+                searchDocumentSyncRequired,
+                autocompleteSyncRequired
             );
         }
 
         private static SportSyncResult missingRequiredResult() {
-            return new SportSyncResult(null, false, false, false, true, false);
+            return new SportSyncResult(
+                null, false, false, false, true, false, false);
         }
 
         private static SportSyncResult existingWithMissingRequired(UUID contentId) {
-            return new SportSyncResult(contentId, true, false, false, true, false);
+            return new SportSyncResult(
+                contentId, true, false, false, true, false, false);
         }
     }
 }
