@@ -129,21 +129,22 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             return null;
         }
 
-        watchPartyOnlineRegistry.addOnline(partyId, userId);
-        trackOnlineParty(accessor, partyId);
+        if (trackOnlineParty(accessor, partyId)) {
+            watchPartyOnlineRegistry.addOnline(partyId, userId);
+        }
 
         return message;
     }
 
     @SuppressWarnings("unchecked")
-    private void trackOnlineParty(StompHeaderAccessor accessor, UUID partyId) {
+    private boolean trackOnlineParty(StompHeaderAccessor accessor, UUID partyId) {
         Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
         if (sessionAttributes == null) {
-            return;
+            return false;
         }
         Set<UUID> onlinePartyIds = (Set<UUID>) sessionAttributes
                 .computeIfAbsent(ONLINE_PARTY_IDS_ATTRIBUTE, key -> new HashSet<UUID>());
-        onlinePartyIds.add(partyId);
+        return onlinePartyIds.add(partyId);
     }
 
     // SEND: kicked 체크 + "JOINED 또는 host만 채팅 가능" 체크

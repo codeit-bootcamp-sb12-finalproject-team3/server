@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import java.util.Optional;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import com.moduplaylist.realtime.watchparty.*;
@@ -223,6 +225,33 @@ class StompAuthChannelInterceptorTest {
         Message<?> result = interceptor.preSend(message, null);
 
         assertThat(result).isEqualTo(message);
+    }
+
+    @Test
+    @DisplayName("한 세션에서 같은 파티의 여러 destination을 구독해도 online은 한 번만 증가한다")
+    void multiplePartySubscriptions_trackOnlineOncePerSession() {
+        UUID partyId = UUID.randomUUID();
+        Map<String, Object> sessionAttributes = new HashMap<>();
+        when(watchPartyKickedRegistry.isKicked(partyId, USER_ID)).thenReturn(false);
+        when(watchPartyActivePartyRegistry.findJoinedPartyId(USER_ID)).thenReturn(Optional.of(partyId));
+
+        Message<byte[]> chat = createMessage(
+                StompCommand.SUBSCRIBE, "/sub/watch-parties/" + partyId + "/chat", sessionAttributes);
+        Message<byte[]> playback = createMessage(
+                StompCommand.SUBSCRIBE, "/sub/watch-parties/" + partyId + "/playback", sessionAttributes);
+
+        assertThat(interceptor.preSend(chat, null)).isEqualTo(chat);
+        assertThat(interceptor.preSend(playback, null)).isEqualTo(playback);
+        verify(watchPartyOnlineRegistry).addOnline(partyId, USER_ID);
+    }
+
+    private Message<byte[]> createMessage(
+            StompCommand command, String destination, Map<String, Object> sessionAttributes) {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(command);
+        accessor.setDestination(destination);
+        accessor.setUser(new RealtimePrincipal(USER_ID));
+        accessor.setSessionAttributes(sessionAttributes);
+        return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
     }
 
     @Test
