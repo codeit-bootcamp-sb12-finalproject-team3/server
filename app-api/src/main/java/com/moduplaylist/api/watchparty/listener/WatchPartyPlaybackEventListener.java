@@ -2,10 +2,7 @@ package com.moduplaylist.api.watchparty.listener;
 
 import com.moduplaylist.api.watchparty.event.WatchPartyEndedEvent;
 import com.moduplaylist.api.watchparty.event.WatchPartyStartedEvent;
-import com.moduplaylist.core.watchparty.repository.WatchPartyActivePartyRegistry;
-import com.moduplaylist.core.watchparty.repository.WatchPartyJoinedRegistry;
-import com.moduplaylist.core.watchparty.repository.WatchPartyKeyLifecycleRegistry;
-import com.moduplaylist.core.watchparty.repository.WatchPartyPlaybackRegistry;
+import com.moduplaylist.core.watchparty.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -21,6 +18,8 @@ public class WatchPartyPlaybackEventListener {
     private final WatchPartyKeyLifecycleRegistry watchPartyKeyLifecycleRegistry;
     private final WatchPartyJoinedRegistry watchPartyJoinedRegistry;
     private final WatchPartyActivePartyRegistry watchPartyActivePartyRegistry;
+    private final WatchPartyPlaybackBroadcaster watchPartyPlaybackBroadcaster;
+
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onWatchPartyStarted(WatchPartyStartedEvent event) {
@@ -37,6 +36,13 @@ public class WatchPartyPlaybackEventListener {
             watchPartyPlaybackRegistry.markEnded(event.partyId());
         } catch (Exception e) {
             log.error("Watch Party 종료 - Redis playback 상태 갱신 실패. partyId={}", event.partyId(), e);
+        }
+
+        try {
+            watchPartyPlaybackRegistry.find(event.partyId())
+                    .ifPresent(state -> watchPartyPlaybackBroadcaster.broadcastEnded(event.partyId(), state));
+        } catch (Exception e) {
+            log.error("Watch Party 종료 - Redis Pub/Sub 브로드캐스트 실패. partyId={}", event.partyId(), e);
         }
 
         try {

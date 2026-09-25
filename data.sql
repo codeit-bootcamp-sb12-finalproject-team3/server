@@ -553,10 +553,10 @@ INSERT INTO contents (id, parent_content_id, title, season_number, episode_count
   (UNHEX('01a079ceef8a700a800000000000000b'), NULL, 'Arsenal vs Chelsea', NULL, NULL, 'sport', 'TheSportsDB API 문서의 이벤트 검색 예시를 기반으로 한 축구 경기 콘텐츠.', NULL, '2015-04-26', NULL, JSON_OBJECT('league', 'English Premier League', 'season', '2014-2015', 'searchFilename', 'English_Premier_League_2015-04-26_Arsenal_vs_Chelsea', 'sourceDocument', 'TheSportsDB API search example'), NULL, NULL, 4.00, 1, 1, '2026-08-26 12:00:00.000000', '2026-09-10 12:00:00.000000');
 
 -- 스포츠 종목 마스터 (schema_v5 신규 테이블: sport_types) — dml2에는 없던 데이터, 최소 더미로 보강
-INSERT INTO sport_types (id, code, name, active) VALUES
-  (UNHEX('e3ce589ca8de485eb76eeaf7d2159097'), 'SOCCER', '축구', TRUE),
-  (UNHEX('8d0894113c034257a7bbba6fa70bdb3d'), 'BASEBALL', '야구', TRUE),
-  (UNHEX('2ac48f0fef0842bbab1f9c4a6d0c1635'), 'BASKETBALL', '농구', TRUE);
+INSERT INTO sport_types (id, code, name) VALUES
+  (UNHEX('e3ce589ca8de485eb76eeaf7d2159097'), 'SOCCER', '축구'),
+  (UNHEX('8d0894113c034257a7bbba6fa70bdb3d'), 'BASEBALL', '야구'),
+  (UNHEX('2ac48f0fef0842bbab1f9c4a6d0c1635'), 'BASKETBALL', '농구');
 
 -- 스포츠 이벤트 (schema_v5 신규 테이블: sport_events) — dml2의 스포츠 콘텐츠 4건에 대응하는 최소 더미
 INSERT INTO sport_events (content_id, sport_type_id, external_league_id, league_name, season, round, home_team_name, away_team_name, venue, country, scheduled_at, home_score, away_score, raw_status, normalized_status, last_checked_at) VALUES

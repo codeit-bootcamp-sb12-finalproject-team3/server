@@ -36,13 +36,13 @@ public enum ErrorCode {
     INVALID_IMAGE("이미지 파일이 올바르지 않습니다."),
     UPLOAD_LIMIT_EXCEEDED("이미지 업로드 제한을 초과했습니다."),
     UNSUPPORTED_IMAGE_TYPE("지원하지 않는 이미지 형식입니다."),
+    IMAGE_STORAGE_UNAVAILABLE("이미지 파일 저장소를 사용할 수 없습니다."),
     EPISODE_ALREADY_EXISTS("해당 시즌에 같은 번호의 에피소드가 이미 존재합니다."),
     EPISODE_NUMBER_CHANGE_BLOCKED("연결된 Watch Party가 있어 회차 번호를 변경할 수 없습니다."),
     CONTENT_SEASON_ALREADY_EXISTS("동일한 TV 시리즈에 해당 시즌이 이미 존재합니다."),
     HIDDEN_SEASON_ALREADY_EXISTS("복원 가능한 삭제 시즌이 이미 존재합니다."),
     CONTENT_DELETION_BLOCKED("연결된 Watch Party가 있어 콘텐츠를 삭제할 수 없습니다."),
     CONTENT_SEARCH_UNAVAILABLE("콘텐츠 검색 서비스를 사용할 수 없습니다."),
-    CONTENT_STORAGE_UNAVAILABLE("콘텐츠 파일 저장소를 사용할 수 없습니다."),
 
     // Review
     REVIEW_NOT_FOUND("존재하지 않는 리뷰입니다."),

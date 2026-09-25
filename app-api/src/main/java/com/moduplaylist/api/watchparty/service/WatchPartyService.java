@@ -3,14 +3,11 @@ package com.moduplaylist.api.watchparty.service;
 import com.moduplaylist.api.content.dto.ContentWatchPartyResponse;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
+import com.moduplaylist.api.watchparty.dto.*;
 import com.moduplaylist.api.watchparty.event.WatchPartyCreatedEvent;
 import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
 import com.moduplaylist.api.user.dto.UserSummary;
-import com.moduplaylist.api.watchparty.dto.CreateWatchPartyRequest;
-import com.moduplaylist.api.watchparty.dto.WatchPartyContentSummary;
-import com.moduplaylist.api.watchparty.dto.WatchPartyResponse;
-import com.moduplaylist.api.watchparty.dto.WatchPartySummaryResponse;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
@@ -22,6 +19,7 @@ import com.moduplaylist.core.user.repository.UserRepository;
 import com.moduplaylist.core.watchparty.entity.ParticipantStatus;
 import com.moduplaylist.core.watchparty.entity.WatchParty;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
+import com.moduplaylist.core.watchparty.exception.WatchPartyHostOnlyException;
 import com.moduplaylist.core.watchparty.exception.WatchPartyInvalidEpisodeRangeException;
 import com.moduplaylist.core.watchparty.exception.WatchPartyNotFoundException;
 import com.moduplaylist.core.watchparty.repository.*;
@@ -87,6 +85,44 @@ public class WatchPartyService {
 
         return toResponse(saved, host, content, 0);
     }
+    public WatchPartyResponse updateWatchParty(UUID requesterId, UUID partyId, UpdateWatchPartyRequest request) {
+        WatchParty watchParty = watchPartyRepository.findById(partyId)
+                .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
+
+        if (!watchParty.getHost().getId().equals(requesterId)) {
+            throw new WatchPartyHostOnlyException(partyId, requesterId);
+        }
+
+        Content content = contentRepository.findById(watchParty.getContentId())
+                .orElseThrow(() -> new ContentNotFoundException(watchParty.getContentId()));
+        validateEpisodeRange(content, request.getStartEpisode(), request.getEndEpisode());
+
+        watchParty.update(
+                request.getTitle(),
+                request.getDescription(),
+                request.getScheduledAt(),
+                request.getMaxParticipants(),
+                request.getSessionDurationMinutes(),
+                request.getStartEpisode(),
+                request.getEndEpisode()
+        );
+
+        return toResponse(watchParty);
+    }
+
+    public void deleteWatchParty(UUID requesterId, UUID partyId) {
+        WatchParty watchParty = watchPartyRepository.findById(partyId)
+                .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
+
+        if (!watchParty.getHost().getId().equals(requesterId)) {
+            throw new WatchPartyHostOnlyException(partyId, requesterId);
+        }
+
+        watchParty.validateEditable();
+
+        watchPartyRepository.delete(watchParty);
+        watchPartyHostRegistry.removeHost(partyId);
+    }
 
     private void validateEpisodeRange(Content content, Integer startEpisode, Integer endEpisode) {
         boolean hasEpisodeRange = startEpisode != null || endEpisode != null;
@@ -94,6 +130,13 @@ public class WatchPartyService {
 
         if (hasEpisodeRange && !isEpisodicContent) {
             throw new WatchPartyInvalidEpisodeRangeException(content.getId());
+        }
+
+        if (hasEpisodeRange && isEpisodicContent) {
+            Integer episodeCount = content.getEpisodeCount();
+            if (endEpisode != null && episodeCount != null && endEpisode > episodeCount) {
+                throw new WatchPartyInvalidEpisodeRangeException(content.getId(), episodeCount, endEpisode);
+            }
         }
     }
 

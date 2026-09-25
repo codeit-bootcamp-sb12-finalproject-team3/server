@@ -41,6 +41,8 @@ spring:
         spring.json.type.mapping: notification-created:com.moduplaylist.infrastructure.kafka.event.NotificationCreatedKafkaEvent,
                                   dm-message-created:com.moduplaylist.infrastructure.kafka.event.DmMessageCreatedKafkaEvent,
                                   content-activity:com.moduplaylist.infrastructure.kafka.event.ContentActivityKafkaEvent,
+                                  content-deleted:com.moduplaylist.infrastructure.kafka.event.ContentDeleted,
+                                  content-upserted:com.moduplaylist.infrastructure.kafka.event.ContentUpserted,
                                   watchparty-participant-joined:com.moduplaylist.infrastructure.kafka.event.WatchPartyParticipantJoinedKafkaEvent
         #                           real-time과 연동되는 event에 대해서 밑에 예시 처럼 작성하시면 됩니다. Java FQCN type-mapping 한다고 알려주시면 돼요
         #                          , watchparty-playback:com.moduplaylist.infrastructure.kafka.event.WatchPartyPlaybackKafkaEvent
@@ -51,6 +53,8 @@ spring:
       properties:
         spring.json.type.mapping: dm-send-requested:com.moduplaylist.infrastructure.kafka.event.DmSendRequestedKafkaEvent,
                                   content-activity:com.moduplaylist.infrastructure.kafka.event.ContentActivityKafkaEvent,
+                                  content-deleted:com.moduplaylist.infrastructure.kafka.event.ContentDeleted,
+                                  content-upserted:com.moduplaylist.infrastructure.kafka.event.ContentUpserted,
                                   watchparty-participant-joined:com.moduplaylist.infrastructure.kafka.event.WatchPartyParticipantJoinedKafkaEvent
         spring.json.trusted.packages: com.moduplaylist.infrastructure.kafka.event
 
@@ -66,6 +70,17 @@ aws:
     bucket: ${AWS_S3_BUCKET:}
 
 mopl:
+  trending:
+    processed-event-ttl: ${TRENDING_PROCESSED_EVENT_TTL:7d}
+    window-hours: ${TRENDING_WINDOW_HOURS:24}
+    bucket-ttl: ${TRENDING_BUCKET_TTL:26h}
+    result-cache-ttl: ${TRENDING_RESULT_CACHE_TTL:30s}
+    weight:
+      content-view: ${TRENDING_CONTENT_VIEW_WEIGHT:0.1}
+      content-like: ${TRENDING_CONTENT_LIKE_WEIGHT:1.5}
+      rating: ${TRENDING_RATING_WEIGHT:1.0}
+      playlist-content: ${TRENDING_PLAYLIST_CONTENT_WEIGHT:0.7}
+      watch-party-participation: ${TRENDING_WATCH_PARTY_PARTICIPATION_WEIGHT:1.0}
   recommendation:
     refresh:
       threshold: ${RECOMMENDATION_REFRESH_THRESHOLD:3.0}

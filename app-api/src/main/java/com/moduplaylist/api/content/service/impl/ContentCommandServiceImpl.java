@@ -14,6 +14,10 @@ import com.moduplaylist.api.content.dto.SeasonCreateRequest;
 import com.moduplaylist.api.content.event.ContentLifecycleEvent;
 import com.moduplaylist.api.content.service.ContentCommandService;
 import com.moduplaylist.api.content.service.ContentQueryService;
+import com.moduplaylist.core.common.exception.ImageStorageUnavailableException;
+import com.moduplaylist.core.common.exception.ImageUploadLimitExceededException;
+import com.moduplaylist.core.common.exception.InvalidImageException;
+import com.moduplaylist.core.common.exception.UnsupportedImageTypeException;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentCast;
 import com.moduplaylist.core.content.entity.ContentGenre;
@@ -30,13 +34,9 @@ import com.moduplaylist.core.content.entity.TagSource;
 import com.moduplaylist.core.content.exception.ContentDeletionBlockedException;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.exception.ContentSeasonAlreadyExistsException;
-import com.moduplaylist.core.content.exception.ContentStorageUnavailableException;
 import com.moduplaylist.core.content.exception.GenreNotFoundException;
 import com.moduplaylist.core.content.exception.HiddenSeasonAlreadyExistsException;
 import com.moduplaylist.core.content.exception.DuplicateContentConfirmationRequiredException;
-import com.moduplaylist.core.content.exception.ContentUploadLimitExceededException;
-import com.moduplaylist.core.content.exception.InvalidContentImageException;
-import com.moduplaylist.core.content.exception.UnsupportedContentImageTypeException;
 import com.moduplaylist.core.content.exception.EpisodeAlreadyExistsException;
 import com.moduplaylist.core.content.exception.EpisodeNumberChangeBlockedException;
 import com.moduplaylist.core.content.exception.InvalidContentSearchException;
@@ -1112,11 +1112,11 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 	private void validateImages(ContentCreateRequest request, Map<String, MultipartFile> images) {
 		int maxImageCount = request.getType() == ContentType.TV_SERIES ? 15 : 10;
 		if (images.size() > maxImageCount) {
-			throw new ContentUploadLimitExceededException();
+			throw new ImageUploadLimitExceededException();
 		}
 		long totalSize = images.values().stream().mapToLong(MultipartFile::getSize).sum();
 		if (totalSize > 50L * 1024 * 1024) {
-			throw new ContentUploadLimitExceededException();
+			throw new ImageUploadLimitExceededException();
 		}
 		Set<String> expectedParts = new HashSet<>();
 		if (request.getType() == ContentType.TV_SERIES) {
@@ -1142,17 +1142,17 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 	private void validateImage(MultipartFile image) {
 		if (image.isEmpty() || image.getSize() > 5L * 1024 * 1024) {
 			if (image.isEmpty()) {
-				throw new InvalidContentImageException();
+				throw new InvalidImageException();
 			}
-			throw new ContentUploadLimitExceededException();
+			throw new ImageUploadLimitExceededException();
 		}
 		try {
 			byte[] bytes = image.getBytes();
 			if (detectImageType(bytes) == null) {
-				throw new UnsupportedContentImageTypeException();
+				throw new UnsupportedImageTypeException();
 			}
 		} catch (IOException exception) {
-			throw new ContentStorageUnavailableException(exception);
+			throw new ImageStorageUnavailableException(exception);
 		}
 	}
 
@@ -1167,18 +1167,18 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 				case "image/jpeg" -> "jpg";
 				case "image/png" -> "png";
 				case "image/webp" -> "webp";
-				default -> throw new UnsupportedContentImageTypeException();
+				default -> throw new UnsupportedImageTypeException();
 			};
 			String objectKey = "content-thumbnails/" + UUID.randomUUID() + "." + extension;
 			String url = contentImageStorage.upload(objectKey, bytes, contentType);
 			uploadedKeys.add(objectKey);
 			return url;
 		} catch (IOException exception) {
-			throw new ContentStorageUnavailableException(exception);
-		} catch (UnsupportedContentImageTypeException exception) {
+			throw new ImageStorageUnavailableException(exception);
+		} catch (UnsupportedImageTypeException exception) {
 			throw exception;
 		} catch (RuntimeException exception) {
-			throw new ContentStorageUnavailableException(exception);
+			throw new ImageStorageUnavailableException(exception);
 		}
 	}
 
