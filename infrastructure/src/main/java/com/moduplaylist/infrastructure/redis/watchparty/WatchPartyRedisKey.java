@@ -30,6 +30,10 @@ public final class WatchPartyRedisKey {
         return PREFIX + require(partyId) + ":chat";
     }
 
+    public static String participantsChannel(UUID partyId) {
+        return PREFIX + require(partyId) + ":participants";
+    }
+
     public static String host(UUID partyId) {
         return PREFIX + require(partyId) + ":host";
     }
