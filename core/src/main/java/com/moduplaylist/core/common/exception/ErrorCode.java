@@ -106,7 +106,8 @@ public enum ErrorCode {
     WATCHPARTY_NOT_A_PARTICIPANT("참가 중인 방이 아닙니다."),
     WATCHPARTY_PARTICIPANT_NOT_JOINED("현재 참가 중인 사용자가 아닙니다."),
     WATCHPARTY_INVALID_STATE("현재 상태에서는 처리할 수 없는 요청입니다."),
-    WATCHPARTY_MAX_PARTICIPANTS_BELOW_CURRENT("현재 참가자 수보다 적은 값으로 최대 인원을 변경할 수 없습니다.");
+    WATCHPARTY_MAX_PARTICIPANTS_BELOW_CURRENT("현재 참가자 수보다 적은 값으로 최대 인원을 변경할 수 없습니다."),
+    WATCHPARTY_CHAT_ACCESS_DENIED("강퇴된 방의 채팅 이력은 볼 수 없습니다.");
 
     private final String message;
 }
