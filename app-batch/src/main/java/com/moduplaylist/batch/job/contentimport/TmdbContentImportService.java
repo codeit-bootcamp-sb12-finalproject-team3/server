@@ -16,7 +16,8 @@ import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.content.repository.EpisodeRepository;
 import com.moduplaylist.core.content.repository.GenreRepository;
 import com.moduplaylist.infrastructure.externalapi.ExternalApiException;
-import com.moduplaylist.infrastructure.opensearch.content.ContentAutocompleteSynchronizer;
+import com.moduplaylist.infrastructure.opensearch.content.ContentIndexSource;
+import com.moduplaylist.infrastructure.opensearch.content.ContentIndexSynchronizer;
 import com.moduplaylist.infrastructure.tmdb.TmdbContentClient;
 import com.moduplaylist.infrastructure.tmdb.TmdbProperties;
 import com.moduplaylist.infrastructure.tmdb.TmdbWatchProviderClient;
@@ -27,6 +28,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -53,26 +55,26 @@ public class TmdbContentImportService {
     private final GenreRepository genreRepository;
     private final ContentGenreRepository contentGenreRepository;
     private final ContentCastRepository contentCastRepository;
-    private final ContentAutocompleteSynchronizer autocompleteSynchronizer;
+    private final ContentIndexSynchronizer contentIndexSynchronizer;
     private final TransactionTemplate transactionTemplate;
 
     public void importMovies(LocalDate runDate, ContentImportMetrics metrics) {
         LocalDate from = runDate.minusDays(1);
         Set<Integer> handledIds = new HashSet<>();
         Set<UUID> attemptedProviderContentIds = new HashSet<>();
-        Set<UUID> attemptedAutocompleteContentIds = new HashSet<>();
+        IndexSyncAttempts indexSyncAttempts = new IndexSyncAttempts();
         GenreCache genreCache = loadGenreCache();
         retryFailedMovieImports(
             handledIds,
             attemptedProviderContentIds,
-            attemptedAutocompleteContentIds,
+            indexSyncAttempts,
             genreCache,
             metrics
         );
         retryFailedMovieSynchronizations(
             metrics,
             attemptedProviderContentIds,
-            attemptedAutocompleteContentIds
+            indexSyncAttempts
         );
         Set<Integer> ids = new HashSet<>();
         int totalPages = 1;
@@ -90,7 +92,7 @@ public class TmdbContentImportService {
             id,
             existingMovies.get(id),
             attemptedProviderContentIds,
-            attemptedAutocompleteContentIds,
+            indexSyncAttempts,
             genreCache,
             metrics
         ));
@@ -100,20 +102,20 @@ public class TmdbContentImportService {
         LocalDate from = runDate.minusDays(1);
         Set<Integer> handledIds = new HashSet<>();
         Set<UUID> attemptedProviderContentIds = new HashSet<>();
-        Set<UUID> attemptedAutocompleteContentIds = new HashSet<>();
+        IndexSyncAttempts indexSyncAttempts = new IndexSyncAttempts();
         GenreCache genreCache = loadGenreCache();
         retryFailedTvImports(
             handledIds,
             runDate,
             attemptedProviderContentIds,
-            attemptedAutocompleteContentIds,
+            indexSyncAttempts,
             genreCache,
             metrics
         );
         retryFailedSeasonSynchronizations(
             metrics,
             attemptedProviderContentIds,
-            attemptedAutocompleteContentIds
+            indexSyncAttempts
         );
         Set<Integer> ids = new HashSet<>();
         collectTvCandidates(ids, handledIds, metrics,
@@ -127,7 +129,7 @@ public class TmdbContentImportService {
             existingSeries.get(id),
             runDate,
             attemptedProviderContentIds,
-            attemptedAutocompleteContentIds,
+            indexSyncAttempts,
             genreCache,
             metrics
         ));
@@ -153,7 +155,7 @@ public class TmdbContentImportService {
     private void fetchAndImportMovieSafely(
         int id,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         GenreCache genreCache,
         ContentImportMetrics metrics
     ) {
@@ -164,7 +166,7 @@ public class TmdbContentImportService {
                 id,
                 existing,
                 attemptedProviderContentIds,
-                attemptedAutocompleteContentIds,
+                indexSyncAttempts,
                 genreCache,
                 metrics
             );
@@ -181,7 +183,7 @@ public class TmdbContentImportService {
         int id,
         Content existing,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         GenreCache genreCache,
         ContentImportMetrics metrics
     ) {
@@ -190,7 +192,7 @@ public class TmdbContentImportService {
                 id,
                 existing,
                 attemptedProviderContentIds,
-                attemptedAutocompleteContentIds,
+                indexSyncAttempts,
                 genreCache,
                 metrics
             );
@@ -207,7 +209,7 @@ public class TmdbContentImportService {
         int seriesId,
         LocalDate runDate,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         GenreCache genreCache,
         ContentImportMetrics metrics
     ) {
@@ -219,7 +221,7 @@ public class TmdbContentImportService {
                 series,
                 runDate,
                 attemptedProviderContentIds,
-                attemptedAutocompleteContentIds,
+                indexSyncAttempts,
                 genreCache,
                 metrics
             );
@@ -238,7 +240,7 @@ public class TmdbContentImportService {
         Content series,
         LocalDate runDate,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         GenreCache genreCache,
         ContentImportMetrics metrics
     ) {
@@ -248,7 +250,7 @@ public class TmdbContentImportService {
                 series,
                 runDate,
                 attemptedProviderContentIds,
-                attemptedAutocompleteContentIds,
+                indexSyncAttempts,
                 genreCache,
                 metrics
             );
@@ -266,7 +268,7 @@ public class TmdbContentImportService {
         int id,
         Content existing,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         GenreCache genreCache,
         ContentImportMetrics metrics
     ) {
@@ -276,7 +278,7 @@ public class TmdbContentImportService {
                 existing,
                 id,
                 attemptedProviderContentIds,
-                attemptedAutocompleteContentIds,
+                indexSyncAttempts,
                 metrics
             );
             return;
@@ -305,7 +307,7 @@ public class TmdbContentImportService {
                         content,
                         id,
                         attemptedProviderContentIds,
-                        attemptedAutocompleteContentIds,
+                        indexSyncAttempts,
                         metrics
                     );
                 });
@@ -318,7 +320,7 @@ public class TmdbContentImportService {
             movie,
             id,
             attemptedProviderContentIds,
-            attemptedAutocompleteContentIds,
+            indexSyncAttempts,
             metrics
         );
     }
@@ -353,7 +355,7 @@ public class TmdbContentImportService {
         Content series,
         LocalDate runDate,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         GenreCache genreCache,
         ContentImportMetrics metrics
     ) {
@@ -378,7 +380,7 @@ public class TmdbContentImportService {
                 : Set.of();
         synchronizeExistingSeasons(
             existingSeasons.values(),
-            attemptedAutocompleteContentIds,
+            indexSyncAttempts,
             metrics
         );
         Set<Integer> episodeSeasonNumbers = episodeSeasonNumbers(ko, runDate);
@@ -442,13 +444,11 @@ public class TmdbContentImportService {
                         try {
                             synchronizeSeasonProvidersSafely(providerTarget, failureId, metrics);
                         } catch (RuntimeException exception) {
-                            metrics.addAutocompleteRetry(contentId);
+                            addAllIndexRetries(contentId, metrics);
                             throw exception;
                         }
                     }
-                    if (attemptedAutocompleteContentIds.add(contentId)) {
-                        synchronizeSeasonAutocompleteSafely(contentId, failureId, metrics);
-                    }
+                    synchronizeIndexesOnce(contentId, failureId, indexSyncAttempts, metrics);
                 }
             } catch (RuntimeException exception) {
                 rethrowIfFatal(exception);
@@ -483,20 +483,19 @@ public class TmdbContentImportService {
 
     private void synchronizeExistingSeasons(
         Collection<Content> seasons,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         ContentImportMetrics metrics
     ) {
         for (Content season : seasons) {
             if (season.isHidden()) continue;
             metrics.existing();
             UUID contentId = season.getId();
-            if (attemptedAutocompleteContentIds.add(contentId)) {
-                synchronizeSeasonAutocompleteSafely(
-                    contentId,
-                    "tv-season-autocomplete:" + contentId,
-                    metrics
-                );
-            }
+            synchronizeIndexesOnce(
+                contentId,
+                "tv-season-index:" + contentId,
+                indexSyncAttempts,
+                metrics
+            );
         }
     }
 
@@ -598,7 +597,7 @@ public class TmdbContentImportService {
         Content movie,
         int movieId,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         ContentImportMetrics metrics
     ) {
         UUID contentId = movie.getId();
@@ -608,13 +607,16 @@ public class TmdbContentImportService {
             try {
                 synchronizeMovieProvidersSafely(providerTarget, metrics);
             } catch (RuntimeException exception) {
-                metrics.addAutocompleteRetry(contentId);
+                addAllIndexRetries(contentId, metrics);
                 throw exception;
             }
         }
-        if (attemptedAutocompleteContentIds.add(contentId)) {
-            synchronizeAutocompleteSafely(contentId, "movie:" + movieId, metrics);
-        }
+        synchronizeIndexesOnce(
+            contentId,
+            "movie:" + movieId,
+            indexSyncAttempts,
+            metrics
+        );
     }
 
     private void synchronizeMovieProvidersSafely(
@@ -655,60 +657,121 @@ public class TmdbContentImportService {
         }
     }
 
-    private void synchronizeSeasonAutocompleteSafely(
+    private void synchronizeIndexesOnce(
         UUID contentId,
         String failureId,
+        IndexSyncAttempts attempts,
         ContentImportMetrics metrics
     ) {
-        try {
-            autocompleteSynchronizer.synchronize(contentId);
-            metrics.completeAutocompleteRetry(contentId);
-        } catch (RuntimeException exception) {
-            metrics.addAutocompleteRetry(contentId);
-            rethrowIfFatal(exception);
-            metrics.failed(failureId);
-            log.warn("TMDB 시즌 자동완성 동기화에 실패했습니다. contentId={}, externalId={}",
-                contentId, failureId, exception);
-        }
+        boolean synchronizeAutocomplete = attempts.autocomplete().add(contentId);
+        boolean synchronizeSearch = attempts.search().add(contentId);
+        synchronizeIndexesSafely(
+            contentId,
+            failureId,
+            synchronizeAutocomplete,
+            synchronizeSearch,
+            metrics
+        );
     }
 
-    private void synchronizeAutocompleteSafely(
+    private void synchronizeIndexesSafely(
         UUID contentId,
         String failureId,
+        boolean synchronizeAutocomplete,
+        boolean synchronizeSearch,
         ContentImportMetrics metrics
     ) {
+        if (!synchronizeAutocomplete && !synchronizeSearch) return;
+
+        ContentIndexSource source;
         try {
-            autocompleteSynchronizer.synchronize(contentId);
-            metrics.completeAutocompleteRetry(contentId);
+            source = contentIndexSynchronizer.load(contentId);
         } catch (RuntimeException exception) {
-            metrics.addAutocompleteRetry(contentId);
-            rethrowIfFatal(exception);
-            metrics.failed(failureId);
-            log.warn("TMDB 콘텐츠 자동완성 동기화에 실패했습니다. contentId={}, externalId={}",
+            addIndexRetries(contentId, synchronizeAutocomplete, synchronizeSearch, metrics);
+            metrics.failed(failureId + ":index-source");
+            log.warn("TMDB 색인 원본 조회에 실패했습니다. contentId={}, externalId={}",
                 contentId, failureId, exception);
+            rethrowIfFatal(exception);
+            return;
         }
+
+        RuntimeException fatalFailure = null;
+        if (synchronizeAutocomplete) {
+            try {
+                contentIndexSynchronizer.synchronizeAutocomplete(source);
+                metrics.completeAutocompleteRetry(contentId);
+            } catch (RuntimeException exception) {
+                metrics.addAutocompleteRetry(contentId);
+                metrics.failed(failureId + ":autocomplete");
+                log.warn("TMDB 자동완성 동기화에 실패했습니다. contentId={}, externalId={}",
+                    contentId, failureId, exception);
+                fatalFailure = fatalFailure(fatalFailure, exception);
+            }
+        }
+        if (synchronizeSearch) {
+            try {
+                contentIndexSynchronizer.synchronizeSearch(source);
+                metrics.completeSearchRetry(contentId);
+            } catch (RuntimeException exception) {
+                metrics.addSearchRetry(contentId);
+                metrics.failed(failureId + ":search");
+                log.warn("TMDB 검색 문서 동기화에 실패했습니다. contentId={}, externalId={}",
+                    contentId, failureId, exception);
+                fatalFailure = fatalFailure(fatalFailure, exception);
+            }
+        }
+        if (fatalFailure != null) throw fatalFailure;
+    }
+
+    private static RuntimeException fatalFailure(
+        RuntimeException current,
+        RuntimeException candidate
+    ) {
+        if (!isFatal(candidate)) return current;
+        if (current == null) return candidate;
+        current.addSuppressed(candidate);
+        return current;
+    }
+
+    private static boolean isFatal(RuntimeException exception) {
+        return Thread.currentThread().isInterrupted()
+            || !(exception instanceof ExternalApiException externalApiException)
+            || externalApiException.isFatal();
+    }
+
+    private static void addAllIndexRetries(
+        UUID contentId,
+        ContentImportMetrics metrics
+    ) {
+        addIndexRetries(contentId, true, true, metrics);
+    }
+
+    private static void addIndexRetries(
+        UUID contentId,
+        boolean autocomplete,
+        boolean search,
+        ContentImportMetrics metrics
+    ) {
+        if (autocomplete) metrics.addAutocompleteRetry(contentId);
+        if (search) metrics.addSearchRetry(contentId);
     }
 
     private void retryFailedMovieSynchronizations(
         ContentImportMetrics metrics,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds
+        IndexSyncAttempts indexSyncAttempts
     ) {
         for (TmdbMovieProviderRetryTarget target : metrics.tmdbMovieProviderRetryTargets()) {
             attemptedProviderContentIds.add(target.contentId());
             synchronizeMovieProvidersSafely(target, metrics);
         }
-        for (UUID contentId : metrics.autocompleteRetryContentIds()) {
-            attemptedAutocompleteContentIds.add(contentId);
-            synchronizeAutocompleteSafely(
-                contentId, "movie-autocomplete:" + contentId, metrics);
-        }
+        retryFailedIndexes(metrics, indexSyncAttempts, "movie-index:");
     }
 
     private void retryFailedMovieImports(
         Set<Integer> handledIds,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         GenreCache genreCache,
         ContentImportMetrics metrics
     ) {
@@ -717,7 +780,7 @@ public class TmdbContentImportService {
             fetchAndImportMovieSafely(
                 movieId,
                 attemptedProviderContentIds,
-                attemptedAutocompleteContentIds,
+                indexSyncAttempts,
                 genreCache,
                 metrics
             );
@@ -727,17 +790,38 @@ public class TmdbContentImportService {
     private void retryFailedSeasonSynchronizations(
         ContentImportMetrics metrics,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds
+        IndexSyncAttempts indexSyncAttempts
     ) {
         for (TmdbProviderRetryTarget target : metrics.tmdbProviderRetryTargets()) {
             attemptedProviderContentIds.add(target.contentId());
             String failureId = "tv-season:" + target.seriesId() + "/" + target.seasonNumber();
             synchronizeSeasonProvidersSafely(target, failureId, metrics);
         }
-        for (UUID contentId : metrics.autocompleteRetryContentIds()) {
-            attemptedAutocompleteContentIds.add(contentId);
-            synchronizeSeasonAutocompleteSafely(
-                contentId, "tv-season-autocomplete:" + contentId, metrics);
+        retryFailedIndexes(metrics, indexSyncAttempts, "tv-season-index:");
+    }
+
+    private void retryFailedIndexes(
+        ContentImportMetrics metrics,
+        IndexSyncAttempts attempts,
+        String failureIdPrefix
+    ) {
+        Set<UUID> autocompleteRetries = metrics.autocompleteRetryContentIds();
+        Set<UUID> searchRetries = metrics.searchRetryContentIds();
+        Set<UUID> contentIds = new LinkedHashSet<>(autocompleteRetries);
+        contentIds.addAll(searchRetries);
+
+        for (UUID contentId : contentIds) {
+            boolean synchronizeAutocomplete = autocompleteRetries.contains(contentId)
+                && attempts.autocomplete().add(contentId);
+            boolean synchronizeSearch = searchRetries.contains(contentId)
+                && attempts.search().add(contentId);
+            synchronizeIndexesSafely(
+                contentId,
+                failureIdPrefix + contentId,
+                synchronizeAutocomplete,
+                synchronizeSearch,
+                metrics
+            );
         }
     }
 
@@ -745,7 +829,7 @@ public class TmdbContentImportService {
         Set<Integer> handledIds,
         LocalDate runDate,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         GenreCache genreCache,
         ContentImportMetrics metrics
     ) {
@@ -755,7 +839,7 @@ public class TmdbContentImportService {
                 seriesId,
                 runDate,
                 attemptedProviderContentIds,
-                attemptedAutocompleteContentIds,
+                indexSyncAttempts,
                 genreCache,
                 metrics
             );
@@ -1048,6 +1132,15 @@ public class TmdbContentImportService {
     ) {
         private static SeasonSaveResult empty() {
             return new SeasonSaveResult(null, 0, List.of());
+        }
+    }
+
+    private record IndexSyncAttempts(
+        Set<UUID> autocomplete,
+        Set<UUID> search
+    ) {
+        private IndexSyncAttempts() {
+            this(new HashSet<>(), new HashSet<>());
         }
     }
 

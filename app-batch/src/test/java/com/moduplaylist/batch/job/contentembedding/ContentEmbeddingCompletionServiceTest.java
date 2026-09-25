@@ -9,8 +9,8 @@ import static org.mockito.Mockito.when;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.core.content.repository.ContentRepository;
-import com.moduplaylist.infrastructure.opensearch.content.ContentVectorDocument;
-import com.moduplaylist.infrastructure.opensearch.content.ContentVectorRepository;
+import com.moduplaylist.infrastructure.opensearch.content.ContentEmbeddingFields;
+import com.moduplaylist.infrastructure.opensearch.content.ContentSearchDocumentRepository;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,14 +20,15 @@ import org.junit.jupiter.api.Test;
 class ContentEmbeddingCompletionServiceTest {
 
     private ContentRepository contentRepository;
-    private ContentVectorRepository vectorRepository;
+    private ContentSearchDocumentRepository searchDocumentRepository;
     private ContentEmbeddingCompletionService service;
 
     @BeforeEach
     void setUp() {
         contentRepository = mock(ContentRepository.class);
-        vectorRepository = mock(ContentVectorRepository.class);
-        service = new ContentEmbeddingCompletionService(contentRepository, vectorRepository);
+        searchDocumentRepository = mock(ContentSearchDocumentRepository.class);
+        service = new ContentEmbeddingCompletionService(
+                contentRepository, searchDocumentRepository);
     }
 
     @Test
@@ -35,14 +36,14 @@ class ContentEmbeddingCompletionServiceTest {
         UUID contentId = UUID.randomUUID();
         Content content = movie();
         Instant sourceUpdatedAt = content.getEmbeddingSourceUpdatedAt();
-        ContentVectorDocument document = document(contentId, sourceUpdatedAt);
+        ContentEmbeddingFields fields = fields(sourceUpdatedAt);
         when(contentRepository.findByIdForUpdate(contentId)).thenReturn(Optional.of(content));
         when(contentRepository.markEmbeddingCompleted(contentId, sourceUpdatedAt)).thenReturn(1);
 
-        boolean published = service.publishIfCurrent(contentId, sourceUpdatedAt, document);
+        boolean published = service.publishIfCurrent(contentId, sourceUpdatedAt, fields);
 
         assertThat(published).isTrue();
-        verify(vectorRepository).upsert(document);
+        verify(searchDocumentRepository).updateEmbedding(contentId, fields);
         verify(contentRepository).markEmbeddingCompleted(contentId, sourceUpdatedAt);
     }
 
@@ -51,17 +52,17 @@ class ContentEmbeddingCompletionServiceTest {
         UUID contentId = UUID.randomUUID();
         Instant sourceUpdatedAt = Instant.now();
         Content content = mock(Content.class);
-        ContentVectorDocument document = document(contentId, sourceUpdatedAt);
+        ContentEmbeddingFields fields = fields(sourceUpdatedAt);
         when(content.isHidden()).thenReturn(false);
         when(content.getEmbeddingSourceUpdatedAt()).thenReturn(sourceUpdatedAt);
         when(contentRepository.findByIdForUpdate(contentId)).thenReturn(Optional.of(content));
         when(contentRepository.markEmbeddingCompleted(contentId, sourceUpdatedAt)).thenReturn(1);
 
-        boolean published = service.publishIfCurrent(contentId, sourceUpdatedAt, document);
+        boolean published = service.publishIfCurrent(contentId, sourceUpdatedAt, fields);
 
         assertThat(content.isEmbeddingPending()).isFalse();
         assertThat(published).isTrue();
-        verify(vectorRepository).upsert(document);
+        verify(searchDocumentRepository).updateEmbedding(contentId, fields);
         verify(contentRepository).markEmbeddingCompleted(contentId, sourceUpdatedAt);
     }
 
@@ -71,13 +72,13 @@ class ContentEmbeddingCompletionServiceTest {
         Content content = movie();
         Instant sourceUpdatedAt = content.getEmbeddingSourceUpdatedAt();
         content.hide();
-        ContentVectorDocument document = document(contentId, sourceUpdatedAt);
+        ContentEmbeddingFields fields = fields(sourceUpdatedAt);
         when(contentRepository.findByIdForUpdate(contentId)).thenReturn(Optional.of(content));
 
-        boolean published = service.publishIfCurrent(contentId, sourceUpdatedAt, document);
+        boolean published = service.publishIfCurrent(contentId, sourceUpdatedAt, fields);
 
         assertThat(published).isFalse();
-        verify(vectorRepository, never()).upsert(document);
+        verify(searchDocumentRepository, never()).updateEmbedding(contentId, fields);
         verify(contentRepository, never()).markEmbeddingCompleted(contentId, sourceUpdatedAt);
     }
 
@@ -86,13 +87,13 @@ class ContentEmbeddingCompletionServiceTest {
         UUID contentId = UUID.randomUUID();
         Content content = movie();
         Instant staleSourceUpdatedAt = content.getEmbeddingSourceUpdatedAt().minusSeconds(1);
-        ContentVectorDocument document = document(contentId, staleSourceUpdatedAt);
+        ContentEmbeddingFields fields = fields(staleSourceUpdatedAt);
         when(contentRepository.findByIdForUpdate(contentId)).thenReturn(Optional.of(content));
 
-        boolean published = service.publishIfCurrent(contentId, staleSourceUpdatedAt, document);
+        boolean published = service.publishIfCurrent(contentId, staleSourceUpdatedAt, fields);
 
         assertThat(published).isFalse();
-        verify(vectorRepository, never()).upsert(document);
+        verify(searchDocumentRepository, never()).updateEmbedding(contentId, fields);
         verify(contentRepository, never()).markEmbeddingCompleted(contentId, staleSourceUpdatedAt);
     }
 
@@ -104,13 +105,12 @@ class ContentEmbeddingCompletionServiceTest {
                 .build();
     }
 
-    private ContentVectorDocument document(UUID contentId, Instant sourceUpdatedAt) {
-        return ContentVectorDocument.builder()
-                .contentId(contentId)
-                .type(ContentType.MOVIE.getValue())
-                .title("test movie")
-                .description("description")
+    private ContentEmbeddingFields fields(Instant sourceUpdatedAt) {
+        return ContentEmbeddingFields.builder()
+                .embedding(new float[]{0.1f, 0.2f})
+                .embeddingModel("test-model")
                 .sourceUpdatedAt(sourceUpdatedAt)
+                .embeddedAt(Instant.now())
                 .build();
     }
 }

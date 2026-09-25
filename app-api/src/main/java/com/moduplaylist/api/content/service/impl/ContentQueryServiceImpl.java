@@ -57,6 +57,7 @@ import com.moduplaylist.core.content.repository.SportTypeRepository;
 import com.moduplaylist.core.content.repository.PlatformRepository;
 import com.moduplaylist.core.playlist.repository.PlaylistSearch;
 import com.moduplaylist.infrastructure.opensearch.content.ContentKeywordSearchRepository;
+import com.moduplaylist.infrastructure.opensearch.content.ContentKeywordSearchResult;
 import com.moduplaylist.infrastructure.opensearch.content.ContentAutocompleteCandidate;
 import com.moduplaylist.infrastructure.redis.content.ContentSearchSnapshotRepository;
 import com.moduplaylist.infrastructure.redis.recommendation.ContentRecommendationRedisRepository;
@@ -71,6 +72,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -183,30 +185,21 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		String signature = searchSignature(request, contentType, sort);
 		UUID snapshotId = cursor.snapshotId();
 		List<UUID> orderedIds;
+		Map<UUID, Content> visibleById;
 		if (snapshotId == null) {
-			List<UUID> matchedIds = findMatchedContentIds(
+			ContentKeywordSearchResult matches = findKeywordMatches(
 				request.getKeywordLike(), contentType);
-			ContentSearch initialSearch = new ContentSearch(
-				contentType,
-				null,
-				null,
-				null,
-				matchedIds,
-				toRepositorySort(sort),
-				null,
-				null,
-				null,
-				null,
-				null,
-				100
-			);
-			orderedIds = contentRepository.searchWithoutTotalCount(initialSearch)
-				.getContents().stream()
-				.map(Content::getId)
-				.toList();
+			LinkedHashSet<UUID> candidateIds = new LinkedHashSet<>();
+			candidateIds.addAll(matches.titleExactIds());
+			candidateIds.addAll(matches.originalTitleExactIds());
+			candidateIds.addAll(matches.titlePhrasePrefixIds());
+			candidateIds.addAll(matches.bm25Ids());
+			visibleById = loadVisibleContents(candidateIds);
+			orderedIds = orderKeywordMatches(matches, visibleById, sort);
 		} else {
 			orderedIds = contentSearchSnapshotRepository.find(snapshotId, signature)
 				.orElseThrow(InvalidContentSearchException::new);
+			visibleById = loadVisibleContents(orderedIds);
 		}
 
 		int offset = cursor.offset() == null ? 0 : cursor.offset();
@@ -217,10 +210,6 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			throw new InvalidContentSearchException();
 		}
 
-		Map<UUID, Content> visibleById = new HashMap<>();
-		contentRepository.findAllById(orderedIds).stream()
-			.filter(content -> !content.isHidden() && content.getType() != ContentType.TV_SERIES)
-			.forEach(content -> visibleById.put(content.getId(), content));
 		long totalCount = orderedIds.size();
 		List<Content> page = new ArrayList<>(request.getLimit());
 		int nextOffset = offset;
@@ -248,6 +237,59 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			.sortBy(sort.getValue())
 			.sortDirection(SortDirection.DESCENDING)
 			.build();
+	}
+
+	private Map<UUID, Content> loadVisibleContents(Iterable<UUID> contentIds) {
+		Map<UUID, Content> visibleById = new HashMap<>();
+		contentRepository.findAllById(contentIds).stream()
+			.filter(content -> !content.isHidden() && content.getType() != ContentType.TV_SERIES)
+			.forEach(content -> visibleById.put(content.getId(), content));
+		return visibleById;
+	}
+
+	private List<UUID> orderKeywordMatches(
+		ContentKeywordSearchResult matches,
+		Map<UUID, Content> visibleById,
+		ContentSort sort
+	) {
+		LinkedHashSet<UUID> orderedIds = new LinkedHashSet<>();
+		addSortedGroup(orderedIds, matches.titleExactIds(), visibleById, sort);
+		addSortedGroup(orderedIds, matches.originalTitleExactIds(), visibleById, sort);
+		addSortedGroup(orderedIds, matches.titlePhrasePrefixIds(), visibleById, sort);
+		for (UUID contentId : matches.bm25Ids()) {
+			if (visibleById.containsKey(contentId)) {
+				orderedIds.add(contentId);
+				if (orderedIds.size() == 100) {
+					break;
+				}
+			}
+		}
+		return List.copyOf(orderedIds);
+	}
+
+	private void addSortedGroup(
+		Set<UUID> orderedIds,
+		List<UUID> groupIds,
+		Map<UUID, Content> visibleById,
+		ContentSort sort
+	) {
+		groupIds.stream()
+			.map(visibleById::get)
+			.filter(java.util.Objects::nonNull)
+			.sorted(keywordGroupComparator(sort))
+			.map(Content::getId)
+			.filter(contentId -> orderedIds.size() < 100)
+			.forEach(orderedIds::add);
+	}
+
+	private Comparator<Content> keywordGroupComparator(ContentSort sort) {
+		if (sort == ContentSort.LATEST) {
+			return Comparator.comparing(Content::getCreatedAt).reversed()
+				.thenComparing(Content::getId, Comparator.reverseOrder());
+		}
+		return Comparator.comparing(Content::getAverageRating).reversed()
+			.thenComparing(Comparator.comparingLong(Content::getReviewCount).reversed())
+			.thenComparing(Content::getId, Comparator.reverseOrder());
 	}
 
 	@Override
@@ -675,6 +717,26 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		if (keyword == null || keyword.isBlank()) {
 			return null;
 		}
+		ContentKeywordSearchRepository repository =
+			keywordSearchRepositoryProvider.getIfAvailable();
+		if (repository == null) {
+			throw new ContentSearchUnavailableException();
+		}
+		String contentTypeValue = contentType == null ? null : contentType.getValue();
+		ContentKeywordSearchResult matches = repository.findContentIds(
+			keyword, contentTypeValue);
+		LinkedHashSet<UUID> ids = new LinkedHashSet<>();
+		ids.addAll(matches.titleExactIds());
+		ids.addAll(matches.originalTitleExactIds());
+		ids.addAll(matches.titlePhrasePrefixIds());
+		ids.addAll(matches.bm25Ids());
+		return ids.stream().limit(100).toList();
+	}
+
+	private ContentKeywordSearchResult findKeywordMatches(
+		String keyword,
+		ContentType contentType
+	) {
 		ContentKeywordSearchRepository repository =
 			keywordSearchRepositoryProvider.getIfAvailable();
 		if (repository == null) {

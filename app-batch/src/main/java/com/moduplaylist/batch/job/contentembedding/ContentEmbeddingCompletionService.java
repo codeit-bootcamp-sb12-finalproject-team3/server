@@ -2,8 +2,8 @@ package com.moduplaylist.batch.job.contentembedding;
 
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.repository.ContentRepository;
-import com.moduplaylist.infrastructure.opensearch.content.ContentVectorDocument;
-import com.moduplaylist.infrastructure.opensearch.content.ContentVectorRepository;
+import com.moduplaylist.infrastructure.opensearch.content.ContentEmbeddingFields;
+import com.moduplaylist.infrastructure.opensearch.content.ContentSearchDocumentRepository;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -16,13 +16,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class ContentEmbeddingCompletionService {
 
     private final ContentRepository contentRepository;
-    private final ContentVectorRepository vectorRepository;
+    private final ContentSearchDocumentRepository searchDocumentRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean publishIfCurrent(
             UUID contentId,
             Instant sourceUpdatedAt,
-            ContentVectorDocument document
+            ContentEmbeddingFields embeddingFields
     ) {
         Content current = contentRepository.findByIdForUpdate(contentId).orElse(null);
         if (current == null
@@ -31,7 +31,7 @@ public class ContentEmbeddingCompletionService {
             return false;
         }
 
-        vectorRepository.upsert(document);
+        searchDocumentRepository.updateEmbedding(contentId, embeddingFields);
         return contentRepository.markEmbeddingCompleted(contentId, sourceUpdatedAt) == 1;
     }
 }

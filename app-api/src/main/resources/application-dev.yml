@@ -91,7 +91,7 @@ mopl:
     dimensions: 1536
   opensearch:
     enabled: ${OPENSEARCH_ENABLED:true}
-    autocomplete-initial-indexing-enabled: ${CONTENT_AUTOCOMPLETE_INITIAL_INDEXING_ENABLED:false}
+    content-initial-indexing-enabled: ${CONTENT_INITIAL_INDEXING_ENABLED:false}
     uris: ${OPENSEARCH_URIS:http://localhost:9200}
     username: ${OPENSEARCH_USERNAME:}
     password: ${OPENSEARCH_PASSWORD:}

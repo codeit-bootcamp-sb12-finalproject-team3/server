@@ -321,7 +321,9 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		if (content.getType() == ContentType.SPORT) {
 			return updateSport(content, request, thumbnailUrl, thumbnailChanged);
 		}
-		boolean embeddingSourceChanged = isEmbeddingSourceChanged(content, request);
+		boolean castChanged = isCastChanged(content, request);
+		boolean embeddingSourceChanged = isEmbeddingSourceChanged(content, request)
+			|| castChanged;
 		TvSeasonUpdateContext tvSeasonContext = content.getType() == ContentType.TV_SEASON
 			? prepareTvSeasonUpdate(content, request)
 			: null;
@@ -346,7 +348,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		} else {
 			metadata = updateOriginalTitle(content.getMetadata(), request.getOriginalTitle());
 		}
-		boolean searchSourceChanged = embeddingSourceChanged || isCastChanged(content, request)
+		boolean searchSourceChanged = embeddingSourceChanged
 			|| !Objects.equals(metadata, content.getMetadata());
 		Integer seasonNumber = tvSeasonContext == null
 			? content.getSeasonNumber() : tvSeasonContext.seasonNumber();
@@ -418,8 +420,11 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			Content parent = tvSeasonContext.parent();
 			publishContentLifecycleEvent(parent.getId(), ContentLifecycleEvent.Type.UPSERTED);
 			contentRepository.findAllByParentContent_IdAndHiddenFalseOrderBySeasonNumberAsc(parent.getId())
-				.forEach(season -> publishContentLifecycleEvent(
-					season.getId(), ContentLifecycleEvent.Type.UPSERTED));
+				.forEach(season -> {
+					season.markEmbeddingSourceUpdated();
+					publishContentLifecycleEvent(
+						season.getId(), ContentLifecycleEvent.Type.UPSERTED);
+				});
 		} else if (searchSourceChanged || forceContentUpsertEvent) {
 			publishContentLifecycleEvent(contentId, ContentLifecycleEvent.Type.UPSERTED);
 		}
@@ -462,8 +467,11 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		if (searchSourceChanged) {
 			publishContentLifecycleEvent(content.getId(), ContentLifecycleEvent.Type.UPSERTED);
 			contentRepository.findAllByParentContent_IdAndHiddenFalseOrderBySeasonNumberAsc(content.getId())
-				.forEach(season -> publishContentLifecycleEvent(
-					season.getId(), ContentLifecycleEvent.Type.UPSERTED));
+				.forEach(season -> {
+					season.markEmbeddingSourceUpdated();
+					publishContentLifecycleEvent(
+						season.getId(), ContentLifecycleEvent.Type.UPSERTED);
+				});
 		}
 		return ContentResponse.builder()
 			.id(content.getId())
@@ -617,7 +625,9 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		}
 		if (!Objects.equals(value(request.getTitle(), content.getTitle()), content.getTitle())
 			|| !Objects.equals(
-				value(request.getDescription(), content.getDescription()), content.getDescription())) {
+				value(request.getDescription(), content.getDescription()), content.getDescription())
+			|| !Objects.equals(
+				value(request.getOriginalTitle(), content.getOriginalTitle()), content.getOriginalTitle())) {
 			return true;
 		}
 		if (request.getGenreIds().isPresent()) {

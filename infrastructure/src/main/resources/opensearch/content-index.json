@@ -4,6 +4,47 @@
       "knn": true,
       "number_of_shards": 1,
       "number_of_replicas": 0
+    },
+    "analysis": {
+      "normalizer": {
+        "content_exact": {
+          "type": "custom",
+          "filter": ["lowercase"]
+        }
+      },
+      "tokenizer": {
+        "content_nori_tokenizer": {
+          "type": "nori_tokenizer",
+          "decompound_mode": "mixed"
+        }
+      },
+      "filter": {
+        "tag_synonyms": {
+          "type": "synonym_graph",
+          "synonyms": [
+            "마블, marvel, mcu",
+            "디씨, dc, dceu",
+            "스타워즈, star wars"
+          ]
+        }
+      },
+      "analyzer": {
+        "content_korean_index": {
+          "type": "custom",
+          "tokenizer": "content_nori_tokenizer",
+          "filter": ["lowercase"]
+        },
+        "content_korean_search": {
+          "type": "custom",
+          "tokenizer": "content_nori_tokenizer",
+          "filter": ["lowercase"]
+        },
+        "content_synonym_search": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "tag_synonyms"]
+        }
+      }
     }
   },
   "mappings": {
@@ -13,14 +54,52 @@
       "type": { "type": "keyword" },
       "title": {
         "type": "text",
+        "analyzer": "content_korean_index",
+        "search_analyzer": "content_korean_search",
         "fields": {
-          "keyword": { "type": "keyword", "ignore_above": 255 }
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "content_exact",
+            "ignore_above": 255
+          }
         }
       },
-      "description": { "type": "text" },
+      "seriesTitle": {
+        "type": "text",
+        "analyzer": "content_korean_index",
+        "search_analyzer": "content_korean_search",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "content_exact",
+            "ignore_above": 255
+          }
+        }
+      },
+      "originalTitle": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "content_exact",
+            "ignore_above": 255
+          }
+        }
+      },
+      "castNames": { "type": "text" },
+      "description": {
+        "type": "text",
+        "analyzer": "content_korean_index",
+        "search_analyzer": "content_korean_search"
+      },
       "hidden": { "type": "boolean" },
       "genres": { "type": "keyword" },
       "tags": { "type": "keyword" },
+      "tagSearch": {
+        "type": "text",
+        "analyzer": "content_korean_index",
+        "search_analyzer": "content_korean_search"
+      },
       "sportTypeCode": { "type": "text" },
       "sportType": { "type": "text" },
       "leagueName": { "type": "text" },

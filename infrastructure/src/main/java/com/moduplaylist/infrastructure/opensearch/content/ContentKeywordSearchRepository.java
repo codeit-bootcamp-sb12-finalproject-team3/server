@@ -3,6 +3,7 @@ package com.moduplaylist.infrastructure.opensearch.content;
 import com.moduplaylist.core.content.exception.ContentSearchUnavailableException;
 import com.moduplaylist.infrastructure.opensearch.config.OpenSearchProperties;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -11,6 +12,8 @@ import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch._types.FieldValue;
 import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch._types.query_dsl.Query;
+import org.opensearch.client.opensearch.core.MsearchResponse;
+import org.opensearch.client.opensearch.core.msearch.MultiSearchResponseItem;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 
@@ -25,7 +28,7 @@ public class ContentKeywordSearchRepository {
 	private final OpenSearchClient openSearchClient;
 	private final OpenSearchProperties properties;
 
-	public List<UUID> findContentIds(String keyword, String contentType) {
+	public ContentKeywordSearchResult findContentIds(String keyword, String contentType) {
 		return search(keyword, contentType);
 	}
 
@@ -101,22 +104,108 @@ public class ContentKeywordSearchRepository {
 		return new ContentAutocompleteCandidate(contentId, term.text(), term.type(), matchRank);
 	}
 
-	private List<UUID> search(String keyword, String contentType) {
-		Query query = Query.of(q -> q.bool(bool -> {
-			bool.must(must -> must.multiMatch(multiMatch -> multiMatch
+	private ContentKeywordSearchResult search(String keyword, String contentType) {
+		Query titleExact = scopedQuery(Query.of(q -> q.bool(bool -> bool
+			.should(should -> should.term(term -> term
+				.field("title.keyword")
+				.value(FieldValue.of(keyword))
+				.caseInsensitive(true)))
+			.should(should -> should.term(term -> term
+				.field("seriesTitle.keyword")
+				.value(FieldValue.of(keyword))
+				.caseInsensitive(true)))
+			.minimumShouldMatch("1"))), contentType);
+		Query originalTitleExact = scopedQuery(Query.of(q -> q.term(term -> term
+			.field("originalTitle.keyword")
+			.value(FieldValue.of(keyword))
+			.caseInsensitive(true))), contentType);
+		Query titlePhrasePrefix = scopedQuery(Query.of(q -> q.bool(bool -> bool
+			.should(should -> should.matchPhrase(match -> match
+				.field("title")
+				.query(keyword)
+				.boost(30.0f)))
+			.should(should -> should.matchPhrase(match -> match
+				.field("seriesTitle")
+				.query(keyword)
+				.boost(30.0f)))
+			.should(should -> should.matchPhrasePrefix(match -> match
+				.field("title")
+				.query(keyword)
+				.maxExpansions(50)
+				.boost(20.0f)))
+			.should(should -> should.matchPhrasePrefix(match -> match
+				.field("seriesTitle")
+				.query(keyword)
+				.maxExpansions(50)
+				.boost(20.0f)))
+			.minimumShouldMatch("1"))), contentType);
+		Query bm25 = scopedQuery(Query.of(q -> q.bool(bool -> bool
+			.should(should -> should.multiMatch(multiMatch -> multiMatch
+				.query(keyword)
+				.analyzer("content_synonym_search")
+				.fields("title^10", "seriesTitle^10", "originalTitle^8", "tagSearch^5")))
+			.should(should -> should.multiMatch(multiMatch -> multiMatch
 				.query(keyword)
 				.fields(
-					"title^3",
+					"title^10",
+					"seriesTitle^10",
+					"originalTitle^8",
+					"tagSearch^5",
+					"castNames^3",
 					"description",
 					"genres",
-					"tags",
 					"sportTypeCode",
 					"sportType",
 					"leagueName",
 					"season",
 					"homeTeamName",
 					"awayTeamName"
-				)));
+				)))
+			.minimumShouldMatch("1"))), contentType);
+
+		try {
+			MsearchResponse<Void> response = openSearchClient.msearch(request -> request
+					.index(properties.getContentIndex())
+					.searches(item -> searchItem(item, titleExact))
+					.searches(item -> searchItem(item, originalTitleExact))
+					.searches(item -> searchItem(item, titlePhrasePrefix))
+					.searches(item -> searchItem(item, bm25)),
+				Void.class);
+			List<List<UUID>> groups = new ArrayList<>(4);
+			for (MultiSearchResponseItem<Void> item : response.responses()) {
+				if (item.isFailure()) {
+					throw new ContentSearchUnavailableException();
+				}
+				groups.add(item.result().hits().hits().stream()
+					.map(hit -> UUID.fromString(hit.id()))
+					.toList());
+			}
+			if (groups.size() != 4) {
+				throw new ContentSearchUnavailableException();
+			}
+			return new ContentKeywordSearchResult(
+				groups.get(0), groups.get(1), groups.get(2), groups.get(3));
+		} catch (IOException | OpenSearchException | IllegalArgumentException exception) {
+			throw new ContentSearchUnavailableException(exception);
+		}
+	}
+
+	private org.opensearch.client.util.ObjectBuilder<
+		org.opensearch.client.opensearch.core.msearch.RequestItem> searchItem(
+		org.opensearch.client.opensearch.core.msearch.RequestItem.Builder item,
+		Query query
+	) {
+		return item
+			.header(header -> header)
+			.body(body -> body
+				.size(MAX_RESULTS)
+				.source(source -> source.fetch(false))
+				.query(query));
+	}
+
+	private Query scopedQuery(Query relevanceQuery, String contentType) {
+		return Query.of(q -> q.bool(bool -> {
+			bool.must(relevanceQuery);
 			bool.mustNot(mustNot -> mustNot.term(term -> term
 				.field("hidden")
 				.value(FieldValue.of(true))));
@@ -131,19 +220,5 @@ public class ContentKeywordSearchRepository {
 			}
 			return bool;
 		}));
-
-		try {
-			return openSearchClient.search(request -> request
-					.index(properties.getContentIndex())
-					.size(MAX_RESULTS)
-					.source(source -> source.fetch(false))
-					.query(query),
-				Void.class)
-				.hits().hits().stream()
-				.map(hit -> UUID.fromString(hit.id()))
-				.toList();
-		} catch (IOException | OpenSearchException | IllegalArgumentException exception) {
-			throw new ContentSearchUnavailableException(exception);
-		}
 	}
 }
