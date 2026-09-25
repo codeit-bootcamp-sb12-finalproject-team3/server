@@ -21,6 +21,7 @@ import com.moduplaylist.core.watchparty.entity.WatchParty;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import com.moduplaylist.core.watchparty.exception.WatchPartyHostOnlyException;
 import com.moduplaylist.core.watchparty.exception.WatchPartyInvalidEpisodeRangeException;
+import com.moduplaylist.core.watchparty.exception.WatchPartyMaxParticipantsBelowCurrentException;
 import com.moduplaylist.core.watchparty.exception.WatchPartyNotFoundException;
 import com.moduplaylist.core.watchparty.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -85,6 +86,7 @@ public class WatchPartyService {
 
         return toResponse(saved, host, content, 0);
     }
+
     public WatchPartyResponse updateWatchParty(UUID requesterId, UUID partyId, UpdateWatchPartyRequest request) {
         WatchParty watchParty = watchPartyRepository.findById(partyId)
                 .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
@@ -96,6 +98,7 @@ public class WatchPartyService {
         Content content = contentRepository.findById(watchParty.getContentId())
                 .orElseThrow(() -> new ContentNotFoundException(watchParty.getContentId()));
         validateEpisodeRange(content, request.getStartEpisode(), request.getEndEpisode());
+        validateMaxParticipants(partyId, request.getMaxParticipants());
 
         watchParty.update(
                 request.getTitle(),
@@ -108,6 +111,15 @@ public class WatchPartyService {
         );
 
         return toResponse(watchParty);
+    }
+
+    private void validateMaxParticipants(UUID partyId, Integer maxParticipants) {
+        long currentCount = watchPartyParticipantRepository
+                .countByWatchParty_IdAndStatus(partyId, ParticipantStatus.JOINED);
+
+        if (maxParticipants < currentCount) {
+            throw new WatchPartyMaxParticipantsBelowCurrentException(partyId, currentCount, maxParticipants);
+        }
     }
 
     public void deleteWatchParty(UUID requesterId, UUID partyId) {

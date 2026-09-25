@@ -117,6 +117,7 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.WATCHPARTY_NOT_A_PARTICIPANT, HttpStatus.NOT_FOUND);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_PARTICIPANT_NOT_JOINED, HttpStatus.CONFLICT);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_INVALID_STATE, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_MAX_PARTICIPANTS_BELOW_CURRENT, HttpStatus.CONFLICT);
     }
 
     private ApiErrorStatus() {
