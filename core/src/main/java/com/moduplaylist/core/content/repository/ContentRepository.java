@@ -29,6 +29,18 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
     @Query("""
             select content
             from Content content
+            where content.hidden = false
+              and content.type in :types
+            order by content.createdAt desc, content.id desc
+            """)
+    List<Content> findVisibleByTypeIn(
+            @Param("types") Collection<ContentType> types,
+            Pageable pageable
+    );
+
+    @Query("""
+            select content
+            from Content content
             where content.type in :types
               and content.hidden = false
               and content.embeddingSourceUpdatedAt <= :through

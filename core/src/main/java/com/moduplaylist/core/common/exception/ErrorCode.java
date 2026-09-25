@@ -61,6 +61,13 @@ public enum ErrorCode {
     PLAYLIST_CONTENT_NOT_FOUND("플레이리스트에 존재하지 않는 콘텐츠입니다."),
     PLAYLIST_MINIMUM_CONTENT_REQUIRED("플레이리스트에는 최소 4개의 콘텐츠가 필요합니다."),
     INVALID_PLAYLIST_CONTENT_REQUEST("중복된 콘텐츠가 포함되어 있습니다."),
+    // ai-playlist
+    AI_PLAYLIST_GENERATION_FAILED("AI 플레이리스트 생성에 실패했습니다."),
+    AI_PLAYLIST_CANDIDATE_SERIALIZATION_FAILED("AI 플레이리스트 후보 데이터 처리에 실패했습니다."),
+    AI_PLAYLIST_INVALID_CONTENT_RESULT("AI가 생성한 콘텐츠 선택 결과가 올바르지 않습니다."),
+    AI_PLAYLIST_INVALID_TITLE("AI가 생성한 플레이리스트 제목이 올바르지 않습니다."),
+    AI_PLAYLIST_INVALID_DESCRIPTION("AI가 생성한 플레이리스트 설명이 올바르지 않습니다."),
+    AI_PLAYLIST_INVALID_TAG_RESULT("AI가 생성한 플레이리스트 태그가 올바르지 않습니다."),
 
     // Preference
     PREFERENCE_NOT_FOUND("초기 선호 정보가 없습니다."),

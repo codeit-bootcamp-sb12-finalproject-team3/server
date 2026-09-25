@@ -1,9 +1,11 @@
 package com.moduplaylist.api.playlist.controller;
 
 import com.moduplaylist.api.global.security.CustomUserDetails;
+import com.moduplaylist.api.playlist.dto.AiPlaylistCreateRequest;
 import com.moduplaylist.api.playlist.dto.PlaylistCreateRequest;
 import com.moduplaylist.api.playlist.dto.PlaylistResponse;
 import com.moduplaylist.api.playlist.dto.PlaylistUpdateRequest;
+import com.moduplaylist.api.playlist.service.AiPlaylistGenerationService;
 import com.moduplaylist.api.playlist.service.PlaylistCommandService;
 import com.moduplaylist.api.playlist.service.PlaylistContentService;
 import com.moduplaylist.api.playlist.service.PlaylistSubscriptionService;
@@ -29,6 +31,7 @@ public class PlaylistCommandController {
   private final PlaylistCommandService playlistCommandService;
   private final PlaylistSubscriptionService playlistSubscriptionService;
   private final PlaylistContentService playlistContentService;
+  private final AiPlaylistGenerationService aiPlaylistGenerationService;
 
   @PostMapping
   public ResponseEntity<PlaylistResponse> create(
@@ -39,6 +42,18 @@ public class PlaylistCommandController {
 
     PlaylistResponse response =
         playlistCommandService.create(userId, request);
+
+    return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
+
+  @PostMapping("/ai")
+  public ResponseEntity<PlaylistResponse> createAiPlaylist(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @Valid @RequestBody AiPlaylistCreateRequest request
+  ) {
+    UUID userId = userDetails.getUserId();
+
+    PlaylistResponse response = aiPlaylistGenerationService.create(userId, request);
 
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
