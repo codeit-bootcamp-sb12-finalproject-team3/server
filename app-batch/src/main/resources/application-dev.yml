@@ -66,13 +66,14 @@ mopl:
     api-base-url: ${SPORTS_DB_API_BASE_URL:https://www.thesportsdb.com/api/v1/json}
     api-key: ${SPORTS_DB_API_KEY:123}
     timeout-seconds: ${SPORTS_DB_TIMEOUT_SECONDS:10}
-    request-interval-millis: ${SPORTS_DB_REQUEST_INTERVAL_MILLIS:2000}
+    request-interval-millis: ${SPORTS_DB_REQUEST_INTERVAL_MILLIS:2100}
   batch:
     content-import:
       scheduler:
         enabled: ${CONTENT_IMPORT_SCHEDULER_ENABLED:false}
-        cron: ${CONTENT_IMPORT_CRON:0 30 0 * * *}
-        zone: UTC
+        cron: ${CONTENT_IMPORT_CRON:0 0 0 * * *}
+        retry-cron: ${CONTENT_IMPORT_RETRY_CRON:0 30 * * * *}
+        zone: Asia/Seoul
     embedding:
       scheduler:
         enabled: ${EMBEDDING_SCHEDULER_ENABLED:false}

@@ -4,6 +4,7 @@ import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentPlatform;
 import com.moduplaylist.core.content.entity.Platform;
 import com.moduplaylist.core.content.repository.ContentPlatformRepository;
+import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.content.repository.PlatformRepository;
 import com.moduplaylist.infrastructure.tmdb.TmdbKrWatchProviderExtractor;
 import com.moduplaylist.infrastructure.tmdb.TmdbKrWatchProviderExtractor.Result;
@@ -12,7 +13,9 @@ import com.moduplaylist.infrastructure.tmdb.TmdbWatchProviderResponse;
 import com.moduplaylist.infrastructure.tmdb.TmdbWatchProviderResponse.Provider;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -27,17 +30,17 @@ public class TmdbContentPlatformService {
 
     private final PlatformRepository platformRepository;
     private final ContentPlatformRepository contentPlatformRepository;
+    private final ContentRepository contentRepository;
     private final TmdbKrWatchProviderExtractor watchProviderExtractor;
     private final TmdbProperties tmdbProperties;
 
     @Transactional
-    public void saveInitialProviders(Content content, TmdbWatchProviderResponse response) {
-        Result result = watchProviderExtractor.extract(response).orElse(null);
-        if (result == null || result.providers().isEmpty()) {
-            return;
-        }
+    public void synchronizeProviders(UUID contentId, TmdbWatchProviderResponse response) {
+        Content content = contentRepository.findById(contentId).orElse(null);
+        if (content == null || content.isHidden()) return;
 
-        List<Provider> providers = result.providers();
+        Result result = watchProviderExtractor.extract(response).orElse(null);
+        List<Provider> providers = result == null ? List.of() : result.providers();
 
         Map<Integer, Platform> platformsByTmdbId = platformRepository
             .findAllByTmdbProviderIdIn(providers.stream().map(Provider::providerId).toList())
@@ -56,16 +59,45 @@ public class TmdbContentPlatformService {
             platform -> platformsByTmdbId.put(platform.getTmdbProviderId(), platform)
         );
 
-        Set<java.util.UUID> existingPlatformIds = contentPlatformRepository
-            .findAllWithPlatformByContentIdAndRegionCode(content.getId(), REGION_CODE)
-            .stream()
-            .map(ContentPlatform::getPlatform)
+        boolean changed = false;
+        for (Provider provider : providers) {
+            Platform platform = platformsByTmdbId.get(provider.providerId());
+            String previousName = platform.getName();
+            String previousLogoUrl = platform.getLogoUrl();
+            platform.updateDetails(
+                provider.providerName(),
+                tmdbProperties.imageUrl(provider.logoPath())
+            );
+            changed |= !Objects.equals(previousName, platform.getName())
+                || !Objects.equals(previousLogoUrl, platform.getLogoUrl());
+        }
+
+        List<ContentPlatform> existingRelations = contentPlatformRepository
+            .findAllWithPlatformByContentIdAndRegionCode(content.getId(), REGION_CODE);
+        Map<UUID, ContentPlatform> relationsByPlatformId = existingRelations.stream()
+            .collect(Collectors.toMap(
+                relation -> relation.getPlatform().getId(),
+                Function.identity()
+            ));
+        Set<UUID> providerPlatformIds = platformsByTmdbId.values().stream()
             .map(Platform::getId)
             .collect(Collectors.toSet());
 
-        List<ContentPlatform> relations = providers.stream()
+        List<ContentPlatform> removedRelations = existingRelations.stream()
+            .filter(relation -> relation.getSource() == ContentPlatform.PlatformSource.TMDB)
+            .filter(relation -> !providerPlatformIds.contains(relation.getPlatform().getId()))
+            .toList();
+        contentPlatformRepository.deleteAll(removedRelations);
+        changed |= !removedRelations.isEmpty();
+
+        if (result == null) {
+            if (changed) content.markUpdated();
+            return;
+        }
+
+        List<ContentPlatform> newRelations = providers.stream()
             .map(provider -> platformsByTmdbId.get(provider.providerId()))
-            .filter(platform -> !existingPlatformIds.contains(platform.getId()))
+            .filter(platform -> !relationsByPlatformId.containsKey(platform.getId()))
             .map(platform -> ContentPlatform.create(
                 content,
                 platform,
@@ -74,9 +106,19 @@ public class TmdbContentPlatformService {
                 result.link()
             ))
             .toList();
-        contentPlatformRepository.saveAll(relations);
-        if (!relations.isEmpty()) {
-            content.markUpdated();
+        contentPlatformRepository.saveAll(newRelations);
+        changed |= !newRelations.isEmpty();
+
+        for (ContentPlatform relation : existingRelations) {
+            if (relation.getSource() != ContentPlatform.PlatformSource.TMDB
+                || !providerPlatformIds.contains(relation.getPlatform().getId())
+                || Objects.equals(relation.getUrl(), result.link())) {
+                continue;
+            }
+            relation.updateTmdbUrl(result.link());
+            changed = true;
         }
+
+        if (changed) content.markUpdated();
     }
 }

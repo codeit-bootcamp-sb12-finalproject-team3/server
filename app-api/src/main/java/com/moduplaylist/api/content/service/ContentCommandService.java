@@ -17,10 +17,7 @@ public interface ContentCommandService {
 
 	ContentResponse update(UUID contentId, ContentUpdateRequest request, MultipartFile thumbnail);
 
-	ContentResponse restoreSeason(
-		UUID hiddenSeasonId,
-		ContentUpdateRequest request,
-		MultipartFile thumbnail);
+	ContentResponse restoreSeason(UUID hiddenSeasonId);
 
 	EpisodeResponse createEpisode(
 		UUID seasonId,

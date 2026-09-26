@@ -2,7 +2,6 @@ package com.moduplaylist.api.content.dto;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -19,7 +18,7 @@ public class EpisodeUpdateRequest {
 
 	private JsonNullable<@NotNull @PositiveOrZero Integer> episodeNumber =
 		JsonNullable.undefined();
-	private JsonNullable<@NotBlank @Size(max = 255) String> title =
+	private JsonNullable<@Size(max = 255) String> title =
 		JsonNullable.undefined();
 	private JsonNullable<String> description = JsonNullable.undefined();
 	private JsonNullable<@Positive Integer> runtime = JsonNullable.undefined();

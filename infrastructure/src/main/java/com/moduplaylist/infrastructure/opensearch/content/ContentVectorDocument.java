@@ -21,8 +21,10 @@ public class ContentVectorDocument {
     private Boolean hidden;
     private List<String> genres;
     private List<String> tags;
+    private String sportTypeCode;
     private String sportType;
     private String leagueName;
+    private String season;
     private String homeTeamName;
     private String awayTeamName;
     private float[] embedding;

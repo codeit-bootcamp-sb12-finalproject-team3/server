@@ -10,6 +10,7 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Pageable;
 
 public interface SportEventRepository extends JpaRepository<SportEvent, UUID> {
 
@@ -17,6 +18,7 @@ public interface SportEventRepository extends JpaRepository<SportEvent, UUID> {
 		select count(sportEvent) > 0
 		from SportEvent sportEvent
 		where sportEvent.content.title = :title
+		  and sportEvent.content.hidden = false
 		  and sportEvent.homeTeamName = :homeTeam
 		  and sportEvent.awayTeamName = :awayTeam
 		  and ((:scheduledAt is null and sportEvent.scheduledAt is null)
@@ -32,6 +34,7 @@ public interface SportEventRepository extends JpaRepository<SportEvent, UUID> {
 		select count(sportEvent) > 0
 		from SportEvent sportEvent
 		where sportEvent.contentId <> :contentId
+		  and sportEvent.content.hidden = false
 		  and sportEvent.content.title = :title
 		  and sportEvent.homeTeamName = :homeTeam
 		  and sportEvent.awayTeamName = :awayTeam
@@ -71,13 +74,16 @@ public interface SportEventRepository extends JpaRepository<SportEvent, UUID> {
 		join fetch sportEvent.content content
 		join fetch sportEvent.sportType
 		where content.externalSource = :externalSource
+		  and content.hidden = false
 		  and sportEvent.normalizedStatus in :statuses
-		  and sportEvent.scheduledAt between :from and :to
-		order by sportEvent.scheduledAt asc, sportEvent.contentId asc
+		  and sportEvent.scheduledAt >= :from
+		  and sportEvent.scheduledAt < :to
+		order by sportEvent.lastCheckedAt asc, sportEvent.contentId asc
 		""")
 	List<SportEvent> findAllBatchUpdateCandidates(
 		@Param("externalSource") String externalSource,
 		@Param("statuses") Collection<NormalizedStatus> statuses,
 		@Param("from") Instant from,
-		@Param("to") Instant to);
+		@Param("to") Instant to,
+		Pageable pageable);
 }

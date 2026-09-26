@@ -110,8 +110,10 @@ public class ContentKeywordSearchRepository {
 					"description",
 					"genres",
 					"tags",
+					"sportTypeCode",
 					"sportType",
 					"leagueName",
+					"season",
 					"homeTeamName",
 					"awayTeamName"
 				)));
