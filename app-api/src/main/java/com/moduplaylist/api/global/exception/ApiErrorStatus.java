@@ -76,6 +76,7 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.AI_PLAYLIST_INVALID_TITLE, HttpStatus.BAD_GATEWAY);
         STATUS_MAP.put(ErrorCode.AI_PLAYLIST_INVALID_DESCRIPTION, HttpStatus.BAD_GATEWAY);
         STATUS_MAP.put(ErrorCode.AI_PLAYLIST_INVALID_TAG_RESULT, HttpStatus.BAD_GATEWAY);
+        STATUS_MAP.put(ErrorCode.AI_PLAYLIST_OWNER_NOT_FOUND, HttpStatus.INTERNAL_SERVER_ERROR);
         STATUS_MAP.put(
             ErrorCode.AI_PLAYLIST_CANDIDATE_SERIALIZATION_FAILED,
             HttpStatus.INTERNAL_SERVER_ERROR

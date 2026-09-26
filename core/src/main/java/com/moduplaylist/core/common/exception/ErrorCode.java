@@ -68,6 +68,7 @@ public enum ErrorCode {
     AI_PLAYLIST_INVALID_TITLE("AI가 생성한 플레이리스트 제목이 올바르지 않습니다."),
     AI_PLAYLIST_INVALID_DESCRIPTION("AI가 생성한 플레이리스트 설명이 올바르지 않습니다."),
     AI_PLAYLIST_INVALID_TAG_RESULT("AI가 생성한 플레이리스트 태그가 올바르지 않습니다."),
+    AI_PLAYLIST_OWNER_NOT_FOUND("AI 플레이리스트 전용 계정을 찾을 수 없습니다."),
 
     // Preference
     PREFERENCE_NOT_FOUND("초기 선호 정보가 없습니다."),
