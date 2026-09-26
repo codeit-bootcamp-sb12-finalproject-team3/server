@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -46,18 +47,43 @@ class WatchPartyPlaybackEventListenerTest {
 
     // ===== 1. onWatchPartyStarted() =====
 
-    // 케이스 1-1: 정상 시작 — Redis playback Hash 생성
+    // 케이스 1-1: 정상 시작 — Redis playback Hash 생성 후 LIVE 상태 브로드캐스트
     @Test
     void onWatchPartyStarted_정상_등록() {
-        WatchPartyPlaybackState liveState = new WatchPartyPlaybackState(
-                WatchPartyPlaybackStatus.LIVE, 1000L, 0L, null,
-                null, null, UUID.randomUUID(), 1000L
-        );
+        WatchPartyPlaybackState liveState = newLiveState();
         WatchPartyStartedEvent event =
                 new WatchPartyStartedEvent(UUID.randomUUID(), partyId, liveState);
 
         watchPartyPlaybackEventListener.onWatchPartyStarted(event);
 
+        verify(watchPartyPlaybackRegistry).createOnLive(partyId, liveState);
+        verify(watchPartyPlaybackBroadcaster).broadcastStarted(partyId, liveState);
+    }
+
+    // 케이스 1-2: Redis 저장이 실패해도 브로드캐스트는 시도함 (단계별 독립, END와 동일 규칙)
+    @Test
+    void onWatchPartyStarted_저장_실패해도_브로드캐스트_시도() {
+        WatchPartyPlaybackState liveState = newLiveState();
+        doThrow(new RuntimeException("Redis 장애"))
+                .when(watchPartyPlaybackRegistry).createOnLive(partyId, liveState);
+
+        watchPartyPlaybackEventListener.onWatchPartyStarted(
+                new WatchPartyStartedEvent(UUID.randomUUID(), partyId, liveState));
+
+        verify(watchPartyPlaybackBroadcaster).broadcastStarted(partyId, liveState);
+    }
+
+    // 케이스 1-3: 브로드캐스트가 실패해도 예외가 밖으로 새지 않음 (AFTER_COMMIT 리스너)
+    @Test
+    void onWatchPartyStarted_브로드캐스트_실패해도_예외_전파_안함() {
+        WatchPartyPlaybackState liveState = newLiveState();
+        WatchPartyStartedEvent event =
+                new WatchPartyStartedEvent(UUID.randomUUID(), partyId, liveState);
+        doThrow(new RuntimeException("Pub/Sub 장애"))
+                .when(watchPartyPlaybackBroadcaster).broadcastStarted(partyId, liveState);
+
+        assertThatCode(() -> watchPartyPlaybackEventListener.onWatchPartyStarted(event))
+                .doesNotThrowAnyException();
         verify(watchPartyPlaybackRegistry).createOnLive(partyId, liveState);
     }
 
@@ -120,5 +146,12 @@ class WatchPartyPlaybackEventListenerTest {
         assertThat(broadcasted.getStartedAt()).isEqualTo(source.getStartedAt());
         assertThat(broadcasted.getAccumulatedPauseMs()).isEqualTo(source.getAccumulatedPauseMs());
         assertThat(broadcasted.getHostId()).isEqualTo(source.getHostId());
+    }
+
+    private WatchPartyPlaybackState newLiveState() {
+        return new WatchPartyPlaybackState(
+                WatchPartyPlaybackStatus.LIVE, 1000L, 0L, null,
+                null, null, UUID.randomUUID(), 1000L
+        );
     }
 }
