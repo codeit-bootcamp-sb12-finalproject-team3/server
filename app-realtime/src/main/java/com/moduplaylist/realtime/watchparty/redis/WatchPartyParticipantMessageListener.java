@@ -2,8 +2,10 @@ package com.moduplaylist.realtime.watchparty.redis;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moduplaylist.realtime.watchparty.dto.WatchPartyParticipantChangedMessage;
+import com.moduplaylist.realtime.watchparty.websocket.WatchPartySubscriptionTerminator;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -21,10 +23,16 @@ public class WatchPartyParticipantMessageListener implements MessageListener {
 
     private final SimpMessagingTemplate messagingTemplate;
     private final ObjectMapper objectMapper;
+    private final WatchPartySubscriptionTerminator subscriptionTerminator;
 
-    public WatchPartyParticipantMessageListener(SimpMessagingTemplate messagingTemplate, ObjectMapper objectMapper) {
+    public WatchPartyParticipantMessageListener(
+            SimpMessagingTemplate messagingTemplate,
+            ObjectMapper objectMapper,
+            WatchPartySubscriptionTerminator subscriptionTerminator
+    ) {
         this.messagingTemplate = messagingTemplate;
         this.objectMapper = objectMapper;
+        this.subscriptionTerminator = subscriptionTerminator;
     }
 
     @Override
@@ -40,8 +48,15 @@ public class WatchPartyParticipantMessageListener implements MessageListener {
             WatchPartyParticipantChangedMessage changed =
                     objectMapper.readValue(message.getBody(), WatchPartyParticipantChangedMessage.class);
             messagingTemplate.convertAndSend("/sub/watch-parties/" + partyId + "/participants", changed);
+
+            // KICKED는 방송 "후"에 기존 구독 해제 (본인도 KICKED를 먼저 받도록)
+            if ("KICKED".equals(changed.getStatus()) && changed.getUserId() != null) {
+                subscriptionTerminator.terminate(UUID.fromString(partyId), changed.getUserId());
+            }
         } catch (IOException e) {
             log.warn("참가자 변경 메시지 역직렬화 실패. channel={}", channel, e);
+        } catch (IllegalArgumentException e) {
+            log.warn("잘못된 partyId 형식. channel={}", channel, e);
         }
     }
 }
