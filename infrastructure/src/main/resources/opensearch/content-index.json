@@ -21,8 +21,10 @@
       "hidden": { "type": "boolean" },
       "genres": { "type": "keyword" },
       "tags": { "type": "keyword" },
+      "sportTypeCode": { "type": "text" },
       "sportType": { "type": "text" },
       "leagueName": { "type": "text" },
+      "season": { "type": "text" },
       "homeTeamName": { "type": "text" },
       "awayTeamName": { "type": "text" },
       "embedding": {

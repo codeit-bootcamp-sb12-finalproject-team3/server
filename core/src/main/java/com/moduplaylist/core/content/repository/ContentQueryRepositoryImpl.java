@@ -21,12 +21,23 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
 
     @Override
     public SearchResult search(ContentSearch request) {
+        return search(request, request.getIdAfter() == null);
+    }
+
+    @Override
+    public SearchResult searchWithoutTotalCount(ContentSearch request) {
+        return search(request, false);
+    }
+
+    private SearchResult search(ContentSearch request, boolean calculateTotalCount) {
         if (request.hasContentIdFilter() && request.getMatchedContentIds().isEmpty()) {
-            return EMPTY_RESULT;
+            return calculateTotalCount
+                    ? EMPTY_RESULT
+                    : new SearchResult(List.of(), null, false, null);
         }
         return request.isLikedContentsSearch()
-                ? searchLikedContents(request)
-                : searchContents(request);
+                ? searchLikedContents(request, calculateTotalCount)
+                : searchContents(request, calculateTotalCount);
     }
 
     @Override
@@ -38,7 +49,9 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
                 " where content.hidden = false"
                         + " and content.type <> :excludedType"
                         + " and content.createdAt >= :createdAtFrom");
-        long totalCount = countContents(filter, parameters);
+        Long totalCount = request.getIdAfter() == null
+                ? countContents(filter, parameters)
+                : null;
 
         if (request.getIdAfter() != null) {
             filter.append(" and (content.createdAt < :cursorCreatedAt")
@@ -67,10 +80,14 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
         );
     }
 
-    private SearchResult searchContents(ContentSearch request) {
+    private SearchResult searchContents(
+            ContentSearch request,
+            boolean calculateTotalCount) {
         Map<String, Object> parameters = new HashMap<>();
         StringBuilder filter = createContentFilter(request, parameters, "content");
-        long totalCount = countContents(filter, parameters);
+        Long totalCount = calculateTotalCount
+                ? countContents(filter, parameters)
+                : null;
 
         appendContentCursor(filter, parameters, request);
         String orderBy = request.getSort() == ContentSearch.Sort.LATEST
@@ -91,13 +108,17 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
         return new SearchResult(contents, totalCount, hasNext, null);
     }
 
-    private SearchResult searchLikedContents(ContentSearch request) {
+    private SearchResult searchLikedContents(
+            ContentSearch request,
+            boolean calculateTotalCount) {
         Map<String, Object> parameters = new HashMap<>();
         parameters.put("likedByUserId", request.getLikedByUserId());
 
         StringBuilder filter = createContentFilter(request, parameters, "content");
         filter.append(" and contentLike.user.id = :likedByUserId");
-        long totalCount = countLikedContents(filter, parameters);
+        Long totalCount = calculateTotalCount
+                ? countLikedContents(filter, parameters)
+                : null;
 
         appendLikedCursor(filter, parameters, request);
         TypedQuery<Object[]> query = entityManager.createQuery(

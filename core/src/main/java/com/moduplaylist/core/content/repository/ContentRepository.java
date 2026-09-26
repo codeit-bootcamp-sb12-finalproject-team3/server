@@ -102,6 +102,11 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
     List<Content> findAllByParentContent_IdAndHiddenFalseOrderBySeasonNumberAsc(
             UUID parentContentId);
 
+    @Query("select content.seasonNumber from Content content "
+            + "where content.parentContent.id = :parentContentId")
+    List<Integer> findAllSeasonNumbersByParentContentId(
+            @Param("parentContentId") UUID parentContentId);
+
     List<Content> findAllByTypeAndHiddenFalseOrderByIdAsc(ContentType type);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -109,12 +114,12 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
             UUID parentContentId,
             Integer seasonNumber);
 
-    boolean existsByTypeAndTitleAndReleaseDate(
+    boolean existsByTypeAndTitleAndReleaseDateAndHiddenFalse(
             ContentType type,
             String title,
             java.time.LocalDate releaseDate);
 
-    boolean existsByTypeAndTitleAndReleaseDateAndIdNot(
+    boolean existsByTypeAndTitleAndReleaseDateAndIdNotAndHiddenFalse(
             ContentType type,
             String title,
             java.time.LocalDate releaseDate,

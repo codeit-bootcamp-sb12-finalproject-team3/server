@@ -116,8 +116,10 @@ public class ContentEmbeddingTargetService {
             SportEvent sportEvent,
             ContentVectorDocument document
     ) {
-        return !Objects.equals(sportEvent.getSportType().getName(), document.getSportType())
+        return !Objects.equals(sportEvent.getSportType().getCode(), document.getSportTypeCode())
+                || !Objects.equals(sportEvent.getSportType().getName(), document.getSportType())
                 || !Objects.equals(sportEvent.getLeagueName(), document.getLeagueName())
+                || !Objects.equals(sportEvent.getSeason(), document.getSeason())
                 || !Objects.equals(sportEvent.getHomeTeamName(), document.getHomeTeamName())
                 || !Objects.equals(sportEvent.getAwayTeamName(), document.getAwayTeamName());
     }

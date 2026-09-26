@@ -33,6 +33,7 @@ import com.moduplaylist.api.playlist.dto.PlaylistSummaryResponse;
 import com.moduplaylist.api.playlist.service.PlaylistQueryService;
 import com.moduplaylist.api.watchparty.service.WatchPartyService;
 import com.moduplaylist.core.content.entity.Content;
+import com.moduplaylist.core.content.entity.ContentPlatform;
 import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.core.content.entity.Episode;
 import com.moduplaylist.core.content.entity.Genre;
@@ -199,7 +200,8 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 				null,
 				100
 			);
-			orderedIds = contentRepository.search(initialSearch).getContents().stream()
+			orderedIds = contentRepository.searchWithoutTotalCount(initialSearch)
+				.getContents().stream()
 				.map(Content::getId)
 				.toList();
 		} else {
@@ -219,7 +221,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		contentRepository.findAllById(orderedIds).stream()
 			.filter(content -> !content.isHidden() && content.getType() != ContentType.TV_SERIES)
 			.forEach(content -> visibleById.put(content.getId(), content));
-		long totalCount = orderedIds.stream().filter(visibleById::containsKey).count();
+		long totalCount = orderedIds.size();
 		List<Content> page = new ArrayList<>(request.getLimit());
 		int nextOffset = offset;
 		while (nextOffset < orderedIds.size() && page.size() < request.getLimit()) {
@@ -254,7 +256,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		if (type != ContentTypeFilter.MOVIE && type != ContentTypeFilter.TV_SERIES) {
 			throw new InvalidContentSearchException();
 		}
-		return genreRepository.findAllByOrderByNameAsc().stream()
+		return genreRepository.findAllUsedByContentType(type.toQueryType()).stream()
 			.map(this::toGenreResponse)
 			.toList();
 	}
@@ -328,12 +330,14 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	@Transactional(readOnly = true)
 	public ContentPlatformResponse findHiddenSeasonOttByIdForAdmin(UUID hiddenSeasonId) {
 		requireHiddenSeason(hiddenSeasonId);
-		List<ContentPlatformItemResponse> otts = contentRelationRepository
-			.platformsIncludingHidden(hiddenSeasonId).stream()
+		List<ContentRelationRepository.PlatformItem> platformItems = contentRelationRepository
+			.platformsIncludingHidden(hiddenSeasonId);
+		List<ContentPlatformItemResponse> otts = platformItems.stream()
 			.map(this::toPlatformItemResponse)
 			.toList();
 		return ContentPlatformResponse.builder()
 			.regionCode("KR")
+			.justWatchAttributionRequired(requiresJustWatchAttribution(platformItems))
 			.otts(otts)
 			.build();
 	}
@@ -429,12 +433,14 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	@Transactional(readOnly = true)
 	public ContentPlatformResponse findOtt(UUID contentId) {
 		Content content = requireMovieOrSeason(contentId);
-		List<ContentPlatformItemResponse> otts = contentRelationRepository
-			.platforms(content.getId()).stream()
+		List<ContentRelationRepository.PlatformItem> platformItems = contentRelationRepository
+			.platforms(content.getId());
+		List<ContentPlatformItemResponse> otts = platformItems.stream()
 			.map(this::toPlatformItemResponse)
 			.toList();
 		return ContentPlatformResponse.builder()
 			.regionCode("KR")
+			.justWatchAttributionRequired(requiresJustWatchAttribution(platformItems))
 			.otts(otts)
 			.build();
 	}
@@ -627,6 +633,13 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			.logoUrl(value.getLogoUrl())
 			.url(value.getUrl())
 			.build();
+	}
+
+	private static boolean requiresJustWatchAttribution(
+		List<ContentRelationRepository.PlatformItem> platformItems
+	) {
+		return platformItems.stream().anyMatch(item ->
+			item.getSource() == ContentPlatform.PlatformSource.TMDB);
 	}
 
 	private SportDetail toSportDetail(SportEvent event) {
