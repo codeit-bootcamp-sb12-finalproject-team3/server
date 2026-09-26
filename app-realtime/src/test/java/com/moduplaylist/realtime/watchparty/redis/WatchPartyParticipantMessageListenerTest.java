@@ -2,6 +2,7 @@ package com.moduplaylist.realtime.watchparty.redis;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moduplaylist.realtime.watchparty.dto.WatchPartyParticipantChangedMessage;
+import com.moduplaylist.realtime.watchparty.websocket.WatchPartySubscriptionTerminator;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.connection.DefaultMessage;
@@ -21,8 +22,8 @@ import static org.mockito.Mockito.verify;
 class WatchPartyParticipantMessageListenerTest {
 
     private final SimpMessagingTemplate messagingTemplate = mock(SimpMessagingTemplate.class);
-    private final WatchPartyParticipantMessageListener listener =
-            new WatchPartyParticipantMessageListener(messagingTemplate, new ObjectMapper());
+    private final WatchPartySubscriptionTerminator subscriptionTerminator = mock(WatchPartySubscriptionTerminator.class);
+    private final WatchPartyParticipantMessageListener listener = new WatchPartyParticipantMessageListener(messagingTemplate, new ObjectMapper(), subscriptionTerminator);
 
     // app-api가 발행하는 형태 그대로 (infrastructure WatchPartyParticipantMessageContractTest와 짝)
     @Test
@@ -32,25 +33,44 @@ class WatchPartyParticipantMessageListenerTest {
         String channel = "watchparty:" + partyId + ":participants";
         String body = "{\"userId\":\"" + userId + "\",\"status\":\"KICKED\"}";
 
-        listener.onMessage(new DefaultMessage(
-                channel.getBytes(StandardCharsets.UTF_8),
-                body.getBytes(StandardCharsets.UTF_8)), null);
+        listener.onMessage(new DefaultMessage(channel.getBytes(StandardCharsets.UTF_8), body.getBytes(StandardCharsets.UTF_8)), null);
 
-        ArgumentCaptor<WatchPartyParticipantChangedMessage> captor =
-                ArgumentCaptor.forClass(WatchPartyParticipantChangedMessage.class);
-        verify(messagingTemplate).convertAndSend(
-                eq("/sub/watch-parties/" + partyId + "/participants"), captor.capture());
+        ArgumentCaptor<WatchPartyParticipantChangedMessage> captor = ArgumentCaptor.forClass(WatchPartyParticipantChangedMessage.class);
+        verify(messagingTemplate).convertAndSend(eq("/sub/watch-parties/" + partyId + "/participants"), captor.capture());
         assertThat(captor.getValue().getUserId()).isEqualTo(userId);
         assertThat(captor.getValue().getStatus()).isEqualTo("KICKED");
+
+        verify(subscriptionTerminator).terminate(partyId, userId);
     }
+
+    @Test
+    void LEFT는_방송만_하고_구독은_해제하지_않는다() {
+        UUID partyId = UUID.randomUUID();
+        String channel = "watchparty:" + partyId + ":participants";
+        String body = "{\"userId\":\"" + UUID.randomUUID() + "\",\"status\":\"LEFT\"}";
+
+        listener.onMessage(new DefaultMessage(channel.getBytes(StandardCharsets.UTF_8), body.getBytes(StandardCharsets.UTF_8)), null);
+
+        verify(messagingTemplate).convertAndSend(eq("/sub/watch-parties/" + partyId + "/participants"), any(WatchPartyParticipantChangedMessage.class));
+        verify(subscriptionTerminator, never()).terminate(any(), any());
+    }
+
+    @Test
+    void partyId가_UUID_형식이_아니면_예외없이_무시하고_구독도_해제하지_않는다() {
+        String channel = "watchparty:not-a-uuid:participants";
+        String body = "{\"userId\":\"" + UUID.randomUUID() + "\",\"status\":\"KICKED\"}";
+
+        listener.onMessage(new DefaultMessage(channel.getBytes(StandardCharsets.UTF_8), body.getBytes(StandardCharsets.UTF_8)), null);
+
+        verify(subscriptionTerminator, never()).terminate(any(), any());
+    }
+
 
     @Test
     void 다른_채널_메시지는_무시한다() {
         String channel = "watchparty:" + UUID.randomUUID() + ":chat";
 
-        listener.onMessage(new DefaultMessage(
-                channel.getBytes(StandardCharsets.UTF_8),
-                "{}".getBytes(StandardCharsets.UTF_8)), null);
+        listener.onMessage(new DefaultMessage(channel.getBytes(StandardCharsets.UTF_8), "{}".getBytes(StandardCharsets.UTF_8)), null);
 
         verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
     }
