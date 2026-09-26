@@ -1,18 +1,22 @@
+
 package com.moduplaylist.batch.job.aiplaylist;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.times;
 
 import com.moduplaylist.core.playlist.ai.AiPlaylistCandidate;
 import com.moduplaylist.core.playlist.ai.AiPlaylistCandidateProvider;
 import com.moduplaylist.core.playlist.ai.AiPlaylistGenerationResult;
 import com.moduplaylist.core.playlist.ai.AiPlaylistGenerator;
+import com.moduplaylist.core.playlist.ai.AiPlaylistSeasonalContext;
+import com.moduplaylist.core.playlist.ai.AiPlaylistSeasonalContextProvider;
 import com.moduplaylist.core.playlist.ai.AiPlaylistThemeGenerator;
 import com.moduplaylist.core.playlist.exception.AiPlaylistOwnerNotFoundException;
 import com.moduplaylist.core.playlist.exception.InvalidAiPlaylistContentResultException;
@@ -22,13 +26,13 @@ import com.moduplaylist.core.playlist.service.AiPlaylistGenerationValidator;
 import com.moduplaylist.core.playlist.service.AiPlaylistPersistenceService;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.repository.UserRepository;
-import java.time.LocalDate;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +45,9 @@ class AiPlaylistAutoGenerationServiceTest {
 
   private static final String OWNER_EMAIL = "ai@mopl.com";
 
+  private final AiPlaylistSeasonalContext seasonalContext =
+      new AiPlaylistSeasonalContext("2026-09-25 추석", "서울 기준 일별 예보");
+
   @Mock
   private UserRepository userRepository;
 
@@ -49,6 +56,9 @@ class AiPlaylistAutoGenerationServiceTest {
 
   @Mock
   private AiPlaylistThemeGenerator themeGenerator;
+
+  @Mock
+  private AiPlaylistSeasonalContextProvider seasonalContextProvider;
 
   @Mock
   private AiPlaylistCandidateProvider candidateProvider;
@@ -75,6 +85,7 @@ class AiPlaylistAutoGenerationServiceTest {
         userRepository,
         playlistRepository,
         themeGenerator,
+        seasonalContextProvider,
         candidateProvider,
         aiPlaylistGenerator,
         aiPlaylistGenerationValidator,
@@ -82,6 +93,9 @@ class AiPlaylistAutoGenerationServiceTest {
     );
 
     ReflectionTestUtils.setField(service, "ownerEmail", OWNER_EMAIL);
+
+    lenient().when(seasonalContextProvider.getContext(any()))
+        .thenReturn(seasonalContext);
 
     ownerId = UUID.randomUUID();
     date = LocalDate.of(2026, 9, 25);
@@ -94,7 +108,7 @@ class AiPlaylistAutoGenerationServiceTest {
     assertThatThrownBy(() -> service.generate(date))
         .isInstanceOf(AiPlaylistOwnerNotFoundException.class);
 
-    verify(themeGenerator, never()).generate(any(), any());
+    verify(themeGenerator, never()).generate(any(), any(), any());
     verify(aiPlaylistPersistenceService, never()).save(
         any(), any(), any(), any(), any()
     );
@@ -113,7 +127,8 @@ class AiPlaylistAutoGenerationServiceTest {
 
     when(playlistRepository.findRecentTitlesByOwnerId(eq(ownerId), any()))
         .thenReturn(existingTitles);
-    when(themeGenerator.generate(date, existingTitles)).thenReturn("가을 밤");
+    when(themeGenerator.generate(date, existingTitles, seasonalContext))
+        .thenReturn("가을 밤");
     when(candidateProvider.findCandidates("가을 밤")).thenReturn(candidates);
 
     assertThatThrownBy(() -> service.generate(date))
@@ -135,7 +150,8 @@ class AiPlaylistAutoGenerationServiceTest {
 
     when(playlistRepository.findRecentTitlesByOwnerId(eq(ownerId), any()))
         .thenReturn(existingTitles);
-    when(themeGenerator.generate(date, existingTitles)).thenReturn("가을 밤");
+    when(themeGenerator.generate(date, existingTitles, seasonalContext))
+        .thenReturn("가을 밤");
     when(candidateProvider.findCandidates("가을 밤")).thenReturn(candidates);
     when(aiPlaylistGenerator.generate("가을 밤", candidates)).thenReturn(result);
     when(playlistRepository.existsByOwner_IdAndTitle(ownerId, result.getTitle()))
@@ -163,15 +179,15 @@ class AiPlaylistAutoGenerationServiceTest {
 
     when(playlistRepository.findRecentTitlesByOwnerId(eq(ownerId), any()))
         .thenReturn(existingTitles);
-    when(themeGenerator.generate(date, existingTitles)).thenReturn("가을 밤");
+    when(themeGenerator.generate(date, existingTitles, seasonalContext))
+        .thenReturn("가을 밤");
     when(candidateProvider.findCandidates("가을 밤")).thenReturn(candidates);
     when(aiPlaylistGenerator.generate("가을 밤", candidates)).thenReturn(result);
-    when(playlistRepository.existsByOwner_IdAndTitle(ownerId, result.getTitle()))
-        .thenReturn(false);
 
     service.generate(date);
 
-    verify(themeGenerator).generate(date, existingTitles);
+    verify(seasonalContextProvider).getContext(date);
+    verify(themeGenerator).generate(date, existingTitles, seasonalContext);
     verify(candidateProvider).findCandidates("가을 밤");
     verify(aiPlaylistGenerator).generate("가을 밤", candidates);
     verify(aiPlaylistGenerationValidator).validate(result, candidates);
@@ -194,6 +210,8 @@ class AiPlaylistAutoGenerationServiceTest {
 
     service.generateWeekly(date);
 
+    verify(seasonalContextProvider, times(1)).getContext(date);
+    verify(themeGenerator, times(5)).generate(date, List.of("기존 플레이리스트"), seasonalContext);
     verify(aiPlaylistPersistenceService, times(5)).save(
         any(), any(), any(), any(), any()
     );
@@ -209,6 +227,7 @@ class AiPlaylistAutoGenerationServiceTest {
 
     service.generateWeekly(date);
 
+    verify(seasonalContextProvider, times(1)).getContext(date);
     verify(aiPlaylistPersistenceService, times(2)).save(
         any(), any(), any(), any(), any()
     );
@@ -223,14 +242,16 @@ class AiPlaylistAutoGenerationServiceTest {
 
     service.generateWeekly(date);
 
-    verify(themeGenerator, never()).generate(any(), any());
+    verify(seasonalContextProvider, never()).getContext(any());
+    verify(themeGenerator, never()).generate(any(), any(), any());
     verify(aiPlaylistPersistenceService, never()).save(
         any(), any(), any(), any(), any()
     );
   }
 
+
   @Test
-  void 일부_생성에_실패하면_재실행_시_부족한_개수만_생성한다() {
+  void 재시도_한도를_초과해도_나머지를_생성하고_재실행_시_부족분을_보충한다() {
     givenOwner();
 
     List<String> existingTitles = List.of("기존 플레이리스트");
@@ -239,37 +260,87 @@ class AiPlaylistAutoGenerationServiceTest {
     AtomicInteger generationAttempts = new AtomicInteger();
 
     when(playlistRepository.countCreatedByOwnerInWeek(ownerId, weekStart(), nextWeekStart()))
-        .thenReturn(0L, 3L);
+        .thenReturn(0L, 4L);
 
     when(playlistRepository.findRecentTitlesByOwnerId(eq(ownerId), any()))
         .thenReturn(existingTitles);
 
-    when(themeGenerator.generate(date, existingTitles)).thenAnswer(invocation -> {
-      if (generationAttempts.incrementAndGet() == 4) {
-        throw new IllegalStateException("AI 생성 실패");
-      }
-      return "가을 밤";
-    });
+    when(themeGenerator.generate(date, existingTitles, seasonalContext))
+        .thenAnswer(invocation -> {
+          int attempt = generationAttempts.incrementAndGet();
+
+          if (attempt >= 4 && attempt <= 6) {
+            throw new InvalidAiPlaylistContentResultException(
+                "AI가 서버에서 제공하지 않은 콘텐츠를 선택했습니다."
+            );
+          }
+
+          return "가을 밤";
+        });
 
     when(candidateProvider.findCandidates("가을 밤")).thenReturn(candidates);
     when(aiPlaylistGenerator.generate("가을 밤", candidates)).thenReturn(result);
 
     assertThatThrownBy(() -> service.generateWeekly(date))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage("AI 생성 실패");
+        .hasMessage("AI 플레이리스트 주간 생성 실패 - 부족한 플레이리스트 1개")
+        .hasCauseInstanceOf(InvalidAiPlaylistContentResultException.class);
 
-    verify(aiPlaylistPersistenceService, times(3)).save(
+    verify(aiPlaylistPersistenceService, times(4)).save(
         any(), any(), any(), any(), any()
     );
 
     service.generateWeekly(date);
 
+    verify(seasonalContextProvider, times(2)).getContext(date);
     verify(aiPlaylistPersistenceService, times(5)).save(
         any(), any(), any(), any(), any()
     );
 
-    assertThat(generationAttempts.get()).isEqualTo(6);
+    assertThat(generationAttempts.get()).isEqualTo(8);
   }
+
+
+  @Test
+  void AI_생성_결과가_한_번_잘못되면_재시도하여_저장한다() {
+    givenOwner();
+
+    List<String> existingTitles = List.of("기존 플레이리스트");
+    List<AiPlaylistCandidate> candidates = candidates();
+    AiPlaylistGenerationResult result = result();
+    AtomicInteger generationAttempts = new AtomicInteger();
+
+    when(playlistRepository.countCreatedByOwnerInWeek(ownerId, weekStart(), nextWeekStart()))
+        .thenReturn(3L);
+
+    when(playlistRepository.findRecentTitlesByOwnerId(eq(ownerId), any()))
+        .thenReturn(existingTitles);
+
+    when(themeGenerator.generate(date, existingTitles, seasonalContext))
+        .thenAnswer(invocation -> {
+          if (generationAttempts.incrementAndGet() == 1) {
+            throw new InvalidAiPlaylistContentResultException(
+                "AI가 서버에서 제공하지 않은 콘텐츠를 선택했습니다."
+            );
+          }
+
+          return "가을 밤";
+        });
+
+    when(candidateProvider.findCandidates("가을 밤")).thenReturn(candidates);
+    when(aiPlaylistGenerator.generate("가을 밤", candidates)).thenReturn(result);
+
+    service.generateWeekly(date);
+
+    verify(seasonalContextProvider, times(1)).getContext(date);
+    verify(themeGenerator, times(3)).generate(date, existingTitles, seasonalContext);
+    verify(aiPlaylistPersistenceService, times(2)).save(
+        any(), any(), any(), any(), any()
+    );
+
+    assertThat(generationAttempts.get()).isEqualTo(3);
+  }
+
 
   private void givenOwner() {
     when(userRepository.findByEmail(OWNER_EMAIL)).thenReturn(Optional.of(aiOwner));
@@ -310,7 +381,8 @@ class AiPlaylistAutoGenerationServiceTest {
 
     when(playlistRepository.findRecentTitlesByOwnerId(eq(ownerId), any()))
         .thenReturn(existingTitles);
-    when(themeGenerator.generate(date, existingTitles)).thenReturn("가을 밤");
+    when(themeGenerator.generate(date, existingTitles, seasonalContext))
+        .thenReturn("가을 밤");
     when(candidateProvider.findCandidates("가을 밤")).thenReturn(candidates);
     when(aiPlaylistGenerator.generate("가을 밤", candidates)).thenReturn(result);
   }

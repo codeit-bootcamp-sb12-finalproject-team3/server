@@ -8,11 +8,14 @@ import com.moduplaylist.core.playlist.ai.AiPlaylistThemeGenerator;
 import com.moduplaylist.core.playlist.exception.AiPlaylistOwnerNotFoundException;
 import com.moduplaylist.core.playlist.exception.InvalidAiPlaylistContentResultException;
 import com.moduplaylist.core.playlist.exception.InvalidAiPlaylistTitleException;
+import com.moduplaylist.core.playlist.exception.AiPlaylistGenerationFailedException;
 import com.moduplaylist.core.playlist.policy.PlaylistContentPolicy;
 import com.moduplaylist.core.playlist.repository.PlaylistRepository;
 import com.moduplaylist.core.playlist.service.AiPlaylistGenerationValidator;
 import com.moduplaylist.core.playlist.service.AiPlaylistPersistenceService;
 import com.moduplaylist.core.user.repository.UserRepository;
+import com.moduplaylist.core.playlist.ai.AiPlaylistSeasonalContext;
+import com.moduplaylist.core.playlist.ai.AiPlaylistSeasonalContextProvider;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,11 +38,13 @@ public class AiPlaylistAutoGenerationService {
 
   private static final int RECENT_PLAYLIST_TITLE_LIMIT = 30;
   private static final int WEEKLY_PLAYLIST_COUNT = 5;
+  private static final int MAX_GENERATION_ATTEMPTS = 3;
   private static final ZoneId ZONE_ID = ZoneId.of("Asia/Seoul");
 
   private final UserRepository userRepository;
   private final PlaylistRepository playlistRepository;
   private final AiPlaylistThemeGenerator themeGenerator;
+  private final AiPlaylistSeasonalContextProvider seasonalContextProvider;
   private final AiPlaylistCandidateProvider candidateProvider;
   private final AiPlaylistGenerator aiPlaylistGenerator;
   private final AiPlaylistGenerationValidator aiPlaylistGenerationValidator;
@@ -76,27 +81,78 @@ public class AiPlaylistAutoGenerationService {
         remainingCount
     );
 
-    for (int i = 0; i < remainingCount; i++) {
-      generate(date);
+    if (remainingCount == 0) {
+      log.info("AI 플레이리스트 주간 생성 생략 - 이미 {}개 존재", createdCount);
+      return;
+    }
 
-      log.info(
-          "AI 플레이리스트 생성 진행 - {}/{}개 완료",
-          i + 1,
-          remainingCount
-      );
+    AiPlaylistSeasonalContext seasonalContext = seasonalContextProvider.getContext(date);
+
+    int generatedCount = 0;
+    int failedCount = 0;
+    RuntimeException lastFailure = null;
+
+    for (int i = 0; i < remainingCount; i++) {
+      boolean generated = false;
+
+      for (int attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt++) {
+        try {
+          generate(date, seasonalContext);
+
+          generatedCount++;
+          generated = true;
+
+          log.info(
+              "AI 플레이리스트 생성 진행 - {}/{}개 완료",
+              generatedCount,
+              remainingCount
+          );
+
+          break;
+        } catch (InvalidAiPlaylistContentResultException
+                 | InvalidAiPlaylistTitleException
+                 | AiPlaylistGenerationFailedException exception) {
+          lastFailure = exception;
+
+          log.warn(
+              "AI 플레이리스트 생성 실패 - slot={}, attempt={}/{}, reason={}",
+              i + 1,
+              attempt,
+              MAX_GENERATION_ATTEMPTS,
+              exception.getMessage()
+          );
+        }
+      }
+
+      if (!generated) {
+        failedCount++;
+        log.error("AI 플레이리스트 생성 최종 실패 - slot={}", i + 1);
+      }
     }
 
     log.info(
-        "AI 플레이리스트 주간 생성 완료 - date={}, existingCount={}, generatedCount={}, totalCount={}",
+        "AI 플레이리스트 주간 생성 종료 - date={}, existingCount={}, generatedCount={}, failedCount={}",
         date,
         createdCount,
-        remainingCount,
-        createdCount + remainingCount
+        generatedCount,
+        failedCount
     );
+
+    if (failedCount > 0) {
+      throw new IllegalStateException(
+          "AI 플레이리스트 주간 생성 실패 - 부족한 플레이리스트 " + failedCount + "개",
+          lastFailure
+      );
+    }
   }
 
   @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public void generate(LocalDate date) {
+    AiPlaylistSeasonalContext seasonalContext = seasonalContextProvider.getContext(date);
+    generate(date, seasonalContext);
+  }
+
+  private void generate(LocalDate date, AiPlaylistSeasonalContext seasonalContext) {
     UUID ownerId = userRepository.findByEmail(ownerEmail)
         .orElseThrow(() -> new AiPlaylistOwnerNotFoundException(ownerEmail))
         .getId();
@@ -106,7 +162,7 @@ public class AiPlaylistAutoGenerationService {
         PageRequest.of(0, RECENT_PLAYLIST_TITLE_LIMIT)
     );
 
-    String theme = themeGenerator.generate(date, existingPlaylistTitles);
+    String theme = themeGenerator.generate(date, existingPlaylistTitles, seasonalContext);
 
     List<AiPlaylistCandidate> candidates = candidateProvider.findCandidates(theme);
 
