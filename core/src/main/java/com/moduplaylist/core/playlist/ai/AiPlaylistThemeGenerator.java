@@ -7,6 +7,7 @@ public interface AiPlaylistThemeGenerator {
 
   String generate(
       LocalDate date,
-      List<String> existingPlaylistTitles
+      List<String> existingPlaylistTitles,
+      AiPlaylistSeasonalContext seasonalContext
   );
 }
