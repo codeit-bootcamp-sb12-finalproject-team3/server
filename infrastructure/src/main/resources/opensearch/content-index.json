@@ -29,14 +29,13 @@
         "tag_synonyms": {
           "type": "synonym_graph",
           "synonyms": [
-            "mcu => marvel, 마블",
-            "dceu => dc, 디씨",
-            "dcu => dc, 디씨",
-            "lotr => the lord of the rings, 반지의 제왕",
-            "twd => the walking dead, 워킹 데드",
-            "tlou => the last of us, 라스트 오브 어스",
-            "tmnt => teenage mutant ninja turtles, 닌자 거북이, 닌자터틀",
-            "gotg => guardians of the galaxy, 가디언즈 오브 갤럭시"
+            "mcu, marvel, 마블",
+            "dceu, dcu, dc, 디씨",
+            "lotr, the lord of the rings, 반지의 제왕",
+            "twd, the walking dead, 워킹 데드",
+            "tlou, the last of us, 라스트 오브 어스",
+            "tmnt, teenage mutant ninja turtles, 닌자 거북이, 닌자터틀",
+            "gotg, guardians of the galaxy, 가디언즈 오브 갤럭시"
           ]
         }
       },

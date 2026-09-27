@@ -208,11 +208,15 @@ public class SportsDbContentImportService {
             SportsRetryTarget retryTarget = sportsRetryTarget(candidate);
 
             try {
-                JsonNode event = client.event(externalId);
+                JsonNode event = lookupEventWithMissingRetry(externalId);
                 if (!event.isObject()) {
-                    if (retryTarget != null) metrics.addSportsRetry(retryTarget);
-                    metrics.failed("sport:" + externalId);
-                    log.warn("TheSportsDB 기존 경기 조회 결과가 없습니다. externalEventId={}", externalId);
+                    markEventAsNotFound(externalId);
+                    metrics.missingRequired();
+                    log.warn(
+                        "TheSportsDB 기존 경기 조회 결과가 재시도 후에도 없어 재조회 대상에서 제외합니다. "
+                            + "externalEventId={}",
+                        externalId
+                    );
                     continue;
                 }
 
@@ -367,11 +371,14 @@ public class SportsDbContentImportService {
         for (SportsRetryTarget target : metrics.sportsRetryTargets()) {
             if (!handled.add(target.eventId())) continue;
             try {
-                JsonNode event = client.event(target.eventId());
+                JsonNode event = lookupEventWithMissingRetry(target.eventId());
                 if (!event.isObject()) {
-                    metrics.failed("sport:" + target.eventId());
+                    markEventAsNotFound(target.eventId());
+                    metrics.completeSportsRetry(target);
+                    metrics.missingRequired();
                     log.warn(
-                        "TheSportsDB 재시도 경기 조회 결과가 없습니다. externalEventId={}",
+                        "TheSportsDB 재시도 경기 조회 결과가 다시 없어 재조회 대상에서 제외합니다. "
+                            + "externalEventId={}",
                         target.eventId()
                     );
                     continue;
@@ -397,6 +404,34 @@ public class SportsDbContentImportService {
                 );
             }
         }
+    }
+
+    private JsonNode lookupEventWithMissingRetry(int externalEventId) {
+        JsonNode event = client.event(externalEventId);
+        if (event.isObject()) return event;
+
+        log.warn(
+            "TheSportsDB 경기 조회 결과가 없어 즉시 한 번 재시도합니다. externalEventId={}",
+            externalEventId
+        );
+        return client.event(externalEventId);
+    }
+
+    private void markEventAsNotFound(int externalEventId) {
+        transactionTemplate.executeWithoutResult(status ->
+            contentRepository.findByExternalSourceAndTypeAndExternalId(
+                    SOURCE,
+                    ContentType.SPORT,
+                    externalEventId
+                )
+                .flatMap(content -> sportEventRepository.findById(content.getId()))
+                .filter(event -> !event.getContent().isHidden())
+                .ifPresent(event -> event.updateStatus(
+                    event.getRawStatus(),
+                    NormalizedStatus.UNKNOWN,
+                    Instant.now()
+                ))
+        );
     }
 
     private static SportsImportProperties.League league(SportsRetryTarget target) {

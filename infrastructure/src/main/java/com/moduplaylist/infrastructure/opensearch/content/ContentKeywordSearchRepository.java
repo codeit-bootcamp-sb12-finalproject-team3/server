@@ -139,10 +139,11 @@ public class ContentKeywordSearchRepository {
 		return new ContentAutocompleteCandidate(contentId, term.text(), term.type(), matchRank);
 	}
 
-	private String normalizeAutocompleteText(String text) {
+	static String normalizeAutocompleteText(String text) {
 		String decomposed = Normalizer.normalize(text, Normalizer.Form.NFD);
-		return COMBINING_MARKS.matcher(decomposed)
-			.replaceAll("")
+		String withoutMarks = COMBINING_MARKS.matcher(decomposed)
+			.replaceAll("");
+		return Normalizer.normalize(withoutMarks, Normalizer.Form.NFC)
 			.toLowerCase(Locale.ROOT);
 	}
 
