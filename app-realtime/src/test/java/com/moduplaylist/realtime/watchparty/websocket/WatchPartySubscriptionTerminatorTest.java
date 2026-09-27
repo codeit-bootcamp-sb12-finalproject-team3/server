@@ -75,6 +75,35 @@ class WatchPartySubscriptionTerminatorTest {
         verify(brokerChannel, never()).send(any());
     }
 
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void 종료된_파티는_모든_사용자의_해당_파티_구독만_해제한다() {
+        SimpUser userA = userWith(session("session-a",
+                subscription("sub-0", "/sub/watch-parties/" + partyId + "/chat"),
+                subscription("sub-1", "/sub/watch-parties/" + otherPartyId + "/chat")));
+        SimpUser userB = userWith(session("session-b",
+                subscription("sub-0", "/sub/watch-parties/" + partyId + "/playback")));
+        when(simpUserRegistry.getUsers()).thenReturn(Set.of(userA, userB));
+
+        terminator.terminateAll(partyId);
+
+        ArgumentCaptor<Message> captor = ArgumentCaptor.forClass(Message.class);
+        verify(brokerChannel, times(2)).send(captor.capture());
+        assertThat(captor.getAllValues())
+                .extracting(m -> SimpMessageHeaderAccessor.getSessionId(m.getHeaders())
+                        + "/" + SimpMessageHeaderAccessor.getSubscriptionId(m.getHeaders()))
+                .containsExactlyInAnyOrder("session-a/sub-0", "session-b/sub-0");
+    }
+
+    @Test
+    void 종료된_파티에_연결된_사용자가_없으면_아무것도_보내지_않는다() {
+        when(simpUserRegistry.getUsers()).thenReturn(Set.of());
+
+        terminator.terminateAll(partyId);
+
+        verify(brokerChannel, never()).send(any());
+    }
+
     // ---- 테스트용 mock 생성 도우미 ----
 
     private void givenUser(SimpSession... sessions) {
@@ -95,5 +124,11 @@ class WatchPartySubscriptionTerminatorTest {
         when(subscription.getId()).thenReturn(subscriptionId);
         when(subscription.getDestination()).thenReturn(destination);
         return subscription;
+    }
+
+    private SimpUser userWith(SimpSession... sessions) {
+        SimpUser user = mock(SimpUser.class);
+        when(user.getSessions()).thenReturn(Set.of(sessions));
+        return user;
     }
 }

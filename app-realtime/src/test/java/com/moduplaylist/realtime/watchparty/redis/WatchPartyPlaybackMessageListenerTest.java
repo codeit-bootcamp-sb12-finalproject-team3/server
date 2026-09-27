@@ -3,8 +3,10 @@ package com.moduplaylist.realtime.watchparty.redis;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moduplaylist.realtime.watchparty.dto.WatchPartyPlaybackState;
 import com.moduplaylist.realtime.watchparty.dto.WatchPartyPlaybackStatus;
+import com.moduplaylist.realtime.watchparty.websocket.WatchPartySubscriptionTerminator;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.data.redis.connection.DefaultMessage;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
@@ -15,15 +17,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 class WatchPartyPlaybackMessageListenerTest {
 
     private final SimpMessagingTemplate messagingTemplate = mock(SimpMessagingTemplate.class);
+    private final WatchPartySubscriptionTerminator subscriptionTerminator =
+            mock(WatchPartySubscriptionTerminator.class);
     private final WatchPartyPlaybackMessageListener listener =
-            new WatchPartyPlaybackMessageListener(messagingTemplate, new ObjectMapper());
+            new WatchPartyPlaybackMessageListener(messagingTemplate, new ObjectMapper(), subscriptionTerminator);
 
     // app-api가 발행하는 형태 그대로 (infrastructure WatchPartyPlaybackMessageContractTest와 짝 - 받는 쪽)
     @Test
@@ -64,5 +66,54 @@ class WatchPartyPlaybackMessageListenerTest {
                 "{}".getBytes(StandardCharsets.UTF_8)), null);
 
         verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+    }
+
+    // ENDED를 먼저 보내고 그다음 구독 해제 (순서가 바뀌면 클라이언트가 ENDED를 못 받음)
+    @Test
+    void ENDED를_전달한_뒤_해당_파티_구독을_모두_해제한다() {
+        UUID partyId = UUID.randomUUID();
+
+        publish("watchparty:" + partyId + ":playback", body("ENDED"));
+
+        InOrder inOrder = inOrder(messagingTemplate, subscriptionTerminator);
+        inOrder.verify(messagingTemplate).convertAndSend(
+                eq("/sub/watch-parties/" + partyId + "/playback"), any(Object.class));
+        inOrder.verify(subscriptionTerminator).terminateAll(partyId);
+    }
+
+    @Test
+    void ENDED가_아니면_구독을_해제하지_않는다() {
+        publish("watchparty:" + UUID.randomUUID() + ":playback", body("PAUSED"));
+
+        verify(subscriptionTerminator, never()).terminateAll(any());
+    }
+
+    @Test
+    void 채널의_partyId가_UUID가_아니면_ENDED여도_해제하지_않는다() {
+        publish("watchparty:not-a-uuid:playback", body("ENDED"));
+
+        verify(subscriptionTerminator, never()).terminateAll(any());
+    }
+
+    @Test
+    void 역직렬화에_실패하면_전달도_해제도_하지_않는다() {
+        publish("watchparty:" + UUID.randomUUID() + ":playback", "not-json");
+
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+        verify(subscriptionTerminator, never()).terminateAll(any());
+    }
+
+    // ---- 테스트용 도우미 ----
+
+    private void publish(String channel, String body) {
+        listener.onMessage(new DefaultMessage(
+                channel.getBytes(StandardCharsets.UTF_8),
+                body.getBytes(StandardCharsets.UTF_8)), null);
+    }
+
+    private String body(String status) {
+        return "{\"status\":\"" + status + "\",\"startedAt\":1000,\"accumulatedPauseMs\":0,"
+                + "\"pausedAt\":null,\"startEpisode\":null,\"endEpisode\":null,"
+                + "\"hostId\":\"" + UUID.randomUUID() + "\",\"updatedAt\":2000}";
     }
 }

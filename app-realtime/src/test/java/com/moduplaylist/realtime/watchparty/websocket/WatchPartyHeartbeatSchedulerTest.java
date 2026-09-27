@@ -1,6 +1,7 @@
 package com.moduplaylist.realtime.watchparty.websocket;
 
 import com.moduplaylist.realtime.watchparty.WatchPartyLastSeenRegistry;
+import com.moduplaylist.realtime.watchparty.WatchPartyPlaybackRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,6 +30,7 @@ class WatchPartyHeartbeatSchedulerTest {
 
     @Mock private SimpUserRegistry simpUserRegistry;
     @Mock private WatchPartyLastSeenRegistry lastSeenRegistry;
+    @Mock private WatchPartyPlaybackRegistry playbackRegistry;
 
     @InjectMocks
     private WatchPartyHeartbeatScheduler watchPartyHeartbeatScheduler;
@@ -91,6 +93,48 @@ class WatchPartyHeartbeatSchedulerTest {
         willThrow(new IllegalStateException("redis down")).given(lastSeenRegistry).touchAll(any(), anyLong());
 
         assertThatCode(() -> watchPartyHeartbeatScheduler.heartbeat()).doesNotThrowAnyException();
+    }
+
+    // 케이스 5: 종료된 파티는 — 구독이 남아 있어도 기록에서 제외
+    @Test
+    void heartbeat_종료된_파티는_제외() {
+        UUID endedPartyId = UUID.randomUUID();
+        givenUsers(user(userId.toString(), session(
+                subscription("/sub/watch-parties/" + partyId + "/chat"),
+                subscription("/sub/watch-parties/" + endedPartyId + "/chat"))));
+        given(playbackRegistry.isEnded(partyId)).willReturn(false);
+        given(playbackRegistry.isEnded(endedPartyId)).willReturn(true);
+
+        watchPartyHeartbeatScheduler.heartbeat();
+
+        verify(lastSeenRegistry).touchAll(eq(Map.of(partyId, Set.of(userId))), anyLong());
+    }
+
+    // 케이스 6: 모두 종료된 파티면 — Redis에 쓰지 않음
+    @Test
+    void heartbeat_모두_종료된_파티면_기록안함() {
+        givenUsers(user(userId.toString(), session(subscription("/sub/watch-parties/" + partyId + "/chat"))));
+        given(playbackRegistry.isEnded(partyId)).willReturn(true);
+
+        watchPartyHeartbeatScheduler.heartbeat();
+
+        verify(lastSeenRegistry, never()).touchAll(any(), anyLong());
+    }
+
+    // 케이스 7: 종료 확인이 실패한 파티도 — 온라인으로 보고 기록 (확실하지 않으면 온라인)
+    @Test
+    void heartbeat_종료확인_실패해도_기록() {
+        UUID brokenPartyId = UUID.randomUUID();
+        givenUsers(user(userId.toString(), session(
+                subscription("/sub/watch-parties/" + partyId + "/chat"),
+                subscription("/sub/watch-parties/" + brokenPartyId + "/chat"))));
+        given(playbackRegistry.isEnded(partyId)).willReturn(false);
+        given(playbackRegistry.isEnded(brokenPartyId)).willThrow(new IllegalStateException("역직렬화 실패"));
+
+        watchPartyHeartbeatScheduler.heartbeat();
+
+        verify(lastSeenRegistry).touchAll(
+                eq(Map.of(partyId, Set.of(userId), brokenPartyId, Set.of(userId))), anyLong());
     }
 
     // ---- 테스트용 mock 생성 도우미 ----
