@@ -26,6 +26,7 @@ public class RedisWatchPartyKeyLifecycleRegistry implements WatchPartyKeyLifecyc
     // 권한/실시간 상태용 키는 종료 즉시 제거 (TTL까지 기다릴 필요 없음)
     private static final List<Function<UUID, String>> IMMEDIATE_KEY_BUILDERS = List.of(
             WatchPartyRedisKey::online,
+            WatchPartyRedisKey::lastSeen,
             WatchPartyRedisKey::kicked,
             WatchPartyRedisKey::joined,
             WatchPartyRedisKey::host
