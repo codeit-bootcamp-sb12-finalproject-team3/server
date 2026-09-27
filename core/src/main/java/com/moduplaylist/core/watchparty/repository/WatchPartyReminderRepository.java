@@ -3,6 +3,7 @@ package com.moduplaylist.core.watchparty.repository;
 import com.moduplaylist.core.watchparty.entity.WatchPartyReminder;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -38,4 +39,14 @@ public interface WatchPartyReminderRepository extends JpaRepository<WatchPartyRe
         @Param("status") WatchPartyStatus status,
         @Param("now") Instant now
     );
+
+    @Modifying
+    @Query("""
+            delete from WatchPartyReminder reminder
+            where reminder.watchParty.id = :watchPartyId
+              and reminder.user.id = :userId
+            """)
+    int deleteByWatchPartyIdAndUserId(
+            @Param("watchPartyId") UUID watchPartyId,
+            @Param("userId") UUID userId);
 }

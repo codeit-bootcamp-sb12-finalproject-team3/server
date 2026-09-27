@@ -104,7 +104,10 @@ public enum ErrorCode {
     WATCHPARTY_NOT_JOINED("현재 참가 중인 상태가 아닙니다."),
     WATCHPARTY_NOT_A_PARTICIPANT("참가 중인 방이 아닙니다."),
     WATCHPARTY_PARTICIPANT_NOT_JOINED("현재 참가 중인 사용자가 아닙니다."),
-    WATCHPARTY_INVALID_STATE("현재 상태에서는 처리할 수 없는 요청입니다.");
+    WATCHPARTY_INVALID_STATE("현재 상태에서는 처리할 수 없는 요청입니다."),
+    WATCHPARTY_REMINDER_ALREADY_EXISTS("이미 시작 알림을 설정했습니다."),
+    WATCHPARTY_REMINDER_NOT_FOUND("설정된 시작 알림이 없습니다."),
+    WATCHPARTY_HOST_CANNOT_SET_REMINDER("방장은 시작 알림 설정 대상이 아닙니다.");
 
     private final String message;
 }

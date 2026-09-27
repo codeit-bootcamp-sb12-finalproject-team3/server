@@ -116,6 +116,9 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.WATCHPARTY_NOT_A_PARTICIPANT, HttpStatus.NOT_FOUND);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_PARTICIPANT_NOT_JOINED, HttpStatus.CONFLICT);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_INVALID_STATE, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_REMINDER_ALREADY_EXISTS, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_REMINDER_NOT_FOUND, HttpStatus.NOT_FOUND);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_HOST_CANNOT_SET_REMINDER, HttpStatus.BAD_REQUEST);
     }
 
     private ApiErrorStatus() {
