@@ -45,7 +45,7 @@ public class ContentUpdateRequest {
 	private JsonNullable<@Size(max = 100) String> country = JsonNullable.undefined();
 	private JsonNullable<@PositiveOrZero Integer> homeScore = JsonNullable.undefined();
 	private JsonNullable<@PositiveOrZero Integer> awayScore = JsonNullable.undefined();
-	private JsonNullable<@Size(max = 255) String> originalTitle = JsonNullable.undefined();
+	private JsonNullable<@Size(max = 255) String> englishTitle = JsonNullable.undefined();
 	private JsonNullable<@NotNull List<@NotNull UUID>> genreIds = JsonNullable.undefined();
 	@JsonProperty("tags")
 	private JsonNullable<@NotNull List<@NotBlank @Size(max = 100) String>> manualTags = JsonNullable.undefined();
@@ -136,8 +136,8 @@ public class ContentUpdateRequest {
 		this.awayScore = requireWrapper(awayScore);
 	}
 
-	public void setOriginalTitle(JsonNullable<String> originalTitle) {
-		this.originalTitle = map(originalTitle, ContentUpdateRequest::strip);
+	public void setEnglishTitle(JsonNullable<String> englishTitle) {
+		this.englishTitle = map(englishTitle, ContentUpdateRequest::strip);
 	}
 
 	public void setGenreIds(JsonNullable<List<UUID>> genreIds) {

@@ -28,7 +28,6 @@ import org.springframework.stereotype.Component;
 public class ContentIndexInitialIndexer {
 
     private static final int PAGE_SIZE = 100;
-    private static final int MAX_RETRY_ATTEMPTS = 2;
     private static final String ITEM_METRIC = "mopl.content.initial.index.items";
 
     private final ContentRepository contentRepository;
@@ -38,14 +37,6 @@ public class ContentIndexInitialIndexer {
     @EventListener(ApplicationReadyEvent.class)
     public void index() {
         Set<UUID> failedIds = indexAllContents();
-        incrementMetric("initial_failed", failedIds.size());
-        for (int attempt = 1;
-             attempt <= MAX_RETRY_ATTEMPTS && !failedIds.isEmpty();
-             attempt++) {
-            int targetCount = failedIds.size();
-            failedIds = retry(failedIds, attempt + 1);
-            incrementMetric("retry_succeeded", targetCount - failedIds.size());
-        }
         incrementMetric("final_failed", failedIds.size());
         if (!failedIds.isEmpty()) {
             log.error("콘텐츠 초기 색인 최종 실패 - failedCount={}, contentIds={}",
@@ -62,29 +53,19 @@ public class ContentIndexInitialIndexer {
                     pageNumber++, PAGE_SIZE, Sort.by(Sort.Direction.ASC, "id")));
             page.getContent().stream()
                     .map(Content::getId)
-                    .filter(contentId -> !synchronize(contentId, 1))
+                    .filter(contentId -> !synchronize(contentId))
                     .forEach(failedIds::add);
         } while (page.hasNext());
         return failedIds;
     }
 
-    private Set<UUID> retry(Set<UUID> contentIds, int attempt) {
-        Set<UUID> failedIds = new LinkedHashSet<>();
-        for (UUID contentId : contentIds) {
-            if (!synchronize(contentId, attempt)) {
-                failedIds.add(contentId);
-            }
-        }
-        return failedIds;
-    }
-
-    private boolean synchronize(UUID contentId, int attempt) {
+    private boolean synchronize(UUID contentId) {
         try {
             contentIndexSynchronizer.synchronize(contentId);
             return true;
         } catch (RuntimeException exception) {
-            log.warn("콘텐츠 초기 색인에 실패했습니다. contentId={}, attempt={}",
-                    contentId, attempt, exception);
+            log.warn("콘텐츠 초기 색인에 최종 실패했습니다. contentId={}",
+                    contentId, exception);
             return false;
         }
     }

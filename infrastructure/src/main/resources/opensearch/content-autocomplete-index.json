@@ -17,18 +17,18 @@
         "content_autocomplete_index": {
           "type": "custom",
           "tokenizer": "keyword",
-          "filter": ["lowercase", "content_autocomplete_ngram"]
+          "filter": ["lowercase", "asciifolding", "content_autocomplete_ngram"]
         },
         "content_autocomplete_search": {
           "type": "custom",
           "tokenizer": "keyword",
-          "filter": ["lowercase"]
+          "filter": ["lowercase", "asciifolding"]
         }
       },
       "normalizer": {
         "content_title_sort": {
           "type": "custom",
-          "filter": ["lowercase"]
+          "filter": ["lowercase", "asciifolding"]
         }
       }
     }

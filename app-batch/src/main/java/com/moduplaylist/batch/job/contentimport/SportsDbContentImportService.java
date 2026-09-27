@@ -16,6 +16,7 @@ import com.moduplaylist.infrastructure.externalapi.ExternalApiException.FailureT
 import com.moduplaylist.infrastructure.sportsdb.SportsDbClient;
 import com.moduplaylist.infrastructure.opensearch.content.ContentIndexSource;
 import com.moduplaylist.infrastructure.opensearch.content.ContentIndexSynchronizer;
+import com.moduplaylist.infrastructure.opensearch.content.OpenSearchFailureClassifier;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -124,7 +125,19 @@ public class SportsDbContentImportService {
             }
             for (int offset = -3; offset <= 7; offset++) {
                 LocalDate date = runDate.plusDays(offset);
-                JsonNode events = client.eventsOn(date, league.getExternalLeagueId());
+                JsonNode events;
+                try {
+                    events = client.eventsOn(date, league.getExternalLeagueId());
+                } catch (RuntimeException exception) {
+                    rethrowIfFatal(exception);
+                    metrics.failed("sport-discover:"
+                        + league.getExternalLeagueId() + ":" + date);
+                    log.warn(
+                        "TheSportsDB 경기 목록 조회에 실패해 다음 날짜를 처리합니다. leagueId={}, date={}",
+                        league.getExternalLeagueId(), date, exception
+                    );
+                    continue;
+                }
                 if (!events.isArray()) continue;
                 if (events.size() == 3) {
                     metrics.freeLimitHit();
@@ -318,9 +331,7 @@ public class SportsDbContentImportService {
     }
 
     private static boolean isFatal(RuntimeException exception) {
-        return Thread.currentThread().isInterrupted()
-            || !(exception instanceof ExternalApiException externalApiException)
-            || externalApiException.isFatal();
+        return OpenSearchFailureClassifier.shouldAbortStep(exception);
     }
 
     private void retryFailedSportSynchronizations(

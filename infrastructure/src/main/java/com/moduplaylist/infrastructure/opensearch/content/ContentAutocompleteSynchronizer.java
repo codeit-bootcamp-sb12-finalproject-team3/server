@@ -38,6 +38,7 @@ public class ContentAutocompleteSynchronizer {
             addTvSeasonTitleSuggestions(suggestions, source);
         } else {
             addSuggestion(suggestions, source.originalTitle(), "title");
+            addSuggestion(suggestions, source.englishTitle(), "title");
         }
         source.castNames().forEach(name -> addSuggestion(suggestions, name, "cast"));
         source.genres().forEach(name -> addSuggestion(suggestions, name, "genre"));
@@ -73,6 +74,14 @@ public class ContentAutocompleteSynchronizer {
             addSuggestion(
                     suggestions,
                     source.originalTitle() + " Season " + source.seasonNumber(),
+                    "title"
+            );
+        }
+        addSuggestion(suggestions, source.englishTitle(), "title");
+        if (source.englishTitle() != null) {
+            addSuggestion(
+                    suggestions,
+                    source.englishTitle() + " Season " + source.seasonNumber(),
                     "title"
             );
         }

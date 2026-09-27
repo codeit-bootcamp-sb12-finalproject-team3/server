@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ContentIndexSynchronizer {
 
-    private static final int MAX_SYNC_ATTEMPTS = 3;
+    private static final int MAX_SYNC_ATTEMPTS = 2;
 
     private final ContentIndexSourceLoader sourceLoader;
     private final ContentAutocompleteSynchronizer autocompleteSynchronizer;
@@ -19,7 +19,7 @@ public class ContentIndexSynchronizer {
     }
 
     public void synchronize(UUID contentId) {
-        ContentIndexSource source = load(contentId);
+        ContentIndexSource source = loadWithRetry(contentId);
         RuntimeException failure = synchronizeAutocompleteWithRetry(source);
         RuntimeException searchFailure = synchronizeSearchWithRetry(source);
         if (failure != null) {
@@ -31,6 +31,18 @@ public class ContentIndexSynchronizer {
         if (searchFailure != null) {
             throw searchFailure;
         }
+    }
+
+    private ContentIndexSource loadWithRetry(UUID contentId) {
+        RuntimeException failure = null;
+        for (int attempt = 1; attempt <= MAX_SYNC_ATTEMPTS; attempt++) {
+            try {
+                return load(contentId);
+            } catch (RuntimeException exception) {
+                failure = exception;
+            }
+        }
+        throw failure;
     }
 
     public void synchronizeAutocomplete(ContentIndexSource source) {

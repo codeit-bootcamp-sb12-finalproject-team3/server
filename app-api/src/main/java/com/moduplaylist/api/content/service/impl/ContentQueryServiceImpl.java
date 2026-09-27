@@ -336,6 +336,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 				.id(content.getId())
 				.title(content.getTitle())
 				.originalTitle(content.getOriginalTitle())
+				.englishTitle(content.getEnglishTitle())
 				.build())
 			.toList();
 		return ContentSeriesSearchResponse.builder()
@@ -433,6 +434,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			.reviewCount(content.getReviewCount())
 			.likeCount(content.getLikeCount())
 			.originalTitle(findOriginalTitle(content))
+			.englishTitle(findEnglishTitle(content))
 			.genres(genres)
 			.tags(tags)
 			.cast(cast)
@@ -449,6 +451,14 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			return content.getParentContent().getOriginalTitle();
 		}
 		return content.getOriginalTitle();
+	}
+
+	private String findEnglishTitle(Content content) {
+		if (content.getType() == ContentType.TV_SEASON) {
+			String parentEnglishTitle = content.getParentContent().getEnglishTitle();
+			return parentEnglishTitle == null ? content.getEnglishTitle() : parentEnglishTitle;
+		}
+		return content.getEnglishTitle();
 	}
 
 	@Override
@@ -584,7 +594,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	private Map<UUID, Double> findPopularityScores(List<UUID> contentIds) {
 		ContentAutocompletePopularityScoreProvider provider = popularityScoreProvider.getIfAvailable();
 		if (provider == null) {
-			// TODO: 트렌딩 도메인의 Redis ZSet 구현이 완료되면 ZMSCORE 기반 provider를 연결한다.
+			// provider가 없는 구성에서는 인기 점수 없이 정렬한다.
 			return Map.of();
 		}
 		try {

@@ -79,7 +79,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Slf4j
 @RequiredArgsConstructor
 public class ContentCommandServiceImpl implements ContentCommandService {
-	private static final String ORIGINAL_TITLE_METADATA_KEY = "originalTitle";
+	private static final String ENGLISH_TITLE_METADATA_KEY = "englishTitle";
 	private static final String TMDB_SOURCE = "TMDB";
 
 	private final ContentRepository contentRepository;
@@ -201,7 +201,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		validateTags(request.getManualTags());
 		validatePlatforms(request.getPlatforms());
 		if (request.getParentContentId() == null || request.getSeasonNumber() == null
-			|| request.getRuntime() != null || request.getOriginalTitle() != null
+			|| request.getRuntime() != null || request.getEnglishTitle() != null
 			|| request.getSeasons() != null
 			|| hasSportFields(request)) {
 			throw new InvalidContentSearchException();
@@ -219,7 +219,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			|| request.getParentContentId() != null || request.getSeasonNumber() != null
 			|| request.getEpisodeCount() != null || request.getSeasons() != null
 			|| request.getReleaseDate() != null || request.getRuntime() != null
-			|| request.getOriginalTitle() != null || request.getGenreIds() != null
+			|| request.getEnglishTitle() != null || request.getGenreIds() != null
 			|| request.getManualTags() != null || request.getCasts() != null
 			|| request.getPlatforms() != null) {
 			throw new InvalidContentSearchException();
@@ -329,24 +329,26 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			: null;
 		Map<String, Object> metadata = content.getMetadata();
 		boolean parentSearchSourceChanged = false;
+		boolean parentEmbeddingSourceChanged = false;
 		if (content.getType() == ContentType.TV_SEASON
 			&& !request.getParentContentId().isPresent()
 			&& !request.isCreateNewSeries()
 			&& (request.getSeriesTitle().isPresent()
-			|| request.getOriginalTitle().isPresent())) {
+			|| request.getEnglishTitle().isPresent())) {
 			Content parent = contentRepository.findByIdForUpdate(tvSeasonContext.parent().getId())
 				.orElseThrow(() -> new ContentNotFoundException(
 					tvSeasonContext.parent().getId()));
 			String parentTitle = value(request.getSeriesTitle(), parent.getTitle());
-			Map<String, Object> parentMetadata = updateOriginalTitle(
-				parent.getMetadata(), request.getOriginalTitle());
+			Map<String, Object> parentMetadata = updateEnglishTitle(
+				parent.getMetadata(), request.getEnglishTitle());
+			parentEmbeddingSourceChanged = !Objects.equals(parentTitle, parent.getTitle());
 			parentSearchSourceChanged = !Objects.equals(parentTitle, parent.getTitle())
 				|| !Objects.equals(parentMetadata, parent.getMetadata());
 			if (parentSearchSourceChanged) {
 				parent.updateCommonDetails(parentTitle, null, null, parentMetadata);
 			}
 		} else {
-			metadata = updateOriginalTitle(content.getMetadata(), request.getOriginalTitle());
+			metadata = updateEnglishTitle(content.getMetadata(), request.getEnglishTitle());
 		}
 		boolean searchSourceChanged = embeddingSourceChanged
 			|| !Objects.equals(metadata, content.getMetadata());
@@ -419,9 +421,12 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		if (parentSearchSourceChanged) {
 			Content parent = tvSeasonContext.parent();
 			publishContentLifecycleEvent(parent.getId(), ContentLifecycleEvent.Type.UPSERTED);
+			boolean markEmbeddingSourceUpdated = parentEmbeddingSourceChanged;
 			contentRepository.findAllByParentContent_IdAndHiddenFalseOrderBySeasonNumberAsc(parent.getId())
 				.forEach(season -> {
-					season.markEmbeddingSourceUpdated();
+					if (markEmbeddingSourceUpdated) {
+						season.markEmbeddingSourceUpdated();
+					}
 					publishContentLifecycleEvent(
 						season.getId(), ContentLifecycleEvent.Type.UPSERTED);
 				});
@@ -458,8 +463,9 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 
 	private ContentResponse updateSeries(Content content, ContentUpdateRequest request) {
 		String title = value(request.getTitle(), content.getTitle());
-		Map<String, Object> metadata = updateOriginalTitle(
-			content.getMetadata(), request.getOriginalTitle());
+		Map<String, Object> metadata = updateEnglishTitle(
+			content.getMetadata(), request.getEnglishTitle());
+		boolean embeddingSourceChanged = !Objects.equals(title, content.getTitle());
 		boolean searchSourceChanged = !Objects.equals(title, content.getTitle())
 			|| !Objects.equals(metadata, content.getMetadata());
 		content.updateCommonDetails(title, null, null, metadata);
@@ -468,7 +474,9 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			publishContentLifecycleEvent(content.getId(), ContentLifecycleEvent.Type.UPSERTED);
 			contentRepository.findAllByParentContent_IdAndHiddenFalseOrderBySeasonNumberAsc(content.getId())
 				.forEach(season -> {
-					season.markEmbeddingSourceUpdated();
+					if (embeddingSourceChanged) {
+						season.markEmbeddingSourceUpdated();
+					}
 					publishContentLifecycleEvent(
 						season.getId(), ContentLifecycleEvent.Type.UPSERTED);
 				});
@@ -478,6 +486,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			.type(content.getType())
 			.title(content.getTitle())
 			.originalTitle(content.getOriginalTitle())
+			.englishTitle(content.getEnglishTitle())
 			.createdAt(content.getCreatedAt())
 			.updatedAt(content.getUpdatedAt())
 			.build();
@@ -545,7 +554,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			targetParent = Content.builder()
 				.title(seriesTitle)
 				.type(ContentType.TV_SERIES)
-				.metadata(originalTitleMetadata(request.getOriginalTitle().orElse(null)))
+				.metadata(englishTitleMetadata(request.getEnglishTitle().orElse(null)))
 				.build();
 			contentRepository.save(targetParent);
 			activatedParentId = targetParent.getId();
@@ -625,9 +634,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		}
 		if (!Objects.equals(value(request.getTitle(), content.getTitle()), content.getTitle())
 			|| !Objects.equals(
-				value(request.getDescription(), content.getDescription()), content.getDescription())
-			|| !Objects.equals(
-				value(request.getOriginalTitle(), content.getOriginalTitle()), content.getOriginalTitle())) {
+				value(request.getDescription(), content.getDescription()), content.getDescription())) {
 			return true;
 		}
 		if (request.getGenreIds().isPresent()) {
@@ -686,7 +693,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 				|| request.getRuntime().isPresent()
 				|| request.getSeasonNumber().isPresent()
 				|| request.getEpisodeCount().isPresent()
-				|| request.getOriginalTitle().isPresent()
+				|| request.getEnglishTitle().isPresent()
 				|| request.getGenreIds().isPresent()
 				|| request.getManualTags().isPresent()
 				|| request.getCasts().isPresent()
@@ -706,7 +713,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 				}
 			} else if (request.getParentContentId().isPresent()
 				&& (request.getSeriesTitle().isPresent()
-				|| request.getOriginalTitle().isPresent())) {
+				|| request.getEnglishTitle().isPresent())) {
 				throw new InvalidContentSearchException();
 			}
 		}
@@ -1082,7 +1089,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		Content series = Content.builder()
 			.title(request.getTitle())
 			.type(ContentType.TV_SERIES)
-			.metadata(originalTitleMetadata(request.getOriginalTitle()))
+			.metadata(englishTitleMetadata(request.getEnglishTitle()))
 			.build();
 		contentRepository.save(series);
 		List<UUID> seasonIds = new ArrayList<>();
@@ -1147,7 +1154,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 			.releaseDate(request.getType() == ContentType.SPORT ? null : request.getReleaseDate())
 			.runtime(request.getType() == ContentType.MOVIE ? request.getRuntime() : null)
 			.metadata(request.getType() == ContentType.MOVIE
-				? originalTitleMetadata(request.getOriginalTitle()) : null)
+				? englishTitleMetadata(request.getEnglishTitle()) : null)
 			.build();
 		return content;
 	}
@@ -1442,27 +1449,27 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		contentCastRepository.saveAll(relations);
 	}
 
-	private static Map<String, Object> originalTitleMetadata(String originalTitle) {
-		return originalTitle == null
+	private static Map<String, Object> englishTitleMetadata(String englishTitle) {
+		return englishTitle == null
 			? null
-			: Map.of(ORIGINAL_TITLE_METADATA_KEY, originalTitle);
+			: Map.of(ENGLISH_TITLE_METADATA_KEY, englishTitle);
 	}
 
-	private static Map<String, Object> updateOriginalTitle(
+	private static Map<String, Object> updateEnglishTitle(
 		Map<String, Object> currentMetadata,
-		JsonNullable<String> originalTitle
+		JsonNullable<String> englishTitle
 	) {
-		if (!originalTitle.isPresent()) {
+		if (!englishTitle.isPresent()) {
 			return currentMetadata;
 		}
 		Map<String, Object> updated = currentMetadata == null
 			? new LinkedHashMap<>()
 			: new LinkedHashMap<>(currentMetadata);
-		String value = originalTitle.orElse(null);
+		String value = englishTitle.orElse(null);
 		if (value == null) {
-			updated.remove(ORIGINAL_TITLE_METADATA_KEY);
+			updated.remove(ENGLISH_TITLE_METADATA_KEY);
 		} else {
-			updated.put(ORIGINAL_TITLE_METADATA_KEY, value);
+			updated.put(ENGLISH_TITLE_METADATA_KEY, value);
 		}
 		return updated.isEmpty() ? null : updated;
 	}

@@ -3,10 +3,12 @@ package com.moduplaylist.infrastructure.opensearch.content;
 import com.moduplaylist.core.content.exception.ContentSearchUnavailableException;
 import com.moduplaylist.infrastructure.opensearch.config.OpenSearchProperties;
 import java.io.IOException;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch._types.FieldValue;
@@ -24,6 +26,7 @@ public class ContentKeywordSearchRepository {
 
 	private static final int MAX_RESULTS = 100;
 	private static final String TV_SERIES_TYPE = "tvSeries";
+	private static final Pattern COMBINING_MARKS = Pattern.compile("\\p{M}+");
 
 	private final OpenSearchClient openSearchClient;
 	private final OpenSearchProperties properties;
@@ -33,7 +36,7 @@ public class ContentKeywordSearchRepository {
 	}
 
 	public List<ContentAutocompleteCandidate> findAutocompleteCandidates(String query, int limit) {
-		String normalizedQuery = query.toLowerCase(Locale.ROOT);
+		String normalizedQuery = normalizeAutocompleteText(query);
 		Query exactMatch = Query.of(q -> q.term(term -> term
 			.field("suggestions.text.normalized")
 			.value(FieldValue.of(normalizedQuery))));
@@ -96,7 +99,7 @@ public class ContentKeywordSearchRepository {
 		if (term == null || term.text() == null) {
 			return null;
 		}
-		String text = term.text().toLowerCase(Locale.ROOT);
+		String text = normalizeAutocompleteText(term.text());
 		if (!text.contains(query)) {
 			return null;
 		}
@@ -104,21 +107,28 @@ public class ContentKeywordSearchRepository {
 		return new ContentAutocompleteCandidate(contentId, term.text(), term.type(), matchRank);
 	}
 
+	private String normalizeAutocompleteText(String text) {
+		String decomposed = Normalizer.normalize(text, Normalizer.Form.NFD);
+		return COMBINING_MARKS.matcher(decomposed)
+			.replaceAll("")
+			.toLowerCase(Locale.ROOT);
+	}
+
 	private ContentKeywordSearchResult search(String keyword, String contentType) {
 		Query titleExact = scopedQuery(Query.of(q -> q.bool(bool -> bool
 			.should(should -> should.term(term -> term
 				.field("title.keyword")
-				.value(FieldValue.of(keyword))
-				.caseInsensitive(true)))
+				.value(FieldValue.of(keyword))))
 			.should(should -> should.term(term -> term
 				.field("seriesTitle.keyword")
-				.value(FieldValue.of(keyword))
-				.caseInsensitive(true)))
+				.value(FieldValue.of(keyword))))
+			.should(should -> should.term(term -> term
+				.field("englishTitle.keyword")
+				.value(FieldValue.of(keyword))))
 			.minimumShouldMatch("1"))), contentType);
 		Query originalTitleExact = scopedQuery(Query.of(q -> q.term(term -> term
 			.field("originalTitle.keyword")
-			.value(FieldValue.of(keyword))
-			.caseInsensitive(true))), contentType);
+			.value(FieldValue.of(keyword)))), contentType);
 		Query titlePhrasePrefix = scopedQuery(Query.of(q -> q.bool(bool -> bool
 			.should(should -> should.matchPhrase(match -> match
 				.field("title")
@@ -128,6 +138,10 @@ public class ContentKeywordSearchRepository {
 				.field("seriesTitle")
 				.query(keyword)
 				.boost(30.0f)))
+			.should(should -> should.matchPhrase(match -> match
+				.field("englishTitle")
+				.query(keyword)
+				.boost(30.0f)))
 			.should(should -> should.matchPhrasePrefix(match -> match
 				.field("title")
 				.query(keyword)
@@ -138,17 +152,28 @@ public class ContentKeywordSearchRepository {
 				.query(keyword)
 				.maxExpansions(50)
 				.boost(20.0f)))
+			.should(should -> should.matchPhrasePrefix(match -> match
+				.field("englishTitle")
+				.query(keyword)
+				.maxExpansions(50)
+				.boost(20.0f)))
 			.minimumShouldMatch("1"))), contentType);
-		Query bm25 = scopedQuery(Query.of(q -> q.bool(bool -> bool
-			.should(should -> should.multiMatch(multiMatch -> multiMatch
+		Query synonymBm25 = Query.of(q -> q.multiMatch(multiMatch -> multiMatch
 				.query(keyword)
 				.analyzer("content_synonym_search")
-				.fields("title^10", "seriesTitle^10", "originalTitle^8", "tagSearch^5")))
-			.should(should -> should.multiMatch(multiMatch -> multiMatch
+				.fields(
+					"title^10",
+					"seriesTitle^10",
+					"englishTitle^10",
+					"originalTitle^8",
+					"tagSearch^5"
+				)));
+		Query nativeBm25 = Query.of(q -> q.multiMatch(multiMatch -> multiMatch
 				.query(keyword)
 				.fields(
 					"title^10",
 					"seriesTitle^10",
+					"englishTitle^10",
 					"originalTitle^8",
 					"tagSearch^5",
 					"castNames^3",
@@ -160,8 +185,10 @@ public class ContentKeywordSearchRepository {
 					"season",
 					"homeTeamName",
 					"awayTeamName"
-				)))
-			.minimumShouldMatch("1"))), contentType);
+				)));
+		Query bm25 = scopedQuery(Query.of(q -> q.disMax(disMax -> disMax
+			.queries(synonymBm25, nativeBm25)
+			.tieBreaker(0.0))), contentType);
 
 		try {
 			MsearchResponse<Void> response = openSearchClient.msearch(request -> request

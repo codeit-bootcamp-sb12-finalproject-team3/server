@@ -3,7 +3,6 @@ package com.moduplaylist.api.content.event;
 import com.moduplaylist.infrastructure.kafka.KafkaTopics;
 import com.moduplaylist.infrastructure.kafka.event.ContentDeleted;
 import com.moduplaylist.infrastructure.kafka.event.ContentUpserted;
-import com.moduplaylist.infrastructure.opensearch.content.ContentIndexSource;
 import com.moduplaylist.infrastructure.opensearch.content.ContentIndexSynchronizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,8 +15,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Component
 @RequiredArgsConstructor
 public class ContentLifecycleEventListener {
-	private static final int INDEX_SYNC_MAX_ATTEMPTS = 3;
-
 	private final KafkaTemplate<String, Object> kafkaTemplate;
 	private final ContentIndexSynchronizer contentIndexSynchronizer;
 
@@ -47,64 +44,12 @@ public class ContentLifecycleEventListener {
 				event.eventId(), event.type(), event.contentId(), exception);
 		}
 
-		ContentIndexSource source = loadSource(event);
-		if (source == null) {
-			return;
-		}
-		synchronizeAutocomplete(event, source);
-		synchronizeSearchDocument(event, source);
-	}
-
-	private ContentIndexSource loadSource(ContentLifecycleEvent event) {
-		for (int attempt = 1; attempt <= INDEX_SYNC_MAX_ATTEMPTS; attempt++) {
-			try {
-				return contentIndexSynchronizer.load(event.contentId());
-			} catch (RuntimeException exception) {
-				if (attempt == INDEX_SYNC_MAX_ATTEMPTS) {
-					log.warn(
-						"콘텐츠 색인 원본 조회에 최종 실패했습니다. "
-							+ "eventId={}, type={}, contentId={}, attempts={}",
-						event.eventId(), event.type(), event.contentId(), attempt, exception);
-				}
-			}
-		}
-		return null;
-	}
-
-	private void synchronizeAutocomplete(
-		ContentLifecycleEvent event,
-		ContentIndexSource source
-	) {
-		for (int attempt = 1; attempt <= INDEX_SYNC_MAX_ATTEMPTS; attempt++) {
-			try {
-				contentIndexSynchronizer.synchronizeAutocomplete(source);
-				return;
-			} catch (RuntimeException exception) {
-				if (attempt == INDEX_SYNC_MAX_ATTEMPTS) {
-					log.warn(
-						"자동완성 인덱스 동기화에 최종 실패했습니다. eventId={}, type={}, contentId={}, attempts={}",
-						event.eventId(), event.type(), event.contentId(), attempt, exception);
-				}
-			}
-		}
-	}
-
-	private void synchronizeSearchDocument(
-		ContentLifecycleEvent event,
-		ContentIndexSource source
-	) {
-		for (int attempt = 1; attempt <= INDEX_SYNC_MAX_ATTEMPTS; attempt++) {
-			try {
-				contentIndexSynchronizer.synchronizeSearch(source);
-				return;
-			} catch (RuntimeException exception) {
-				if (attempt == INDEX_SYNC_MAX_ATTEMPTS) {
-					log.warn(
-						"콘텐츠 검색 문서 동기화에 최종 실패했습니다. "
-							+ "eventId={}, type={}, contentId={}, attempts={}",
-						event.eventId(), event.type(), event.contentId(), attempt, exception);
-				}
-			}
+		try {
+			contentIndexSynchronizer.synchronize(event.contentId());
+		} catch (RuntimeException exception) {
+			log.warn(
+				"콘텐츠 인덱스 동기화에 최종 실패했습니다. eventId={}, type={}, contentId={}",
+				event.eventId(), event.type(), event.contentId(), exception);
 		}
 	}
 }

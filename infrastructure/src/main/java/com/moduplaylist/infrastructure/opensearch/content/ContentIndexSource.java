@@ -10,6 +10,7 @@ public record ContentIndexSource(
     ContentType type,
     String title,
     String originalTitle,
+    String englishTitle,
     String seriesTitle,
     Integer seasonNumber,
     String description,
@@ -25,9 +26,40 @@ public record ContentIndexSource(
         tags = tags == null ? List.of() : List.copyOf(tags);
     }
 
+    public ContentIndexSource(
+        UUID contentId,
+        boolean indexable,
+        ContentType type,
+        String title,
+        String originalTitle,
+        String seriesTitle,
+        Integer seasonNumber,
+        String description,
+        List<String> castNames,
+        List<String> genres,
+        List<String> tags,
+        SportFields sport
+    ) {
+        this(
+            contentId,
+            indexable,
+            type,
+            title,
+            originalTitle,
+            null,
+            seriesTitle,
+            seasonNumber,
+            description,
+            castNames,
+            genres,
+            tags,
+            sport
+        );
+    }
+
     public static ContentIndexSource notIndexable(UUID contentId) {
         return new ContentIndexSource(
-                contentId, false, null, null, null, null, null, null,
+                contentId, false, null, null, null, null, null, null, null,
                 List.of(), List.of(), List.of(), null);
     }
 

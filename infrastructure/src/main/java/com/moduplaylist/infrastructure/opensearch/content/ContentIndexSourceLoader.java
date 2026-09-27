@@ -63,6 +63,7 @@ public class ContentIndexSourceLoader {
                 content.getType(),
                 content.getTitle(),
                 parent == null ? content.getOriginalTitle() : parent.getOriginalTitle(),
+                englishTitle(content, parent),
                 parent == null ? null : parent.getTitle(),
                 content.getSeasonNumber(),
                 content.getDescription(),
@@ -71,6 +72,14 @@ public class ContentIndexSourceLoader {
                 tags,
                 sport
         );
+    }
+
+    private String englishTitle(Content content, Content parent) {
+        if (parent == null) {
+            return content.getEnglishTitle();
+        }
+        String parentEnglishTitle = parent.getEnglishTitle();
+        return parentEnglishTitle == null ? content.getEnglishTitle() : parentEnglishTitle;
     }
 
     private ContentIndexSource.SportFields sportFields(SportEvent event) {

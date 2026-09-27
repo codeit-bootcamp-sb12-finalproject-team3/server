@@ -14,6 +14,7 @@ public class ContentSearchFields {
     private String title;
     private String seriesTitle;
     private String originalTitle;
+    private String englishTitle;
     private List<String> castNames;
     private String description;
     private Boolean hidden;

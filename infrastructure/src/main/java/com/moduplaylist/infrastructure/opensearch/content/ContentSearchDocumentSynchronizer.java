@@ -1,5 +1,6 @@
 package com.moduplaylist.infrastructure.opensearch.content;
 
+import com.moduplaylist.core.content.entity.ContentType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ public class ContentSearchDocumentSynchronizer {
                 .title(source.title())
                 .seriesTitle(source.seriesTitle())
                 .originalTitle(source.originalTitle())
+                .englishTitle(searchEnglishTitle(source))
                 .castNames(source.castNames())
                 .description(source.description())
                 .hidden(false)
@@ -40,5 +42,14 @@ public class ContentSearchDocumentSynchronizer {
                 .homeTeamName(sport == null ? null : sport.homeTeamName())
                 .awayTeamName(sport == null ? null : sport.awayTeamName())
                 .build());
+    }
+
+    private String searchEnglishTitle(ContentIndexSource source) {
+        if (source.type() != ContentType.TV_SEASON
+                || source.englishTitle() == null
+                || source.seasonNumber() == null) {
+            return source.englishTitle();
+        }
+        return source.englishTitle() + " Season " + source.seasonNumber();
     }
 }

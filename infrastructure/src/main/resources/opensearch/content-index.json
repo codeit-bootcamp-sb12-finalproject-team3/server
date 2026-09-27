@@ -9,7 +9,7 @@
       "normalizer": {
         "content_exact": {
           "type": "custom",
-          "filter": ["lowercase"]
+          "filter": ["lowercase", "asciifolding"]
         }
       },
       "tokenizer": {
@@ -38,6 +38,11 @@
           "type": "custom",
           "tokenizer": "content_nori_tokenizer",
           "filter": ["lowercase"]
+        },
+        "content_english": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "asciifolding"]
         },
         "content_synonym_search": {
           "type": "custom",
@@ -78,6 +83,18 @@
       },
       "originalTitle": {
         "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "content_exact",
+            "ignore_above": 255
+          }
+        }
+      },
+      "englishTitle": {
+        "type": "text",
+        "analyzer": "content_english",
+        "search_analyzer": "content_english",
         "fields": {
           "keyword": {
             "type": "keyword",
