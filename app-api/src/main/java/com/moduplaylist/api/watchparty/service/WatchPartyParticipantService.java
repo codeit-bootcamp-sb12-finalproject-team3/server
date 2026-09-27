@@ -34,6 +34,7 @@ public class WatchPartyParticipantService {
     private final WatchPartyJoinedRegistry watchPartyJoinedRegistry;
     private final WatchPartyActivePartyRegistry watchPartyActivePartyRegistry;
     private final ApplicationEventPublisher eventPublisher;
+    private final WatchPartyGhostCleaner watchPartyGhostCleaner;
 
     public void joinWatchParty(UUID partyId, UUID userId) {
 
@@ -41,9 +42,14 @@ public class WatchPartyParticipantService {
             throw new WatchPartyKickedCannotRejoinException(partyId, userId);
         }
 
-        if (watchPartyParticipantRepository.existsByUser_IdAndStatusAndWatchParty_IdNotAndWatchParty_StatusNot(
-                userId, ParticipantStatus.JOINED, partyId, WatchPartyStatus.ENDED)) {
-            throw new WatchPartyAlreadyJoinedElsewhereException(userId, partyId);
+        // 다른 방에 JOINED가 남아 있으면: 유령이면 정리하고 진행, 실제로 보고 있으면 차단
+        Optional<WatchPartyParticipant> joinedElsewhere = watchPartyParticipantRepository
+                .findFirstByUser_IdAndStatusAndWatchParty_IdNotAndWatchParty_StatusNot(
+                        userId, ParticipantStatus.JOINED, partyId, WatchPartyStatus.ENDED);
+        if (joinedElsewhere.isPresent()
+                && !watchPartyGhostCleaner.cleanUpIfGhost(joinedElsewhere.get())) {
+            throw new WatchPartyAlreadyJoinedElsewhereException(
+                    userId, partyId, joinedElsewhere.get().getWatchParty().getId());
         }
 
         WatchParty party = watchPartyRepository.findByIdForUpdate(partyId)
@@ -95,12 +101,21 @@ public class WatchPartyParticipantService {
 
 
     private void validateCapacity(WatchParty party) {
-        long currentCount = watchPartyParticipantRepository
-                .countByWatchParty_IdAndStatus(party.getId(), ParticipantStatus.JOINED);
+        long currentCount = countJoined(party.getId());
+
+        // 가득 찼으면 유령만 정리하고 다시 센다 (#167). 방 락(findByIdForUpdate) 안에서 실행됨
+        if (currentCount >= party.getMaxParticipants()
+                && watchPartyGhostCleaner.cleanUpGhostsInParty(party.getId()) > 0) {
+            currentCount = countJoined(party.getId());
+        }
 
         if (currentCount >= party.getMaxParticipants()) {
             throw new WatchPartyCapacityFullException(party.getId());
         }
+    }
+
+    private long countJoined(UUID partyId) {
+        return watchPartyParticipantRepository.countByWatchParty_IdAndStatus(partyId, ParticipantStatus.JOINED);
     }
 
     public void leaveWatchParty(UUID partyId, UUID userId) {

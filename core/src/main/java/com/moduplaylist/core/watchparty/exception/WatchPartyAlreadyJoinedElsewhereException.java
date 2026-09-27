@@ -6,9 +6,10 @@ import com.moduplaylist.core.common.exception.ErrorCode;
 import java.util.UUID;
 
 public class WatchPartyAlreadyJoinedElsewhereException extends BaseException {
-    public WatchPartyAlreadyJoinedElsewhereException(UUID userId, UUID partyId) {
+    public WatchPartyAlreadyJoinedElsewhereException(UUID userId, UUID partyId, UUID joinedPartyId) {
         super(ErrorCode.WATCHPARTY_ALREADY_JOINED_ELSEWHERE);
         addDetail("userId", userId);
         addDetail("partyId", partyId);
+        addDetail("joinedPartyId", joinedPartyId);
     }
 }
