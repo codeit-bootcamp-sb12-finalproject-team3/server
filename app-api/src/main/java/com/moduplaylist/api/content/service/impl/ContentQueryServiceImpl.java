@@ -24,6 +24,8 @@ import com.moduplaylist.api.content.dto.SportDetail;
 import com.moduplaylist.api.content.dto.TvSeasonDetail;
 import com.moduplaylist.api.content.dto.EpisodeResponse;
 import com.moduplaylist.api.content.service.ContentQueryService;
+import com.moduplaylist.api.content.service.ContentSemanticSearchProperties;
+import com.moduplaylist.api.content.service.ContentSemanticSearchService;
 import com.moduplaylist.api.content.service.ContentSummaryResponseAssembler;
 import com.moduplaylist.api.content.service.ContentViewActivityService;
 import com.moduplaylist.api.content.service.ContentAutocompletePopularityScoreProvider;
@@ -58,6 +60,7 @@ import com.moduplaylist.core.content.repository.PlatformRepository;
 import com.moduplaylist.core.playlist.repository.PlaylistSearch;
 import com.moduplaylist.infrastructure.opensearch.content.ContentKeywordSearchRepository;
 import com.moduplaylist.infrastructure.opensearch.content.ContentKeywordSearchResult;
+import com.moduplaylist.infrastructure.opensearch.content.ContentSimilarityCandidate;
 import com.moduplaylist.infrastructure.opensearch.content.ContentAutocompleteCandidate;
 import com.moduplaylist.infrastructure.redis.content.ContentSearchSnapshotRepository;
 import com.moduplaylist.infrastructure.redis.recommendation.ContentRecommendationRedisRepository;
@@ -103,6 +106,8 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	private final PlaylistQueryService playlistQueryService;
 	private final WatchPartyService watchPartyService;
 	private final ObjectProvider<ContentKeywordSearchRepository> keywordSearchRepositoryProvider;
+	private final ContentSemanticSearchService semanticSearchService;
+	private final ContentSemanticSearchProperties semanticSearchProperties;
 	private final ObjectProvider<ContentAutocompletePopularityScoreProvider>
 		popularityScoreProvider;
 	private final ContentSearchSnapshotRepository contentSearchSnapshotRepository;
@@ -189,13 +194,18 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		if (snapshotId == null) {
 			ContentKeywordSearchResult matches = findKeywordMatches(
 				request.getKeywordLike(), contentType);
+			List<ContentSimilarityCandidate> semanticMatches = semanticSearchService.search(
+				request.getKeywordLike(), contentType);
 			LinkedHashSet<UUID> candidateIds = new LinkedHashSet<>();
 			candidateIds.addAll(matches.titleExactIds());
 			candidateIds.addAll(matches.originalTitleExactIds());
 			candidateIds.addAll(matches.titlePhrasePrefixIds());
 			candidateIds.addAll(matches.bm25Ids());
+			semanticMatches.stream()
+				.map(ContentSimilarityCandidate::contentId)
+				.forEach(candidateIds::add);
 			visibleById = loadVisibleContents(candidateIds);
-			orderedIds = orderKeywordMatches(matches, visibleById, sort);
+			orderedIds = orderHybridMatches(matches, semanticMatches, visibleById, sort);
 		} else {
 			orderedIds = contentSearchSnapshotRepository.find(snapshotId, signature)
 				.orElseThrow(InvalidContentSearchException::new);
@@ -247,8 +257,9 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		return visibleById;
 	}
 
-	private List<UUID> orderKeywordMatches(
+	private List<UUID> orderHybridMatches(
 		ContentKeywordSearchResult matches,
+		List<ContentSimilarityCandidate> semanticMatches,
 		Map<UUID, Content> visibleById,
 		ContentSort sort
 	) {
@@ -256,15 +267,48 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		addSortedGroup(orderedIds, matches.titleExactIds(), visibleById, sort);
 		addSortedGroup(orderedIds, matches.originalTitleExactIds(), visibleById, sort);
 		addSortedGroup(orderedIds, matches.titlePhrasePrefixIds(), visibleById, sort);
-		for (UUID contentId : matches.bm25Ids()) {
-			if (visibleById.containsKey(contentId)) {
-				orderedIds.add(contentId);
-				if (orderedIds.size() == 100) {
-					break;
+
+		Map<UUID, Double> fusedScores = new HashMap<>();
+		addRrfScores(
+			fusedScores,
+			matches.bm25Ids(),
+			semanticSearchProperties.getKeywordWeight()
+		);
+		addRrfScores(
+			fusedScores,
+			semanticMatches.stream()
+				.map(ContentSimilarityCandidate::contentId)
+				.toList(),
+			semanticSearchProperties.getSemanticWeight()
+		);
+
+		Comparator<Content> tieBreaker = keywordGroupComparator(sort);
+		fusedScores.keySet().stream()
+			.filter(visibleById::containsKey)
+			.sorted((left, right) -> {
+				int scoreComparison = Double.compare(
+					fusedScores.get(right), fusedScores.get(left));
+				if (scoreComparison != 0) {
+					return scoreComparison;
 				}
-			}
-		}
+				return tieBreaker.compare(visibleById.get(left), visibleById.get(right));
+			})
+			.filter(contentId -> orderedIds.size() < 100)
+			.forEach(orderedIds::add);
 		return List.copyOf(orderedIds);
+	}
+
+	private void addRrfScores(
+		Map<UUID, Double> scores,
+		List<UUID> rankedIds,
+		double weight
+	) {
+		int rrfK = Math.max(1, semanticSearchProperties.getRrfK());
+		double effectiveWeight = Math.max(0.0, weight);
+		for (int index = 0; index < rankedIds.size(); index++) {
+			double score = effectiveWeight / (rrfK + index + 1.0);
+			scores.merge(rankedIds.get(index), score, Double::sum);
+		}
 	}
 
 	private void addSortedGroup(

@@ -56,6 +56,21 @@
               }
             }
           },
+          "compactText": {
+            "type": "text",
+            "fields": {
+              "autocomplete": {
+                "type": "text",
+                "analyzer": "content_autocomplete_index",
+                "search_analyzer": "content_autocomplete_search"
+              },
+              "normalized": {
+                "type": "keyword",
+                "normalizer": "content_title_sort",
+                "ignore_above": 255
+              }
+            }
+          },
           "type": {
             "type": "keyword"
           }

@@ -89,6 +89,14 @@ mopl:
     enabled: ${EMBEDDING_ENABLED:true}
     model: text-embedding-3-small
     dimensions: 1536
+  search:
+    semantic:
+      enabled: ${SEMANTIC_SEARCH_ENABLED:true}
+      candidate-limit: ${SEMANTIC_SEARCH_CANDIDATE_LIMIT:100}
+      minimum-query-length: ${SEMANTIC_SEARCH_MINIMUM_QUERY_LENGTH:3}
+      rrf-k: ${SEMANTIC_SEARCH_RRF_K:60}
+      keyword-weight: ${SEMANTIC_SEARCH_KEYWORD_WEIGHT:1.0}
+      semantic-weight: ${SEMANTIC_SEARCH_SEMANTIC_WEIGHT:0.7}
   opensearch:
     enabled: ${OPENSEARCH_ENABLED:true}
     content-initial-indexing-enabled: ${CONTENT_INITIAL_INDEXING_ENABLED:false}

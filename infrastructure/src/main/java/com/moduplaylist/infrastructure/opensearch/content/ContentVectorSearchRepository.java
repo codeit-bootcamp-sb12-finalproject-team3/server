@@ -1,5 +1,6 @@
 package com.moduplaylist.infrastructure.opensearch.content;
 
+import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.infrastructure.opensearch.config.OpenSearchProperties;
 import java.io.IOException;
 import java.util.Collection;
@@ -33,8 +34,20 @@ public class ContentVectorSearchRepository {
             Collection<UUID> excludedContentIds,
             int limit
     ) {
+        return findNearest(queryVector, null, excludedContentIds, limit);
+    }
+
+    public List<ContentSimilarityCandidate> findNearest(
+            float[] queryVector,
+            ContentType contentType,
+            Collection<UUID> excludedContentIds,
+            int limit
+    ) {
         validate(queryVector, limit);
-        Query filter = buildFilter(excludedContentIds);
+        if (contentType != null && !contentType.isPersonalizable()) {
+            return List.of();
+        }
+        Query filter = buildFilter(contentType, excludedContentIds);
 
         try {
             SearchResponse<Void> response = openSearchClient.search(request -> request
@@ -59,7 +72,10 @@ public class ContentVectorSearchRepository {
         }
     }
 
-    private Query buildFilter(Collection<UUID> excludedContentIds) {
+    private Query buildFilter(
+            ContentType contentType,
+            Collection<UUID> excludedContentIds
+    ) {
         List<String> excludedIds = excludedContentIds == null
                 ? List.of()
                 : excludedContentIds.stream()
@@ -72,13 +88,19 @@ public class ContentVectorSearchRepository {
                     .field(HIDDEN_FIELD)
                     .value(FieldValue.of(false))));
 
-            bool.mustNot(typeQuery -> typeQuery.term(term -> term
-                    .field(TYPE_FIELD)
-                    .value(FieldValue.of(TV_SERIES_TYPE))));
+            if (contentType == null) {
+                bool.mustNot(typeQuery -> typeQuery.term(term -> term
+                        .field(TYPE_FIELD)
+                        .value(FieldValue.of(TV_SERIES_TYPE))));
 
-            bool.mustNot(typeQuery -> typeQuery.term(term -> term
-                    .field(TYPE_FIELD)
-                    .value(FieldValue.of(SPORT_TYPE))));
+                bool.mustNot(typeQuery -> typeQuery.term(term -> term
+                        .field(TYPE_FIELD)
+                        .value(FieldValue.of(SPORT_TYPE))));
+            } else {
+                bool.filter(typeQuery -> typeQuery.term(term -> term
+                        .field(TYPE_FIELD)
+                        .value(FieldValue.of(contentType.getValue()))));
+            }
 
             if (!excludedIds.isEmpty()) {
                 bool.mustNot(idsQuery ->
