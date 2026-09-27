@@ -80,7 +80,8 @@ public class SecurityConfig {
 
       return "/api/auth/login".equals(path)
           || "/api/auth/refresh".equals(path)
-          || "/api/auth/logout".equals(path);
+          || "/api/auth/logout".equals(path)
+          || "/api/auth/oauth/exchange".equals(path);
     };
 
     JwtAuthenticationFilter jwtAuthenticationFilter =
@@ -121,7 +122,8 @@ public class SecurityConfig {
                 HttpMethod.POST,
                 "/api/auth/login",
                 "/api/auth/refresh",
-                "/api/auth/logout"
+                "/api/auth/logout",
+                "/api/auth/oauth/exchange"
             ).permitAll()
             .requestMatchers(
                 HttpMethod.GET,
