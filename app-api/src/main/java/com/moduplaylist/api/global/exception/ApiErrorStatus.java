@@ -31,6 +31,8 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.USER_ALREADY_EXISTS, HttpStatus.CONFLICT);
         STATUS_MAP.put(ErrorCode.USER_PROFILE_ACCESS_DENIED, HttpStatus.FORBIDDEN);
         STATUS_MAP.put(ErrorCode.INVALID_USER_PROFILE_UPDATE, HttpStatus.BAD_REQUEST);
+        STATUS_MAP.put(ErrorCode.INVALID_OAUTH_ACCOUNT, HttpStatus.BAD_REQUEST);
+        STATUS_MAP.put(ErrorCode.INVALID_OAUTH2_LOGIN_CODE, HttpStatus.UNAUTHORIZED);
 
         STATUS_MAP.put(ErrorCode.CONTENT_NOT_FOUND, HttpStatus.NOT_FOUND);
         STATUS_MAP.put(ErrorCode.CONTENT_TYPE_NOT_VIEWABLE, HttpStatus.BAD_REQUEST);

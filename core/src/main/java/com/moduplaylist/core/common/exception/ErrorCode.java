@@ -24,6 +24,8 @@ public enum ErrorCode {
     USER_ALREADY_EXISTS("이미 가입된 사용자입니다."),
     USER_PROFILE_ACCESS_DENIED("프로필을 수정할 권한이 없습니다."),
     INVALID_USER_PROFILE_UPDATE("수정할 프로필 정보가 없습니다."),
+    INVALID_OAUTH_ACCOUNT("OAuth 계정 정보가 올바르지 않습니다."),
+    INVALID_OAUTH2_LOGIN_CODE("OAuth2 로그인 코드가 유효하지 않거나 만료되었습니다."),
 
     // Content
     CONTENT_NOT_FOUND("존재하지 않는 콘텐츠입니다."),
