@@ -35,13 +35,35 @@ public class WatchPartySubscriptionTerminator {
         this.brokerChannel = brokerChannel;
     }
 
+    // 강퇴: 한 사용자의 해당 파티 구독 해제 (#150)
     public void terminate(UUID partyId, UUID userId) {
         SimpUser user = simpUserRegistry.getUser(userId.toString());
         if (user == null) {
             return; // 이 인스턴스에 연결된 세션 없음
         }
+        int removed = unsubscribe(user, partyPrefix(partyId));
+        if (removed > 0) {
+            log.info("강퇴 사용자 구독 해제. partyId={}, userId={}, count={}", partyId, userId, removed);
+        }
+    }
 
-        String prefix = "/sub/watch-parties/" + partyId + "/";
+    // 종료: 이 인스턴스에 연결된 모든 사용자의 해당 파티 구독 해제 (#174)
+    public void terminateAll(UUID partyId) {
+        String prefix = partyPrefix(partyId);
+        int removed = 0;
+        for (SimpUser user : simpUserRegistry.getUsers()) {
+            removed += unsubscribe(user, prefix);
+        }
+        if (removed > 0) {
+            log.info("종료된 파티 구독 해제. partyId={}, count={}", partyId, removed);
+        }
+    }
+
+    private String partyPrefix(UUID partyId) {
+        return "/sub/watch-parties/" + partyId + "/";
+    }
+
+    private int unsubscribe(SimpUser user, String prefix) {
         int removed = 0;
         for (SimpSession session : user.getSessions()) {
             for (SimpSubscription subscription : session.getSubscriptions()) {
@@ -52,9 +74,7 @@ public class WatchPartySubscriptionTerminator {
                 }
             }
         }
-        if (removed > 0) {
-            log.info("강퇴 사용자 구독 해제. partyId={}, userId={}, count={}", partyId, userId, removed);
-        }
+        return removed;
     }
 
     private Message<byte[]> unsubscribeMessage(String sessionId, String subscriptionId) {

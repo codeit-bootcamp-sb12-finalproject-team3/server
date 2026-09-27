@@ -7,6 +7,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+
+import com.moduplaylist.realtime.watchparty.WatchPartyPlaybackRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.user.SimpSession;
@@ -23,13 +25,16 @@ public class WatchPartyHeartbeatScheduler {
 
     private final SimpUserRegistry simpUserRegistry;
     private final WatchPartyLastSeenRegistry lastSeenRegistry;
+    private final WatchPartyPlaybackRegistry playbackRegistry;
 
     public WatchPartyHeartbeatScheduler(
             SimpUserRegistry simpUserRegistry,
-            WatchPartyLastSeenRegistry lastSeenRegistry
+            WatchPartyLastSeenRegistry lastSeenRegistry,
+            WatchPartyPlaybackRegistry playbackRegistry
     ) {
         this.simpUserRegistry = simpUserRegistry;
         this.lastSeenRegistry = lastSeenRegistry;
+        this.playbackRegistry = playbackRegistry;
     }
 
     // 1분마다 "이 인스턴스에 연결된" 파티 구독자의 마지막 확인 시각 갱신.
@@ -39,6 +44,8 @@ public class WatchPartyHeartbeatScheduler {
     public void heartbeat() {
         try {
             Map<UUID, Set<UUID>> userIdsByPartyId = collectPartySubscribers();
+            // 서버측 UNSUBSCRIBE는 SimpUserRegistry에 반영되지 않아 종료 파티 구독이 계속 보인다 → 여기서 거른다
+            userIdsByPartyId.keySet().removeIf(this::isEndedSafely);
             if (userIdsByPartyId.isEmpty()) {
                 return;
             }
@@ -65,5 +72,14 @@ public class WatchPartyHeartbeatScheduler {
             }
         }
         return result;
+    }
+
+    private boolean isEndedSafely(UUID partyId) {
+        try {
+            return playbackRegistry.isEnded(partyId);
+        } catch (Exception e) {
+            log.warn("playback 상태 확인 실패 — 종료 아님으로 보고 하트비트 유지. partyId={}", partyId, e);
+            return false; // 확실하지 않으면 온라인
+        }
     }
 }

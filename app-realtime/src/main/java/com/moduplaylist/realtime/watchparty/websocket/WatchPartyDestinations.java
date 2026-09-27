@@ -4,8 +4,8 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-// 구독 경로에서 partyId를 꺼낸다 (하트비트 대상 판별용)
-final class WatchPartyDestinations {
+// 구독 경로·Redis 채널에서 partyId/UUID를 꺼낸다 (하트비트, SUBSCRIBE 리스너, playback 종료 처리)
+public final class WatchPartyDestinations {
 
     private static final Pattern PARTY_SUBSCRIPTION_PATTERN =
             Pattern.compile("^/sub/watch-parties/([^/]+)/.*$");
@@ -25,7 +25,7 @@ final class WatchPartyDestinations {
         return parseUuid(matcher.group(1));
     }
 
-    static UUID parseUuid(String value) {
+    public static UUID parseUuid(String value) {
         try {
             return UUID.fromString(value);
         } catch (IllegalArgumentException | NullPointerException invalid) {
