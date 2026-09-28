@@ -31,8 +31,10 @@ public class UpdateWatchPartyRequest {
     @Positive
     private Integer sessionDurationMinutes;
 
+    @Positive
     private Integer startEpisode;
 
+    @Positive
     private Integer endEpisode;
 
     @AssertTrue(message = "startEpisode/endEpisode는 둘 다 있거나 둘 다 없어야 합니다.")

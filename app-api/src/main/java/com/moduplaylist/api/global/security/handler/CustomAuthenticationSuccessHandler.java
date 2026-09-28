@@ -1,12 +1,12 @@
+
 package com.moduplaylist.api.global.security.handler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moduplaylist.api.auth.dto.TokenRefreshResult;
+import com.moduplaylist.api.auth.service.LoginTokenIssuer;
 import com.moduplaylist.api.global.security.CustomUserDetails;
 import com.moduplaylist.api.global.security.jwt.JwtDto;
-import com.moduplaylist.api.global.security.jwt.JwtTokenProvider;
 import com.moduplaylist.api.user.dto.UserResponse;
-import com.moduplaylist.core.user.repository.JwtRegistry;
-import com.nimbusds.jwt.JWTClaimsSet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -22,12 +22,10 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-public class CustomAuthenticationSuccessHandler
-    implements AuthenticationSuccessHandler {
+public class CustomAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
 
   private final ObjectMapper objectMapper;
-  private final JwtTokenProvider jwtTokenProvider;
-  private final JwtRegistry jwtRegistry;
+  private final LoginTokenIssuer loginTokenIssuer;
 
   @Value("${security.jwt.refresh-token-validity-seconds}")
   private long refreshTokenValiditySeconds;
@@ -41,31 +39,13 @@ public class CustomAuthenticationSuccessHandler
       HttpServletResponse response,
       Authentication authentication
   ) throws IOException {
-
-    CustomUserDetails userDetails =
-        (CustomUserDetails) authentication.getPrincipal();
+    CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
     UserResponse userResponse = userDetails.getUserResponse();
 
-    String accessToken =
-        jwtTokenProvider.generateAccessToken(userResponse.getId());
-    String refreshToken =
-        jwtTokenProvider.generateRefreshToken(userResponse.getId());
-
-    JWTClaimsSet accessClaims =
-        jwtTokenProvider.validateAccessToken(accessToken);
-    JWTClaimsSet refreshClaims =
-        jwtTokenProvider.validateRefreshToken(refreshToken);
-
-    // 새 로그인 정보를 저장하여 기존 로그인을 무효화한다.
-    jwtRegistry.register(
-        userResponse.getId(),
-        accessClaims.getJWTID(),
-        refreshClaims.getJWTID(),
-        refreshClaims.getExpirationTime().toInstant()
-    );
+    TokenRefreshResult tokens = loginTokenIssuer.issue(userResponse);
 
     ResponseCookie refreshCookie = ResponseCookie
-        .from("REFRESH_TOKEN", refreshToken)
+        .from("REFRESH_TOKEN", tokens.getRefreshToken())
         .httpOnly(true)
         .secure(cookieSecure)
         .sameSite("Lax")
@@ -79,7 +59,7 @@ public class CustomAuthenticationSuccessHandler
     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
     response.setCharacterEncoding(StandardCharsets.UTF_8.name());
 
-    JwtDto jwtDto = new JwtDto(userResponse, accessToken);
+    JwtDto jwtDto = new JwtDto(tokens.getUserDto(), tokens.getAccessToken());
     objectMapper.writeValue(response.getWriter(), jwtDto);
   }
 }
