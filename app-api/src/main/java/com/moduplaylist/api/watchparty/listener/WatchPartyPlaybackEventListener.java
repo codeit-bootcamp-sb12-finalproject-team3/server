@@ -29,6 +29,12 @@ public class WatchPartyPlaybackEventListener {
         } catch (Exception e) {
             log.error("Watch Party 시작 - Redis playback 반영 실패. partyId={}", event.partyId(), e);
         }
+
+        try {
+            watchPartyPlaybackBroadcaster.broadcastStarted(event.partyId(), event.playbackState());
+        } catch (Exception e) {
+            log.error("Watch Party 시작 - Redis Pub/Sub 브로드캐스트 실패. partyId={}", event.partyId(), e);
+        }
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)

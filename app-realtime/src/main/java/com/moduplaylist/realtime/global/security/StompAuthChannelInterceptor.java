@@ -38,6 +38,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     private final WatchPartyHostRegistry watchPartyHostRegistry;
     private final WatchPartyActivePartyRegistry watchPartyActivePartyRegistry;
     private final WatchPartyOnlineRegistry watchPartyOnlineRegistry;
+    private final WatchPartyPlaybackRegistry watchPartyPlaybackRegistry;
     private final SimpMessagingTemplate messagingTemplate;
 
     public StompAuthChannelInterceptor(
@@ -48,6 +49,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             WatchPartyHostRegistry watchPartyHostRegistry,
             WatchPartyActivePartyRegistry watchPartyActivePartyRegistry,
             WatchPartyOnlineRegistry watchPartyOnlineRegistry,
+            WatchPartyPlaybackRegistry watchPartyPlaybackRegistry,
             @Lazy SimpMessagingTemplate messagingTemplate
     ) {
         this.tokenVerifier = tokenVerifier;
@@ -57,6 +59,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         this.watchPartyHostRegistry = watchPartyHostRegistry;
         this.watchPartyActivePartyRegistry = watchPartyActivePartyRegistry;
         this.watchPartyOnlineRegistry = watchPartyOnlineRegistry;
+        this.watchPartyPlaybackRegistry = watchPartyPlaybackRegistry;
         this.messagingTemplate = messagingTemplate;
     }
 
@@ -120,6 +123,12 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         }
 
         if (watchPartyKickedRegistry.isKicked(partyId, userId)) {
+            return null;
+        }
+
+        // 종료된 파티는 재구독 불가. 키가 없으면(시작 전) 허용
+        if (watchPartyPlaybackRegistry.isEnded(partyId)) {
+            sendError(userId, "이미 종료된 Watch Party입니다.");
             return null;
         }
 

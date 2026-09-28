@@ -18,6 +18,11 @@ public final class WatchPartyRedisKey {
         return PREFIX + require(partyId) + ":online";
     }
 
+    // 하트비트: 파티별 사용자 마지막 확인 시각 (Hash, field=userId, value=epoch millis)
+    public static String lastSeen(UUID partyId) {
+        return PREFIX + require(partyId) + ":lastSeen";
+    }
+
     public static String kicked(UUID partyId) {
         return PREFIX + require(partyId) + ":kicked";
     }

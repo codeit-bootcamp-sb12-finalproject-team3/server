@@ -118,6 +118,20 @@ class WatchPartyServiceTest {
         );
     }
 
+    private CreateWatchPartyRequest buildRequestWithMax(int maxParticipants) {
+        return new CreateWatchPartyRequest(
+                contentId, "파티 제목", null, Instant.now().plusSeconds(3600),
+                maxParticipants, 120, null, null
+        );
+    }
+
+    private Content buildMovieContent() {
+        return Content.builder()
+                .title("영화 콘텐츠").type(ContentType.MOVIE)
+                .thumbnailUrl("https://example.com/thumb.png").build();
+    }
+
+
     // ===== 1. createWatchParty() =====
 
     // 케이스 1-1: 회차 범위 없음 → 통과
@@ -507,10 +521,85 @@ class WatchPartyServiceTest {
         assertThat(watchParty.getMaxParticipants()).isEqualTo(4);
     }
 
+    // ===== 6. 정원 상한 (MAX_PARTICIPANTS_LIMIT, #177) =====
 
-    // ===== 6. deleteWatchParty() =====
+    // 케이스 6-1: 생성 시 상한과 같으면(경계값) 통과
+    @Test
+    void createWatchParty_maxParticipants가_상한과_같으면_통과() {
+        CreateWatchPartyRequest request = buildRequestWithMax(WatchPartyService.MAX_PARTICIPANTS_LIMIT);
 
-    // 케이스 6-1: 정상 삭제
+        given(userRepository.findById(hostId)).willReturn(Optional.of(host));
+        given(contentRepository.findById(contentId)).willReturn(Optional.of(buildMovieContent()));
+        given(watchPartyRepository.save(any(WatchParty.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        assertThatCode(() -> watchPartyService.createWatchParty(hostId, request))
+                .doesNotThrowAnyException();
+    }
+
+    // 케이스 6-2: 생성 시 상한 초과 → 예외, 저장 안 함
+    @Test
+    void createWatchParty_maxParticipants가_상한초과면_예외() {
+        CreateWatchPartyRequest request = buildRequestWithMax(WatchPartyService.MAX_PARTICIPANTS_LIMIT + 1);
+
+        given(userRepository.findById(hostId)).willReturn(Optional.of(host));
+        given(contentRepository.findById(contentId)).willReturn(Optional.of(buildMovieContent()));
+
+        assertThatThrownBy(() -> watchPartyService.createWatchParty(hostId, request))
+                .isInstanceOf(WatchPartyMaxParticipantsExceededException.class)
+                .satisfies(e -> assertThat(((BaseException) e).getData())
+                        .containsEntry("limit", WatchPartyService.MAX_PARTICIPANTS_LIMIT)
+                        .containsEntry("requestedMaxParticipants", WatchPartyService.MAX_PARTICIPANTS_LIMIT + 1));
+
+        verify(watchPartyRepository, never()).save(any());
+    }
+
+    // 케이스 6-3: 상한 도입 전에 이미 상한을 넘게 만들어진 방 — 정원은 그대로 두고 다른 필드만 수정하면 통과
+    //   (수정 API는 전체 필드를 받으므로 기존 정원이 그대로 넘어와도 막히면 안 됨. 상한 검사는 정원 값이 바뀔 때만)
+    @Test
+    void updateWatchParty_기존값이_상한초과여도_안바꾸면_통과() {
+        WatchParty watchParty = buildWatchParty(WatchPartyStatus.SCHEDULED);
+        int legacyMax = WatchPartyService.MAX_PARTICIPANTS_LIMIT + 20;   // 상한 도입 전에 만든 초과 방
+        ReflectionTestUtils.setField(watchParty, "maxParticipants", legacyMax);
+        UpdateWatchPartyRequest request = new UpdateWatchPartyRequest(
+                "제목만 수정", "설명", Instant.now().plusSeconds(7200),
+                legacyMax, 90, null, null   // 정원은 그대로
+        );
+
+        given(watchPartyRepository.findById(watchParty.getId())).willReturn(Optional.of(watchParty));
+        given(contentRepository.findById(contentId)).willReturn(Optional.of(buildMovieContent()));
+        given(watchPartyParticipantRepository.countByWatchParty_IdAndStatus(watchParty.getId(), ParticipantStatus.JOINED))
+                .willReturn(0L);
+
+        WatchPartyResponse response = watchPartyService.updateWatchParty(hostId, watchParty.getId(), request);
+
+        assertThat(response.getTitle()).isEqualTo("제목만 수정");
+        assertThat(watchParty.getMaxParticipants()).isEqualTo(legacyMax);
+    }
+
+    // 케이스 6-4: 수정으로 정원을 상한 초과 값으로 바꾸면 → 예외, 변경 안 됨
+    @Test
+    void updateWatchParty_정원을_상한초과로_바꾸면_예외() {
+        WatchParty watchParty = buildWatchParty(WatchPartyStatus.SCHEDULED);   // 기존 maxParticipants=4
+        UpdateWatchPartyRequest request = new UpdateWatchPartyRequest(
+                "수정된 제목", "수정된 설명", Instant.now().plusSeconds(7200),
+                WatchPartyService.MAX_PARTICIPANTS_LIMIT + 1, 90, null, null
+        );
+
+        given(watchPartyRepository.findById(watchParty.getId())).willReturn(Optional.of(watchParty));
+        given(contentRepository.findById(contentId)).willReturn(Optional.of(buildMovieContent()));
+
+        assertThatThrownBy(() -> watchPartyService.updateWatchParty(hostId, watchParty.getId(), request))
+                .isInstanceOf(WatchPartyMaxParticipantsExceededException.class);
+
+        assertThat(watchParty.getMaxParticipants()).isEqualTo(4);
+        verify(watchPartyParticipantRepository, never()).countByWatchParty_IdAndStatus(any(), any());
+    }
+
+
+    // ===== 7. deleteWatchParty() =====
+
+    // 케이스 7-1: 정상 삭제
     @Test
     void deleteWatchParty_정상_삭제() {
         WatchParty watchParty = buildWatchParty(WatchPartyStatus.SCHEDULED);
@@ -522,7 +611,7 @@ class WatchPartyServiceTest {
         verify(watchPartyHostRegistry).removeHost(watchParty.getId());
     }
 
-    // 케이스 6-2: host 아니면 예외
+    // 케이스 7-2: host 아니면 예외
     @Test
     void deleteWatchParty_host_아니면_예외() {
         WatchParty watchParty = buildWatchParty(WatchPartyStatus.SCHEDULED);
@@ -536,7 +625,7 @@ class WatchPartyServiceTest {
         verify(watchPartyHostRegistry, never()).removeHost(any());
     }
 
-    // 케이스 6-3: SCHEDULED 아니면 예외
+    // 케이스 7-3: SCHEDULED 아니면 예외
     @Test
     void deleteWatchParty_SCHEDULED_아니면_예외() {
         WatchParty watchParty = buildWatchParty(WatchPartyStatus.ENDED);
@@ -549,7 +638,7 @@ class WatchPartyServiceTest {
         verify(watchPartyHostRegistry, never()).removeHost(any());
     }
 
-    // 케이스 6-4: 파티 없으면 예외
+    // 케이스 7-4: 파티 없으면 예외
     @Test
     void deleteWatchParty_존재하지않으면_예외() {
         UUID unknownPartyId = UUID.randomUUID();
