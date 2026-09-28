@@ -52,6 +52,7 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.type.mapping: dm-send-requested:com.moduplaylist.infrastructure.kafka.event.DmSendRequestedKafkaEvent,
+                                  dm-message-created:com.moduplaylist.infrastructure.kafka.event.DmMessageCreatedKafkaEvent,
                                   content-activity:com.moduplaylist.infrastructure.kafka.event.ContentActivityKafkaEvent,
                                   content-deleted:com.moduplaylist.infrastructure.kafka.event.ContentDeleted,
                                   content-upserted:com.moduplaylist.infrastructure.kafka.event.ContentUpserted,
