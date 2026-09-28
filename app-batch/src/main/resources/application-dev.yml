@@ -23,8 +23,8 @@ spring:
 
   ai:
     model:
-      chat: none
-      embedding: openai
+      chat: ${SPRING_AI_MODEL_CHAT:openai}
+      embedding: ${SPRING_AI_MODEL_EMBEDDING:openai}
     openai:
       api-key: ${OPENAI_API_KEY:}
       embedding:
@@ -101,6 +101,12 @@ mopl:
         enabled: ${PLAYLIST_POPULARITY_SCHEDULER_ENABLED:false}
         cron: ${PLAYLIST_POPULARITY_CRON:0 10 0 * * *}
         zone: ${PLAYLIST_POPULARITY_SCHEDULER_ZONE:UTC}
+    ai-playlist:
+      owner-email: ${AI_PLAYLIST_OWNER_EMAIL:}
+      scheduler:
+        enabled: ${AI_PLAYLIST_SCHEDULER_ENABLED:false}
+        cron: ${AI_PLAYLIST_CRON:0 0 5 * * MON}
+        zone: ${AI_PLAYLIST_SCHEDULER_ZONE:Asia/Seoul}
   recommendation:
     search-limit: ${RECOMMENDATION_SEARCH_LIMIT:100}
     cache-ttl: ${RECOMMENDATION_CACHE_TTL:48h}

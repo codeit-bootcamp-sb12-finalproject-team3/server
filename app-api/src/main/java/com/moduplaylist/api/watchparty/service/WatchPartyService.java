@@ -19,9 +19,7 @@ import com.moduplaylist.core.user.repository.UserRepository;
 import com.moduplaylist.core.watchparty.entity.ParticipantStatus;
 import com.moduplaylist.core.watchparty.entity.WatchParty;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
-import com.moduplaylist.core.watchparty.exception.WatchPartyHostOnlyException;
-import com.moduplaylist.core.watchparty.exception.WatchPartyInvalidEpisodeRangeException;
-import com.moduplaylist.core.watchparty.exception.WatchPartyNotFoundException;
+import com.moduplaylist.core.watchparty.exception.*;
 import com.moduplaylist.core.watchparty.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -32,6 +30,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -42,6 +41,8 @@ import java.util.stream.Collectors;
 public class WatchPartyService {
 
     private static final int CONTENT_WIDGET_LIMIT = 20;
+    // 정원 상한(현재는 30명). 참가자 목록·방송 부하와 방 분위기를 고려한 값
+    static final int MAX_PARTICIPANTS_LIMIT = 30;
 
     private final WatchPartyRepository watchPartyRepository;
     private final UserRepository userRepository;
@@ -63,6 +64,7 @@ public class WatchPartyService {
 
         validateWatchPartyContent(content);
         validateEpisodeRange(content, request.getStartEpisode(), request.getEndEpisode());
+        validateMaxParticipantsLimit(request.getMaxParticipants());
 
         WatchParty watchParty = WatchParty.builder()
                 .host(host)
@@ -85,6 +87,7 @@ public class WatchPartyService {
 
         return toResponse(saved, host, content, 0);
     }
+
     public WatchPartyResponse updateWatchParty(UUID requesterId, UUID partyId, UpdateWatchPartyRequest request) {
         WatchParty watchParty = watchPartyRepository.findById(partyId)
                 .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
@@ -96,6 +99,10 @@ public class WatchPartyService {
         Content content = contentRepository.findById(watchParty.getContentId())
                 .orElseThrow(() -> new ContentNotFoundException(watchParty.getContentId()));
         validateEpisodeRange(content, request.getStartEpisode(), request.getEndEpisode());
+        if (!Objects.equals(watchParty.getMaxParticipants(), request.getMaxParticipants())) {
+            validateMaxParticipantsLimit(request.getMaxParticipants());
+        }
+        validateMaxParticipants(partyId, request.getMaxParticipants());
 
         watchParty.update(
                 request.getTitle(),
@@ -108,6 +115,22 @@ public class WatchPartyService {
         );
 
         return toResponse(watchParty);
+    }
+
+
+    private void validateMaxParticipantsLimit(Integer maxParticipants) {
+        if (maxParticipants > MAX_PARTICIPANTS_LIMIT) {
+            throw new WatchPartyMaxParticipantsExceededException(maxParticipants, MAX_PARTICIPANTS_LIMIT);
+        }
+    }
+
+    private void validateMaxParticipants(UUID partyId, Integer maxParticipants) {
+        long currentCount = watchPartyParticipantRepository
+                .countByWatchParty_IdAndStatus(partyId, ParticipantStatus.JOINED);
+
+        if (maxParticipants < currentCount) {
+            throw new WatchPartyMaxParticipantsBelowCurrentException(partyId, currentCount, maxParticipants);
+        }
     }
 
     public void deleteWatchParty(UUID requesterId, UUID partyId) {

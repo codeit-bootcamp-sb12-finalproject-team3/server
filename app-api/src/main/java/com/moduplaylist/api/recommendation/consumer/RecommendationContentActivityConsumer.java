@@ -28,15 +28,13 @@ public class RecommendationContentActivityConsumer {
             topics = KafkaTopics.CONTENT_ACTIVITIES,
             groupId = "recommendation-content-preference"
     )
-    public void consume(Object payload) {
-        if (!(payload instanceof ContentActivityKafkaEvent event)) {
-            return;
-        }
-        if (event.eventId() == null
+    public void consume(ContentActivityKafkaEvent event) {
+        if (event == null
+                || event.eventId() == null
                 || event.eventType() == null
                 || event.userId() == null
                 || event.contentId() == null) {
-            log.warn("유효하지 않은 콘텐츠 활동 이벤트를 무시합니다. eventId={}", event.eventId());
+            log.warn("유효하지 않은 콘텐츠 활동 이벤트를 무시합니다. event={}", event);
             return;
         }
         if (!isSupported(event.eventType())

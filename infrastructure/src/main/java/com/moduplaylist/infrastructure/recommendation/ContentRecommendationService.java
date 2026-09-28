@@ -4,6 +4,7 @@ import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.repository.ContentLikeRepository;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.recommendation.repository.UserPreferenceContentRepository;
+import com.moduplaylist.core.review.repository.ReviewRepository;
 import com.moduplaylist.infrastructure.opensearch.content.ContentSimilarityCandidate;
 import com.moduplaylist.infrastructure.opensearch.content.ContentVectorSearchRepository;
 import com.moduplaylist.infrastructure.opensearch.recommendation.UserContentPreferenceVectorDocument;
@@ -25,6 +26,7 @@ public class ContentRecommendationService {
     private final ContentVectorSearchRepository contentVectorSearchRepository;
     private final UserPreferenceContentRepository userPreferenceContentRepository;
     private final ContentLikeRepository contentLikeRepository;
+    private final ReviewRepository reviewRepository;
     private final ContentRepository contentRepository;
     private final ContentRecommendationRedisRepository recommendationRedisRepository;
     private final RecommendationProperties properties;
@@ -50,6 +52,7 @@ public class ContentRecommendationService {
         Set<UUID> excludedContentIds = new LinkedHashSet<>();
         excludedContentIds.addAll(userPreferenceContentRepository.findContentIdsByUserId(userId));
         excludedContentIds.addAll(contentLikeRepository.findContentIdsByUserId(userId));
+        excludedContentIds.addAll(reviewRepository.findContentIdsByUserId(userId));
         return excludedContentIds;
     }
 

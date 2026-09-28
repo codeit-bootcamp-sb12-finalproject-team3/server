@@ -24,6 +24,8 @@ public enum ErrorCode {
     USER_ALREADY_EXISTS("이미 가입된 사용자입니다."),
     USER_PROFILE_ACCESS_DENIED("프로필을 수정할 권한이 없습니다."),
     INVALID_USER_PROFILE_UPDATE("수정할 프로필 정보가 없습니다."),
+    INVALID_OAUTH_ACCOUNT("OAuth 계정 정보가 올바르지 않습니다."),
+    INVALID_OAUTH2_LOGIN_CODE("OAuth2 로그인 코드가 유효하지 않거나 만료되었습니다."),
 
     // Content
     CONTENT_NOT_FOUND("존재하지 않는 콘텐츠입니다."),
@@ -68,6 +70,7 @@ public enum ErrorCode {
     AI_PLAYLIST_INVALID_TITLE("AI가 생성한 플레이리스트 제목이 올바르지 않습니다."),
     AI_PLAYLIST_INVALID_DESCRIPTION("AI가 생성한 플레이리스트 설명이 올바르지 않습니다."),
     AI_PLAYLIST_INVALID_TAG_RESULT("AI가 생성한 플레이리스트 태그가 올바르지 않습니다."),
+    AI_PLAYLIST_OWNER_NOT_FOUND("AI 플레이리스트 전용 계정을 찾을 수 없습니다."),
 
     // Preference
     PREFERENCE_NOT_FOUND("초기 선호 정보가 없습니다."),
@@ -94,6 +97,7 @@ public enum ErrorCode {
     // WatchParty
     WATCHPARTY_NOT_FOUND("존재하지 않는 방입니다."),
     WATCHPARTY_INVALID_EPISODE_RANGE("영화/스포츠 콘텐츠에는 회차 범위를 지정할 수 없습니다."),
+    WATCHPARTY_EPISODE_RANGE_EXCEEDED("요청한 회차 범위가 콘텐츠의 총 회차 수를 초과했습니다."),
     WATCHPARTY_ALREADY_ENDED("이미 종료된 방에는 참가할 수 없습니다."),
     WATCHPARTY_HOST_CANNOT_JOIN("방장은 참가 신청 대상이 아닙니다."),
     WATCHPARTY_ALREADY_JOINED("이미 참가 중입니다."),
@@ -105,9 +109,13 @@ public enum ErrorCode {
     WATCHPARTY_NOT_A_PARTICIPANT("참가 중인 방이 아닙니다."),
     WATCHPARTY_PARTICIPANT_NOT_JOINED("현재 참가 중인 사용자가 아닙니다."),
     WATCHPARTY_INVALID_STATE("현재 상태에서는 처리할 수 없는 요청입니다."),
+    WATCHPARTY_MAX_PARTICIPANTS_BELOW_CURRENT("현재 참가자 수보다 적은 값으로 최대 인원을 변경할 수 없습니다."),
+    WATCHPARTY_MAX_PARTICIPANTS_EXCEEDED("최대 인원 상한을 초과했습니다."),
+    WATCHPARTY_CHAT_ACCESS_DENIED("강퇴된 방의 채팅 이력은 볼 수 없습니다."),
     WATCHPARTY_REMINDER_ALREADY_EXISTS("이미 시작 알림을 설정했습니다."),
     WATCHPARTY_REMINDER_NOT_FOUND("설정된 시작 알림이 없습니다."),
     WATCHPARTY_HOST_CANNOT_SET_REMINDER("방장은 시작 알림 설정 대상이 아닙니다.");
+
 
     private final String message;
 }

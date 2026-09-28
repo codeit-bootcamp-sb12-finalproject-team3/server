@@ -1,5 +1,7 @@
 package com.moduplaylist.api.global.config;
 
+import com.moduplaylist.api.auth.oauth.OAuth2AuthenticationFailureHandler;
+import com.moduplaylist.api.auth.oauth.OAuth2AuthenticationSuccessHandler;
 import com.moduplaylist.api.global.security.CustomUserDetailsService;
 import com.moduplaylist.api.global.security.handler.CustomAccessDeniedHandler;
 import com.moduplaylist.api.global.security.handler.CustomAuthenticationEntryPoint;
@@ -7,6 +9,7 @@ import com.moduplaylist.api.global.security.handler.CustomAuthenticationFailureH
 import com.moduplaylist.api.global.security.handler.CustomAuthenticationSuccessHandler;
 import com.moduplaylist.api.global.security.jwt.JwtAuthenticationFilter;
 import com.moduplaylist.api.global.security.jwt.JwtTokenProvider;
+import com.moduplaylist.api.auth.oauth.RedisOAuth2AuthorizationRequestRepository;
 import com.moduplaylist.core.user.repository.JwtRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,6 +47,9 @@ public class SecurityConfig {
   private final CustomAuthenticationFailureHandler failureHandler;
   private final CustomAuthenticationEntryPoint authenticationEntryPoint;
   private final CustomAccessDeniedHandler accessDeniedHandler;
+  private final RedisOAuth2AuthorizationRequestRepository oauth2AuthorizationRequestRepository;
+  private final OAuth2AuthenticationSuccessHandler oauth2AuthenticationSuccessHandler;
+  private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
 
   @Value("${security.jwt.cookie-secure}")
   private boolean cookieSecure;
@@ -74,7 +80,8 @@ public class SecurityConfig {
 
       return "/api/auth/login".equals(path)
           || "/api/auth/refresh".equals(path)
-          || "/api/auth/logout".equals(path);
+          || "/api/auth/logout".equals(path)
+          || "/api/auth/oauth/exchange".equals(path);
     };
 
     JwtAuthenticationFilter jwtAuthenticationFilter =
@@ -115,11 +122,18 @@ public class SecurityConfig {
                 HttpMethod.POST,
                 "/api/auth/login",
                 "/api/auth/refresh",
-                "/api/auth/logout"
+                "/api/auth/logout",
+                "/api/auth/oauth/exchange"
             ).permitAll()
             .requestMatchers(
                 HttpMethod.GET,
                 "/api/auth/csrf-token"
+            ).permitAll()
+
+            // OAuth2 로그인 시작 및 콜백
+            .requestMatchers(
+                "/oauth2/authorization/**",
+                "/login/oauth2/code/**"
             ).permitAll()
 
             // Swagger
@@ -142,6 +156,14 @@ public class SecurityConfig {
             .passwordParameter("password")
             .successHandler(successHandler)
             .failureHandler(failureHandler)
+        )
+
+        .oauth2Login(oauth2 -> oauth2
+            .authorizationEndpoint(authorization -> authorization
+                .authorizationRequestRepository(oauth2AuthorizationRequestRepository)
+            )
+            .successHandler(oauth2AuthenticationSuccessHandler)
+            .failureHandler(oAuth2AuthenticationFailureHandler)
         )
 
         // 인증·인가 오류를 공통 JSON 형식으로 응답
