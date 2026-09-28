@@ -44,7 +44,7 @@ public class UserOAuthAccount {
     private User user;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "provider", nullable = false, columnDefinition = "ENUM('GOOGLE', 'KAKAO'")
+    @Column(name = "provider", nullable = false, columnDefinition = "ENUM('GOOGLE', 'KAKAO')")
     private OAuthProvider provider;
 
     @Column(name = "provider_user_id", nullable = false, length = 255)
