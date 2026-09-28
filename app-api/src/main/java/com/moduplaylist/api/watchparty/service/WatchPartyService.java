@@ -178,19 +178,27 @@ public class WatchPartyService {
 
     @Transactional(readOnly = true)
     public CursorPageResponse<WatchPartySummaryResponse> getWatchParties(
-            WatchPartyStatus statusEqual, UUID contentIdEqual,
+            WatchPartyStatus statusEqual, UUID contentIdEqual, WatchPartySearch.Sort sort,
             String cursor, UUID idAfter, int limit, SortDirection sortDirection) {
 
         if (contentIdEqual != null && statusEqual != null) {
             throw new BaseException(ErrorCode.INVALID_REQUEST);
         }
 
+        boolean popularSort = sort == WatchPartySearch.Sort.PARTICIPANT_COUNT;
         boolean contentSearch = contentIdEqual != null;
+        // 콘텐츠 전용 커서(상태|시각)는 "콘텐츠 검색 + 기본 정렬"일 때만. 인기순이면 인기순 커서를 쓴다
+        boolean contentCursorMode = contentSearch && !popularSort;
         boolean ascending = sortDirection == SortDirection.ASCENDING;
-        ContentCursor contentCursor = contentSearch ? parseContentCursor(cursor, idAfter) : null;
-        Instant cursorScheduledAt = contentSearch
-                ? contentCursor.scheduledAt()
-                : (cursor != null ? Instant.parse(cursor) : null);
+
+        ContentCursor contentCursor = contentCursorMode ? parseContentCursor(cursor, idAfter) : null;
+        Long cursorParticipantCount = popularSort ? parseParticipantCountCursor(cursor, idAfter) : null;
+        Instant cursorScheduledAt = null;
+        if (contentCursorMode) {
+            cursorScheduledAt = contentCursor.scheduledAt();
+        } else if (!popularSort && cursor != null) {
+            cursorScheduledAt = Instant.parse(cursor);
+        }
 
         if (contentSearch) {
             validateContentForWatchParty(contentIdEqual);
@@ -199,9 +207,11 @@ public class WatchPartyService {
         WatchPartySearch search = WatchPartySearch.builder()
                 .statusEqual(statusEqual)
                 .contentIdEqual(contentIdEqual)
+                .sort(sort)
                 .cursorScheduledAt(cursorScheduledAt)
                 .cursorId(idAfter)
-                .cursorStatus(contentSearch ? contentCursor.status() : null)
+                .cursorStatus(contentCursorMode ? contentCursor.status() : null)
+                .cursorParticipantCount(cursorParticipantCount)
                 .contentScheduledAtFrom(contentSearch ? Instant.now().minus(1, ChronoUnit.HOURS) : null)
                 .ascending(ascending)
                 .limit(limit)
@@ -211,7 +221,10 @@ public class WatchPartyService {
 
         List<WatchParty> watchParties = result.getWatchParties();
         Map<UUID, Content> contentById = fetchContentMap(watchParties);
-        Map<UUID, Integer> participantCountById = fetchParticipantCountMap(watchParties);
+        // 인기순은 ① 순위표에서 이미 센 값을 재사용 → 참가자 수 쿼리 생략 (요청당 쿼리 4개 유지)
+        Map<UUID, Integer> participantCountById = popularSort
+                ? toIntCountMap(result.getParticipantCounts())
+                : fetchParticipantCountMap(watchParties);
 
         List<WatchPartySummaryResponse> data = watchParties.stream()
                 .map(wp -> toSummaryResponse(wp, contentById, participantCountById))
@@ -219,11 +232,15 @@ public class WatchPartyService {
 
         String nextCursor = null;
         UUID nextIdAfter = null;
-        if (!result.getWatchParties().isEmpty()) {
-            WatchParty last = result.getWatchParties().get(result.getWatchParties().size() - 1);
-            nextCursor = contentSearch
-                    ? formatContentCursor(last)
-                    : last.getScheduledAt().toString();
+        if (!watchParties.isEmpty()) {
+            WatchParty last = watchParties.get(watchParties.size() - 1);
+            if (popularSort) {
+                nextCursor = String.valueOf(result.getParticipantCounts().get(last.getId()));
+            } else if (contentSearch) {
+                nextCursor = formatContentCursor(last);
+            } else {
+                nextCursor = last.getScheduledAt().toString();
+            }
             nextIdAfter = last.getId();
         }
 
@@ -233,8 +250,8 @@ public class WatchPartyService {
                 .nextIdAfter(nextIdAfter)
                 .hasNext(result.isHasNext())
                 .totalCount(result.getTotalCount())
-                .sortBy("scheduledAt")
-                .sortDirection(contentSearch ? SortDirection.ASCENDING : sortDirection)
+                .sortBy(popularSort ? "participantCount" : "scheduledAt")
+                .sortDirection(contentCursorMode ? SortDirection.ASCENDING : sortDirection)
                 .build();
     }
 
@@ -290,6 +307,31 @@ public class WatchPartyService {
 
     private String formatContentCursor(WatchParty watchParty) {
         return watchParty.getStatus().name() + "|" + watchParty.getScheduledAt();
+    }
+
+    // 인기순 커서: nextCursor에 담아 보낸 "참가자 수" 문자열을 다시 숫자로
+    private Long parseParticipantCountCursor(String cursor, UUID idAfter) {
+        if (cursor == null && idAfter == null) {
+            return null;   // 첫 페이지
+        }
+        if (cursor == null || idAfter == null) {
+            throw new BaseException(ErrorCode.INVALID_REQUEST);
+        }
+        try {
+            long count = Long.parseLong(cursor);
+            if (count < 0) {
+                throw new IllegalArgumentException("Negative participant count cursor");
+            }
+            return count;
+        } catch (IllegalArgumentException e) {   // NumberFormatException도 여기로 (하위 클래스)
+            throw new BaseException(ErrorCode.INVALID_REQUEST, e);
+        }
+    }
+
+    // 리포지토리는 count를 Long으로, 응답 DTO는 int로 쓰므로 변환
+    private Map<UUID, Integer> toIntCountMap(Map<UUID, Long> counts) {
+        return counts.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().intValue()));
     }
 
     private record ContentCursor(WatchPartyStatus status, Instant scheduledAt) {}

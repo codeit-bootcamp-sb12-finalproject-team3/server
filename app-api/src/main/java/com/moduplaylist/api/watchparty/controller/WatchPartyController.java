@@ -11,6 +11,7 @@ import com.moduplaylist.api.watchparty.service.WatchPartyService;
 import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
+import com.moduplaylist.core.watchparty.repository.WatchPartySearch;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -45,14 +46,17 @@ public class WatchPartyController {
     public ResponseEntity<CursorPageResponse<WatchPartySummaryResponse>> findAll(
             @RequestParam(required = false) WatchPartyStatus statusEqual,
             @RequestParam(required = false) UUID contentIdEqual,
+            @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) UUID idAfter,
             @RequestParam int limit,
             @RequestParam String sortDirection
     ) {
+        WatchPartySearch.Sort sort = parseSort(sortBy);
         SortDirection direction = parseDirection(sortDirection);
         return ResponseEntity.ok(
-                watchPartyService.getWatchParties(statusEqual, contentIdEqual, cursor, idAfter, limit, direction)
+                watchPartyService.getWatchParties(
+                        statusEqual, contentIdEqual, sort, cursor, idAfter, limit, direction)
         );
     }
 
@@ -83,6 +87,18 @@ public class WatchPartyController {
         return ResponseEntity.ok(
             watchPartyService.getScheduledWatchParties(userDetails.getUserId())
         );
+    }
+
+    // URL의 sortBy 문자열 → 정렬 enum. 안 보내면 기존 동작(시작 시각순)
+    private WatchPartySearch.Sort parseSort(String sortBy) {
+        if (sortBy == null) {
+            return WatchPartySearch.Sort.SCHEDULED_AT;
+        }
+        return switch (sortBy) {
+            case "scheduledAt" -> WatchPartySearch.Sort.SCHEDULED_AT;
+            case "participantCount" -> WatchPartySearch.Sort.PARTICIPANT_COUNT;
+            default -> throw new BaseException(ErrorCode.INVALID_REQUEST);
+        };
     }
 
     private SortDirection parseDirection(String sortDirection) {
