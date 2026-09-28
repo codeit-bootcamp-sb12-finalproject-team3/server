@@ -36,8 +36,15 @@ public class PlaylistSearch {
       Direction direction
   ) {
 
-    this.keywordLike = keywordLike == null || keywordLike.isBlank() ? null : keywordLike.trim();
+    String normalizedKeyword = keywordLike == null ? null : keywordLike.trim();
 
+    if (normalizedKeyword != null && normalizedKeyword.length() > 100) {
+      throw new InvalidPlaylistSearchException("검색어는 100자를 초과할 수 없습니다.");
+    }
+
+    this.keywordLike = normalizedKeyword == null || normalizedKeyword.isBlank()
+        ? null : normalizedKeyword;
+    
     if (limit < 1 || limit > 100) {
       throw new InvalidPlaylistSearchException("limit은 1부터 100 사이여야 합니다.");
     }
