@@ -32,10 +32,10 @@ public class CreateWatchPartyRequest {
     @Positive
     private Integer sessionDurationMinutes;
 
-    @PositiveOrZero
+    @Positive
     private Integer startEpisode;
 
-    @PositiveOrZero
+    @Positive
     private Integer endEpisode;
 
     @AssertTrue(message = "startEpisode/endEpisode는 둘 다 없거나, endEpisode가 startEpisode 이상이어야 합니다.")

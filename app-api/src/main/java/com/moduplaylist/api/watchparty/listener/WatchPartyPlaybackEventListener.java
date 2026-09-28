@@ -2,6 +2,7 @@ package com.moduplaylist.api.watchparty.listener;
 
 import com.moduplaylist.api.watchparty.event.WatchPartyEndedEvent;
 import com.moduplaylist.api.watchparty.event.WatchPartyStartedEvent;
+import com.moduplaylist.core.watchparty.entity.WatchPartyPlaybackStatus;
 import com.moduplaylist.core.watchparty.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +41,7 @@ public class WatchPartyPlaybackEventListener {
 
         try {
             watchPartyPlaybackRegistry.find(event.partyId())
+                    .map(this::withEndedStatus)
                     .ifPresent(state -> watchPartyPlaybackBroadcaster.broadcastEnded(event.partyId(), state));
         } catch (Exception e) {
             log.error("Watch Party 종료 - Redis Pub/Sub 브로드캐스트 실패. partyId={}", event.partyId(), e);
@@ -58,5 +60,18 @@ public class WatchPartyPlaybackEventListener {
         } catch (Exception e) {
             log.error("Watch Party 종료 - joinedParty 역인덱스 정리 실패. partyId={}", event.partyId(), e);
         }
+    }
+
+    private WatchPartyPlaybackState withEndedStatus(WatchPartyPlaybackState state) {
+        return new WatchPartyPlaybackState(
+                WatchPartyPlaybackStatus.ENDED,
+                state.getStartedAt(),
+                state.getAccumulatedPauseMs(),
+                state.getPausedAt(),
+                state.getStartEpisode(),
+                state.getEndEpisode(),
+                state.getHostId(),
+                System.currentTimeMillis()
+        );
     }
 }

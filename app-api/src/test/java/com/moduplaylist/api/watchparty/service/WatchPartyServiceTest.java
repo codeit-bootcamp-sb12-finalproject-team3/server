@@ -15,10 +15,7 @@ import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.watchparty.entity.ParticipantStatus;
 import com.moduplaylist.core.watchparty.entity.WatchParty;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
-import com.moduplaylist.core.watchparty.exception.WatchPartyHostOnlyException;
-import com.moduplaylist.core.watchparty.exception.WatchPartyInvalidEpisodeRangeException;
-import com.moduplaylist.core.watchparty.exception.WatchPartyInvalidStateException;
-import com.moduplaylist.core.watchparty.exception.WatchPartyNotFoundException;
+import com.moduplaylist.core.watchparty.exception.*;
 import com.moduplaylist.core.watchparty.repository.*;
 import com.moduplaylist.core.user.repository.UserRepository;
 import com.moduplaylist.core.content.repository.ContentRepository;
@@ -465,6 +462,49 @@ class WatchPartyServiceTest {
 
         assertThatThrownBy(() -> watchPartyService.updateWatchParty(hostId, unknownPartyId, request))
                 .isInstanceOf(WatchPartyNotFoundException.class);
+    }
+
+    // 케이스 5-6: 현재 참가자 수보다 작은 maxParticipants로 수정 시도 → 예외
+    @Test
+    void updateWatchParty_현재참가자수보다_작은_maxParticipants_요청시_예외() {
+        WatchParty watchParty = buildWatchParty(WatchPartyStatus.SCHEDULED);
+        Content movieContent = Content.builder()
+                .title("영화 콘텐츠").type(ContentType.MOVIE)
+                .thumbnailUrl("https://example.com/thumb.png").build();
+        UpdateWatchPartyRequest request = new UpdateWatchPartyRequest(
+                "수정된 제목", "수정된 설명", Instant.now().plusSeconds(7200),
+                2, 90, null, null   // maxParticipants=2
+        );
+
+        given(watchPartyRepository.findById(watchParty.getId())).willReturn(Optional.of(watchParty));
+        given(contentRepository.findById(contentId)).willReturn(Optional.of(movieContent));
+        given(watchPartyParticipantRepository.countByWatchParty_IdAndStatus(watchParty.getId(), ParticipantStatus.JOINED))
+                .willReturn(4L);   // 현재 4명 참가 중
+
+        assertThatThrownBy(() -> watchPartyService.updateWatchParty(hostId, watchParty.getId(), request))
+                .isInstanceOf(WatchPartyMaxParticipantsBelowCurrentException.class);
+    }
+
+    // 케이스 5-7: 현재 참가자 수와 같거나 크면 통과
+    @Test
+    void updateWatchParty_현재참가자수_이상이면_통과() {
+        WatchParty watchParty = buildWatchParty(WatchPartyStatus.SCHEDULED);
+        Content movieContent = Content.builder()
+                .title("영화 콘텐츠").type(ContentType.MOVIE)
+                .thumbnailUrl("https://example.com/thumb.png").build();
+        UpdateWatchPartyRequest request = new UpdateWatchPartyRequest(
+                "수정된 제목", "수정된 설명", Instant.now().plusSeconds(7200),
+                4, 90, null, null   // maxParticipants=4, 현재 인원과 동일
+        );
+
+        given(watchPartyRepository.findById(watchParty.getId())).willReturn(Optional.of(watchParty));
+        given(contentRepository.findById(contentId)).willReturn(Optional.of(movieContent));
+        given(watchPartyParticipantRepository.countByWatchParty_IdAndStatus(watchParty.getId(), ParticipantStatus.JOINED))
+                .willReturn(4L);
+
+        watchPartyService.updateWatchParty(hostId, watchParty.getId(), request);
+
+        assertThat(watchParty.getMaxParticipants()).isEqualTo(4);
     }
 
 

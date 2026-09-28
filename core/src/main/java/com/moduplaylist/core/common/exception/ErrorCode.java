@@ -94,6 +94,7 @@ public enum ErrorCode {
     // WatchParty
     WATCHPARTY_NOT_FOUND("존재하지 않는 방입니다."),
     WATCHPARTY_INVALID_EPISODE_RANGE("영화/스포츠 콘텐츠에는 회차 범위를 지정할 수 없습니다."),
+    WATCHPARTY_EPISODE_RANGE_EXCEEDED("요청한 회차 범위가 콘텐츠의 총 회차 수를 초과했습니다."),
     WATCHPARTY_ALREADY_ENDED("이미 종료된 방에는 참가할 수 없습니다."),
     WATCHPARTY_HOST_CANNOT_JOIN("방장은 참가 신청 대상이 아닙니다."),
     WATCHPARTY_ALREADY_JOINED("이미 참가 중입니다."),
@@ -104,7 +105,9 @@ public enum ErrorCode {
     WATCHPARTY_NOT_JOINED("현재 참가 중인 상태가 아닙니다."),
     WATCHPARTY_NOT_A_PARTICIPANT("참가 중인 방이 아닙니다."),
     WATCHPARTY_PARTICIPANT_NOT_JOINED("현재 참가 중인 사용자가 아닙니다."),
-    WATCHPARTY_INVALID_STATE("현재 상태에서는 처리할 수 없는 요청입니다.");
+    WATCHPARTY_INVALID_STATE("현재 상태에서는 처리할 수 없는 요청입니다."),
+    WATCHPARTY_MAX_PARTICIPANTS_BELOW_CURRENT("현재 참가자 수보다 적은 값으로 최대 인원을 변경할 수 없습니다."),
+    WATCHPARTY_CHAT_ACCESS_DENIED("강퇴된 방의 채팅 이력은 볼 수 없습니다.");
 
     private final String message;
 }
