@@ -286,7 +286,7 @@ class WatchPartyServiceTest {
     @Test
     void getWatchParties_contentIdEqual과_statusEqual_동시지정하면_예외() {
         assertThatThrownBy(() -> watchPartyService.getWatchParties(
-                WatchPartyStatus.SCHEDULED, contentId, WatchPartySearch.Sort.SCHEDULED_AT, null, null, 20, SortDirection.ASCENDING))
+                WatchPartyStatus.SCHEDULED, contentId, null, WatchPartySearch.Sort.SCHEDULED_AT, null, null, 20, SortDirection.ASCENDING))
                 .isInstanceOf(BaseException.class);
     }
 
@@ -296,7 +296,7 @@ class WatchPartyServiceTest {
         given(contentRepository.findByIdAndHiddenFalse(contentId)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> watchPartyService.getWatchParties(
-                null, contentId, WatchPartySearch.Sort.SCHEDULED_AT,null, null, 20, SortDirection.ASCENDING))
+                null, contentId, null, WatchPartySearch.Sort.SCHEDULED_AT,null, null, 20, SortDirection.ASCENDING))
                 .isInstanceOf(ContentNotFoundException.class);
     }
 
@@ -329,7 +329,7 @@ class WatchPartyServiceTest {
 
         // when
         CursorPageResponse<WatchPartySummaryResponse> response = watchPartyService.getWatchParties(
-                null, contentId, WatchPartySearch.Sort.SCHEDULED_AT,null, null, 20, SortDirection.ASCENDING);
+                null, contentId, null, WatchPartySearch.Sort.SCHEDULED_AT,null, null, 20, SortDirection.ASCENDING);
 
         // then
         assertThat(response.getData()).hasSize(1);
@@ -345,7 +345,7 @@ class WatchPartyServiceTest {
 
         // when
         CursorPageResponse<WatchPartySummaryResponse> response = watchPartyService.getWatchParties(
-                WatchPartyStatus.LIVE, null, WatchPartySearch.Sort.SCHEDULED_AT,null, null, 20, SortDirection.ASCENDING);
+                WatchPartyStatus.LIVE, null, null, WatchPartySearch.Sort.SCHEDULED_AT,null, null, 20, SortDirection.ASCENDING);
 
         // then
         assertThat(response.getData()).isEmpty();
@@ -369,7 +369,7 @@ class WatchPartyServiceTest {
 
         // when
         CursorPageResponse<WatchPartySummaryResponse> response = watchPartyService.getWatchParties(
-                null, null, WatchPartySearch.Sort.PARTICIPANT_COUNT, null, null, 2, SortDirection.DESCENDING);
+                null, null, null, WatchPartySearch.Sort.PARTICIPANT_COUNT, null, null, 2, SortDirection.DESCENDING);
 
         // then
         assertThat(response.getData())
@@ -393,7 +393,7 @@ class WatchPartyServiceTest {
 
         // when
         watchPartyService.getWatchParties(
-                null, null, WatchPartySearch.Sort.PARTICIPANT_COUNT, "7", idAfter, 20, SortDirection.DESCENDING);
+                null, null, null, WatchPartySearch.Sort.PARTICIPANT_COUNT, "7", idAfter, 20, SortDirection.DESCENDING);
 
         // then
         ArgumentCaptor<WatchPartySearch> captor = ArgumentCaptor.forClass(WatchPartySearch.class);
@@ -411,7 +411,7 @@ class WatchPartyServiceTest {
     @ValueSource(strings = {"abc", "-1", "2026-10-01T10:00:00Z"})
     void getWatchParties_인기순_커서가_올바른_참가자수가_아니면_예외(String badCursor) {
         assertThatThrownBy(() -> watchPartyService.getWatchParties(
-                null, null, WatchPartySearch.Sort.PARTICIPANT_COUNT, badCursor, UUID.randomUUID(),
+                null, null, null, WatchPartySearch.Sort.PARTICIPANT_COUNT, badCursor, UUID.randomUUID(),
                 20, SortDirection.DESCENDING))
                 .isInstanceOf(BaseException.class);
         verify(watchPartyQueryRepository, never()).search(any());
@@ -431,7 +431,7 @@ class WatchPartyServiceTest {
 
         // when
         CursorPageResponse<WatchPartySummaryResponse> response = watchPartyService.getWatchParties(
-                null, contentId, WatchPartySearch.Sort.PARTICIPANT_COUNT, null, null, 20, SortDirection.DESCENDING);
+                null, contentId, null, WatchPartySearch.Sort.PARTICIPANT_COUNT, null, null, 20, SortDirection.DESCENDING);
 
         // then
         ArgumentCaptor<WatchPartySearch> captor = ArgumentCaptor.forClass(WatchPartySearch.class);
@@ -444,6 +444,55 @@ class WatchPartyServiceTest {
         assertThat(response.getNextCursor()).isEqualTo("2");           // "상태|시각" 형식이 아님
         assertThat(response.getSortBy()).isEqualTo("participantCount");
         assertThat(response.getSortDirection()).isEqualTo(SortDirection.DESCENDING); // 콘텐츠의 ASC 고정 미적용
+    }
+
+    // 케이스 3-9: 검색어는 앞뒤 공백을 정리해 리포지토리에 전달
+    @Test
+    void getWatchParties_검색어_앞뒤공백을_정리해_전달() {
+        // given
+        given(watchPartyQueryRepository.search(any()))
+                .willReturn(new WatchPartyQueryRepository.SearchResult(List.of(), 0L, false));
+
+        // when
+        watchPartyService.getWatchParties(
+                null, null, "  다크 나이트  ", WatchPartySearch.Sort.SCHEDULED_AT,
+                null, null, 20, SortDirection.DESCENDING);
+
+        // then
+        ArgumentCaptor<WatchPartySearch> captor = ArgumentCaptor.forClass(WatchPartySearch.class);
+        verify(watchPartyQueryRepository).search(captor.capture());
+        assertThat(captor.getValue().getKeywordLike()).isEqualTo("다크 나이트");   // 가운데 공백은 유지
+    }
+
+    // 케이스 3-10: 빈 문자열·공백만 있는 검색어는 검색 조건 없음(null)으로 처리
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   "})
+    void getWatchParties_검색어가_비어있으면_검색조건_없음(String blankKeyword) {
+        // given
+        given(watchPartyQueryRepository.search(any()))
+                .willReturn(new WatchPartyQueryRepository.SearchResult(List.of(), 0L, false));
+
+        // when
+        watchPartyService.getWatchParties(
+                null, null, blankKeyword, WatchPartySearch.Sort.SCHEDULED_AT,
+                null, null, 20, SortDirection.DESCENDING);
+
+        // then
+        ArgumentCaptor<WatchPartySearch> captor = ArgumentCaptor.forClass(WatchPartySearch.class);
+        verify(watchPartyQueryRepository).search(captor.capture());
+        assertThat(captor.getValue().getKeywordLike()).isNull();
+    }
+
+    // 케이스 3-11: 검색어가 최대 길이를 넘으면 400 (리포지토리 호출 전 차단)
+    @Test
+    void getWatchParties_검색어가_최대길이를_넘으면_예외() {
+        String tooLong = "가".repeat(WatchPartyService.KEYWORD_MAX_LENGTH + 1);
+
+        assertThatThrownBy(() -> watchPartyService.getWatchParties(
+                null, null, tooLong, WatchPartySearch.Sort.SCHEDULED_AT,
+                null, null, 20, SortDirection.DESCENDING))
+                .isInstanceOf(BaseException.class);
+        verify(watchPartyQueryRepository, never()).search(any());
     }
 
 
