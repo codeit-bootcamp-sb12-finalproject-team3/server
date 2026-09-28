@@ -9,6 +9,8 @@ import lombok.Getter;
 @Getter
 public class PlaylistSearch {
 
+  private final String keywordLike;
+
   private final UUID ownerIdEqual;
   private final UUID subscriberIdEqual;
   private final UUID contentIdEqual;
@@ -22,6 +24,7 @@ public class PlaylistSearch {
   private final Direction direction;
 
   public PlaylistSearch(
+      String keywordLike,
       UUID ownerIdEqual,
       UUID subscriberIdEqual,
       UUID contentIdEqual,
@@ -32,6 +35,8 @@ public class PlaylistSearch {
       Sort sort,
       Direction direction
   ) {
+
+    this.keywordLike = keywordLike == null || keywordLike.isBlank() ? null : keywordLike.trim();
 
     if (limit < 1 || limit > 100) {
       throw new InvalidPlaylistSearchException("limit은 1부터 100 사이여야 합니다.");

@@ -31,6 +31,7 @@ public class PlaylistQueryController {
   @GetMapping
   public ResponseEntity<CursorPageResponse<PlaylistSummaryResponse>> findAll(
       @AuthenticationPrincipal CustomUserDetails userDetails,
+      @RequestParam(required = false) String keywordLike,
       @RequestParam(required = false) UUID ownerIdEqual,
       @RequestParam(required = false) UUID subscriberIdEqual,
       @RequestParam(required = false) UUID contentIdEqual,
@@ -59,6 +60,7 @@ public class PlaylistQueryController {
     }
 
     PlaylistSearch search = new PlaylistSearch(
+        keywordLike,
         ownerIdEqual,
         subscriberIdEqual,
         contentIdEqual,

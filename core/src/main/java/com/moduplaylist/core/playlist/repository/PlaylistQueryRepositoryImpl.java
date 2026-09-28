@@ -8,6 +8,7 @@ import jakarta.persistence.TypedQuery;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Repository;
@@ -76,6 +77,7 @@ public class PlaylistQueryRepositoryImpl implements PlaylistQueryRepository {
         """, Playlist.class)
         .setParameter("playlistIds", playlistIds)
         .getResultList();
+
     if (playlists.isEmpty()) {
       return List.of();
     }
@@ -83,6 +85,7 @@ public class PlaylistQueryRepositoryImpl implements PlaylistQueryRepository {
     List<UUID> existingIds = playlists.stream().map(Playlist::getId).toList();
     Map<UUID, Long> subscriberCounts = findSubscriberCounts(existingIds);
     Map<UUID, Long> contentCounts = findContentCounts(existingIds);
+
     return playlists.stream()
         .map(playlist -> new Item(
             playlist,
@@ -140,11 +143,46 @@ public class PlaylistQueryRepositoryImpl implements PlaylistQueryRepository {
       Map<String, Object> parameters,
       PlaylistSearch search
   ) {
+
+    if (search.getKeywordLike() != null) {
+      jpql.append("""
+          
+          AND (
+            LOWER(p.title) LIKE :keyword ESCAPE '!'
+            OR LOWER(p.description) LIKE :keyword ESCAPE '!'
+            OR EXISTS (
+              SELECT 1
+              FROM PlaylistContent pc
+              WHERE pc.playlist = p
+                AND pc.content.hidden = false
+                AND (
+                  LOWER(pc.content.title) LIKE :keyword ESCAPE '!'
+                  OR LOWER(pc.content.description) LIKE :keyword ESCAPE '!'
+                  OR EXISTS (
+                    SELECT 1
+                    FROM ContentTag ct
+                    WHERE ct.content = pc.content
+                      AND LOWER(ct.tag.name) LIKE :keyword ESCAPE '!'
+                  )
+                )
+            )
+          )
+          """);
+
+      String keyword = search.getKeywordLike()
+          .toLowerCase(Locale.ROOT)
+          .replace("!", "!!")
+          .replace("%", "!%")
+          .replace("_", "!_");
+
+      parameters.put("keyword", "%" + keyword + "%");
+    }
+
     if (search.getOwnerIdEqual() != null) {
       jpql.append("""
-        
-        AND p.owner.id = :ownerId
-        """);
+          
+          AND p.owner.id = :ownerId
+          """);
 
       parameters.put(
           "ownerId",
@@ -154,14 +192,14 @@ public class PlaylistQueryRepositoryImpl implements PlaylistQueryRepository {
 
     if (search.getSubscriberIdEqual() != null) {
       jpql.append("""
-        
-        AND EXISTS (
-          SELECT 1
-          FROM PlaylistSubscription ps
-          WHERE ps.playlist = p
-            AND ps.user.id = :subscriberId
-        )
-        """);
+          
+          AND EXISTS (
+            SELECT 1
+            FROM PlaylistSubscription ps
+            WHERE ps.playlist = p
+              AND ps.user.id = :subscriberId
+          )
+          """);
 
       parameters.put(
           "subscriberId",
@@ -171,15 +209,15 @@ public class PlaylistQueryRepositoryImpl implements PlaylistQueryRepository {
 
     if (search.getContentIdEqual() != null) {
       jpql.append("""
-      
-      AND EXISTS (
-        SELECT 1
-        FROM PlaylistContent pc
-        WHERE pc.playlist = p
-          AND pc.content.id = :contentId
-          AND pc.content.hidden = false
-      )
-      """);
+          
+          AND EXISTS (
+            SELECT 1
+            FROM PlaylistContent pc
+            WHERE pc.playlist = p
+              AND pc.content.id = :contentId
+              AND pc.content.hidden = false
+          )
+          """);
 
       parameters.put(
           "contentId",
@@ -213,6 +251,7 @@ public class PlaylistQueryRepositoryImpl implements PlaylistQueryRepository {
     };
 
     jpql.append("""
+        
         AND (
           %s %s :%s
             OR (
