@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 import com.moduplaylist.core.playlist.ai.AiPlaylistCandidate;
 import com.moduplaylist.core.playlist.ai.AiPlaylistCandidateProvider;
@@ -21,6 +22,8 @@ import com.moduplaylist.core.playlist.ai.AiPlaylistThemeGenerator;
 import com.moduplaylist.core.playlist.exception.AiPlaylistOwnerNotFoundException;
 import com.moduplaylist.core.playlist.exception.InvalidAiPlaylistContentResultException;
 import com.moduplaylist.core.playlist.exception.InvalidAiPlaylistTitleException;
+import com.moduplaylist.core.playlist.exception.InvalidAiPlaylistDescriptionException;
+import com.moduplaylist.core.playlist.exception.InvalidAiPlaylistTagResultException;
 import com.moduplaylist.core.playlist.repository.PlaylistRepository;
 import com.moduplaylist.core.playlist.service.AiPlaylistGenerationValidator;
 import com.moduplaylist.core.playlist.service.AiPlaylistPersistenceService;
@@ -341,7 +344,48 @@ class AiPlaylistAutoGenerationServiceTest {
     assertThat(generationAttempts.get()).isEqualTo(3);
   }
 
+  @Test
+  void AI_설명_검증에_실패하면_재시도하여_저장한다() {
+    givenOwner();
+    givenSuccessfulGeneration();
 
+    when(playlistRepository.countCreatedByOwnerInWeek(ownerId, weekStart(), nextWeekStart()))
+        .thenReturn(3L);
+
+    doThrow(new InvalidAiPlaylistDescriptionException("AI 설명 검증 실패"))
+        .doNothing()
+        .when(aiPlaylistGenerationValidator).validate(any(), any());
+
+    service.generateWeekly(date);
+
+    verify(aiPlaylistGenerationValidator, times(3)).validate(any(), any());
+    verify(aiPlaylistGenerator, times(3)).generate(any(), any());
+    verify(aiPlaylistPersistenceService, times(2)).save(
+        any(), any(), any(), any(), any()
+    );
+  }
+
+  @Test
+  void AI_태그_검증에_실패하면_재시도하여_저장한다() {
+    givenOwner();
+    givenSuccessfulGeneration();
+
+    when(playlistRepository.countCreatedByOwnerInWeek(ownerId, weekStart(), nextWeekStart()))
+        .thenReturn(3L);
+
+    doThrow(new InvalidAiPlaylistTagResultException("AI 태그 검증 실패"))
+        .doNothing()
+        .when(aiPlaylistGenerationValidator).validate(any(), any());
+
+    service.generateWeekly(date);
+
+    verify(aiPlaylistGenerationValidator, times(3)).validate(any(), any());
+    verify(aiPlaylistGenerator, times(3)).generate(any(), any());
+    verify(aiPlaylistPersistenceService, times(2)).save(
+        any(), any(), any(), any(), any()
+    );
+  }
+  
   private void givenOwner() {
     when(userRepository.findByEmail(OWNER_EMAIL)).thenReturn(Optional.of(aiOwner));
     when(aiOwner.getId()).thenReturn(ownerId);

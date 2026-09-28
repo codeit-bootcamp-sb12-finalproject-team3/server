@@ -7,6 +7,8 @@ import com.moduplaylist.core.playlist.ai.AiPlaylistGenerator;
 import com.moduplaylist.core.playlist.ai.AiPlaylistThemeGenerator;
 import com.moduplaylist.core.playlist.exception.AiPlaylistOwnerNotFoundException;
 import com.moduplaylist.core.playlist.exception.InvalidAiPlaylistContentResultException;
+import com.moduplaylist.core.playlist.exception.InvalidAiPlaylistDescriptionException;
+import com.moduplaylist.core.playlist.exception.InvalidAiPlaylistTagResultException;
 import com.moduplaylist.core.playlist.exception.InvalidAiPlaylistTitleException;
 import com.moduplaylist.core.playlist.exception.AiPlaylistGenerationFailedException;
 import com.moduplaylist.core.playlist.policy.PlaylistContentPolicy;
@@ -111,6 +113,8 @@ public class AiPlaylistAutoGenerationService {
           break;
         } catch (InvalidAiPlaylistContentResultException
                  | InvalidAiPlaylistTitleException
+                 | InvalidAiPlaylistDescriptionException
+                 | InvalidAiPlaylistTagResultException
                  | AiPlaylistGenerationFailedException exception) {
           lastFailure = exception;
 
