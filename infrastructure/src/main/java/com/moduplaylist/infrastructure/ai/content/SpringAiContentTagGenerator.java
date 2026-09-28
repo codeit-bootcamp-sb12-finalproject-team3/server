@@ -29,7 +29,7 @@ import org.springframework.web.client.RestClientResponseException;
 
 /** Dedicated, stateless model: no application tools, memory, advisors or automatic retries. */
 public class SpringAiContentTagGenerator implements ContentTagGenerator {
-    public static final String PROMPT_VERSION = "content-tags-v1";
+    public static final String PROMPT_VERSION = "content-tags-v2";
     private static final String SCHEMA = """
         {"type":"object","additionalProperties":false,"required":["tags"],"properties":{
           "tags":{"type":"array","maxItems":3,"items":{"type":"object",
@@ -44,6 +44,9 @@ public class SpringAiContentTagGenerator implements ContentTagGenerator {
         제공된 설명과 키워드만 사용한다. 사전 지식으로 작품 내용이나 결말을 보충하지 않는다.
         영문 TMDB 키워드는 필요한 경우 의미를 추가하지 않고 한국어 태그로 번역할 수 있다.
         소재·주제·관계·갈등 중심으로 서로 다른 개념을 최대 3개 선택한다.
+        작품 전체의 핵심 갈등·주제·반복되는 소재를 우선한다.
+        설명에 잠깐 언급된 장소·직업·행동은 핵심 내용이 아니면 제외한다.
+        검색 사용자가 이 작품을 찾거나 비슷한 작품을 탐색할 때 유용한 개념을 선택한다.
         태그는 2~20자의 한국어 명사구이며 숫자·영문은 한국어와 함께 필요한 경우만 사용한다.
         타입·장르의 반복, 작품명·인명, 제작·홍보 용어, 광고, 명령문, 근거 없는 민감 속성은 제외한다.
         기존 태그와 동의어까지 중복되는 태그를 만들지 않는다. 개수를 채우려고 추측하지 않는다.
