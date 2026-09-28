@@ -34,6 +34,7 @@ import com.moduplaylist.core.content.entity.TagSource;
 import com.moduplaylist.core.content.exception.ContentDeletionBlockedException;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.exception.ContentSeasonAlreadyExistsException;
+import com.moduplaylist.core.content.exception.ContentTaggingPendingException;
 import com.moduplaylist.core.content.exception.GenreNotFoundException;
 import com.moduplaylist.core.content.exception.HiddenSeasonAlreadyExistsException;
 import com.moduplaylist.core.content.exception.DuplicateContentConfirmationRequiredException;
@@ -288,7 +289,7 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		Content content = lockContentForUpdate(contentId, request, true);
 		if (request.getManualTags().isPresent()
 			&& content.getAiTaggingStatus() == Content.AiTaggingStatus.PENDING) {
-			throw new com.moduplaylist.core.content.exception.ContentTaggingPendingException(contentId);
+			throw new ContentTaggingPendingException(contentId);
 		}
 		validateUpdateFields(content.getType(), request);
 		validateTmdbSeasonHierarchyUpdate(content, request);
@@ -1027,6 +1028,9 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		}
 		if (content.isHidden()) {
 			return;
+		}
+		if (content.getAiTaggingStatus() == Content.AiTaggingStatus.PENDING) {
+			throw new ContentTaggingPendingException(contentId);
 		}
 		List<UUID> idsToCheck = new ArrayList<>();
 		idsToCheck.add(contentId);

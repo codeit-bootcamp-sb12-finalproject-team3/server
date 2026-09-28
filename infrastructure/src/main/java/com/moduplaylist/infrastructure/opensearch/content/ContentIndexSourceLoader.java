@@ -23,13 +23,18 @@ public class ContentIndexSourceLoader {
     @Transactional(readOnly = true)
     public ContentIndexSource load(UUID contentId) {
         Content content = contentRepository.findById(contentId).orElse(null);
-        if (content == null || content.isHidden() || content.getType() == ContentType.TV_SERIES) {
+        if (content == null
+                || content.getType() == ContentType.TV_SERIES
+                || !content.isPubliclyVisible()) {
             return ContentIndexSource.notIndexable(contentId);
         }
 
         Content parent = content.getType() == ContentType.TV_SEASON
                 ? content.getParentContent()
                 : null;
+        if (parent != null && parent.isHidden()) {
+            return ContentIndexSource.notIndexable(contentId);
+        }
         if (content.getType() == ContentType.SPORT) {
             SportEvent event = sportEventRepository
                     .findWithSportTypeByContentId(contentId)
