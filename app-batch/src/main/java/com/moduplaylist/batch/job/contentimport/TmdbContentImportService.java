@@ -3,6 +3,7 @@ package com.moduplaylist.batch.job.contentimport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.moduplaylist.batch.job.contentimport.ContentImportMetrics.TmdbMovieProviderRetryTarget;
 import com.moduplaylist.batch.job.contentimport.ContentImportMetrics.TmdbProviderRetryTarget;
+import com.moduplaylist.batch.job.contenttagging.TmdbKeywordService;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.Content.AiTaggingStatus;
 import com.moduplaylist.core.content.entity.ContentCast;
@@ -35,6 +36,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.IntFunction;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -48,6 +52,7 @@ public class TmdbContentImportService {
     private static final int CAST_LIMIT = 10;
 
     private final TmdbContentClient tmdbClient;
+    private final TmdbKeywordService keywordService;
     private final TmdbWatchProviderClient watchProviderClient;
     private final TmdbContentPlatformService contentPlatformService;
     private final TmdbProperties properties;
@@ -58,6 +63,8 @@ public class TmdbContentImportService {
     private final ContentCastRepository contentCastRepository;
     private final ContentIndexSynchronizer contentIndexSynchronizer;
     private final TransactionTemplate transactionTemplate;
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public void importMovies(LocalDate runDate, ContentImportMetrics metrics) {
         LocalDate from = runDate.minusDays(1);
@@ -312,8 +319,9 @@ public class TmdbContentImportService {
             log.info("TMDB 영화 필수 정보가 없어 건너뜁니다. tmdbId={}", id);
             return;
         }
+        Map<String, Object> keywordMetadata = keywordService.fetch(id, false);
         MovieSaveResult result = transactionTemplate.execute(status ->
-            importMovie(id, ko, en, genres, genreCache));
+            importMovie(id, ko, en, genres, genreCache, keywordMetadata));
         if (result == null) {
             metrics.existing();
             contentRepository.findByExternalSourceAndTypeAndExternalId(
@@ -346,7 +354,8 @@ public class TmdbContentImportService {
         JsonNode ko,
         JsonNode en,
         JsonNode genres,
-        GenreCache genreCache
+        GenreCache genreCache,
+        Map<String, Object> keywordMetadata
     ) {
         if (contentRepository.findByExternalSourceAndTypeAndExternalId(
             SOURCE, ContentType.MOVIE, id).isPresent()) return null;
@@ -362,6 +371,7 @@ public class TmdbContentImportService {
             .metadata(titleMetadata(originalTitle, englishTitle))
             .externalSource(SOURCE).externalId(id).build();
         movie.updateAiTaggingStatus(AiTaggingStatus.PENDING);
+        movie.mergeMetadata(keywordMetadata);
         contentRepository.save(movie);
         List<GenreResolution> genreResolutions = saveGenres(movie, genres, genreCache);
         saveCast(movie, ko.path("credits").path("cast"));
@@ -426,6 +436,9 @@ public class TmdbContentImportService {
         }
         JsonNode genres = hasValidGenres(ko.path("genres"))
             ? ko.path("genres") : en.path("genres");
+        Map<String, Object> keywordMetadata = hasMissingRemoteSeason
+            && (series == null || !TmdbKeywordService.successful(series.getMetadata()))
+            ? keywordService.fetch(seriesId, true) : Map.of();
         boolean failed = false;
         for (JsonNode candidate : candidates) {
             int number = candidate.path("season_number").asInt();
@@ -447,7 +460,7 @@ public class TmdbContentImportService {
                     continue;
                 }
                 SeasonSaveResult result = transactionTemplate.execute(status ->
-                    saveSeason(seriesId, data, ko, en, genres, runDate, genreCache)
+                    saveSeason(seriesId, data, ko, en, genres, runDate, genreCache, keywordMetadata)
                 );
                 if (result != null) genreCache.putAll(result.genreResolutions());
                 if (result != null && result.season() != null) {
@@ -526,10 +539,15 @@ public class TmdbContentImportService {
         JsonNode seriesEn,
         JsonNode genres,
         LocalDate runDate,
-        GenreCache genreCache
+        GenreCache genreCache,
+        Map<String, Object> keywordMetadata
     ) {
         Content series = contentRepository.findByExternalSourceAndTypeAndExternalId(
             SOURCE, ContentType.TV_SERIES, seriesId).orElse(null);
+        if (series != null) {
+            // Refresh the entity read above after taking the parent lock to preserve concurrent metadata edits.
+            entityManager.refresh(series, LockModeType.PESSIMISTIC_WRITE);
+        }
         int seasonId = data.candidate().path("id").asInt();
         Content existing = contentRepository.findByExternalSourceAndTypeAndExternalId(
             SOURCE, ContentType.TV_SEASON, seasonId).orElse(null);
@@ -557,6 +575,9 @@ public class TmdbContentImportService {
                 .title(seriesTitle).type(ContentType.TV_SERIES)
                 .metadata(titleMetadata(originalTitle, englishTitle))
                 .externalSource(SOURCE).externalId(seriesId).build());
+        }
+        if (!keywordMetadata.isEmpty() && !TmdbKeywordService.successful(series.getMetadata())) {
+            series.mergeMetadata(keywordMetadata);
         }
         Content season = importSeason(series, data, seriesKo, seriesEn, runDate);
         if (season == null) return SeasonSaveResult.empty();
@@ -697,6 +718,15 @@ public class TmdbContentImportService {
         ContentImportMetrics metrics
     ) {
         if (!synchronizeAutocomplete && !synchronizeSearch) return;
+        boolean taggingPending = contentRepository.findById(contentId)
+            .map(content -> content.getAiTaggingStatus() == AiTaggingStatus.PENDING)
+            .orElse(false);
+        if (taggingPending) {
+            if (synchronizeAutocomplete) metrics.completeAutocompleteRetry(contentId);
+            if (synchronizeSearch) metrics.completeSearchRetry(contentId);
+            log.debug("AI 태깅 전 TMDB 콘텐츠 색인을 보류합니다. contentId={}", contentId);
+            return;
+        }
 
         ContentIndexSource source;
         try {

@@ -51,6 +51,7 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.HIDDEN_SEASON_ALREADY_EXISTS, HttpStatus.CONFLICT);
         STATUS_MAP.put(ErrorCode.CONTENT_DELETION_BLOCKED, HttpStatus.CONFLICT);
         STATUS_MAP.put(ErrorCode.CONTENT_SEARCH_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE);
+        STATUS_MAP.put(ErrorCode.CONTENT_TAGGING_PENDING, HttpStatus.CONFLICT);
 
         // Review
         STATUS_MAP.put(ErrorCode.REVIEW_NOT_FOUND, HttpStatus.NOT_FOUND);

@@ -286,6 +286,10 @@ public class ContentCommandServiceImpl implements ContentCommandService {
 		boolean forceContentUpsertEvent
 	) {
 		Content content = lockContentForUpdate(contentId, request, true);
+		if (request.getManualTags().isPresent()
+			&& content.getAiTaggingStatus() == Content.AiTaggingStatus.PENDING) {
+			throw new com.moduplaylist.core.content.exception.ContentTaggingPendingException(contentId);
+		}
 		validateUpdateFields(content.getType(), request);
 		validateTmdbSeasonHierarchyUpdate(content, request);
 		if (content.getType() == ContentType.TV_SERIES) {

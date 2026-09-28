@@ -41,10 +41,16 @@ public class ContentEmbeddingTasklet implements Tasklet {
         );
         List<UUID> targetIds = targetService.findTargetContentIds(window);
         List<UUID> failedIds = new ArrayList<>();
+        int deferred = 0;
 
         for (UUID contentId : targetIds) {
             try {
                 ContentEmbeddingResult result = embeddingService.embedAndIndex(contentId);
+                if (!result.isPublished()) {
+                    deferred++;
+                    log.info("콘텐츠 임베딩 게시 보류 - contentId={}, reason=SOURCE_CHANGED_OR_HIDDEN", contentId);
+                    continue;
+                }
                 log.info(
                         "콘텐츠 임베딩 저장 완료 - contentId={}, dimensions={}",
                         result.getContentId(),
@@ -57,10 +63,11 @@ public class ContentEmbeddingTasklet implements Tasklet {
         }
 
         log.info(
-                "콘텐츠 임베딩 배치 완료 - targets={}, succeeded={}, failed={}",
+                "콘텐츠 임베딩 배치 완료 - targets={}, succeeded={}, failed={}, deferred={}",
                 targetIds.size(),
-                targetIds.size() - failedIds.size(),
-                failedIds.size()
+                targetIds.size() - failedIds.size() - deferred,
+                failedIds.size(),
+                deferred
         );
 
         if (!failedIds.isEmpty()) {

@@ -19,6 +19,22 @@ import org.springframework.data.domain.Pageable;
 public interface ContentRepository extends JpaRepository<Content, UUID>, ContentQueryRepository {
 
     @Query("""
+        select c.id from Content c left join c.parentContent parent
+        where c.externalSource = 'TMDB' and c.hidden = false
+          and c.type in :types and c.aiTaggingStatus = :status
+          and (:afterId is null or c.id > :afterId)
+          and (parent is null or parent.hidden = false)
+        order by c.id
+        """)
+    List<UUID> findPendingTaggingIds(
+        @Param("types") Collection<ContentType> types,
+        @Param("status") Content.AiTaggingStatus status,
+        @Param("afterId") UUID afterId, Pageable pageable);
+
+    @Query("select c.parentContent.id from Content c where c.id = :contentId")
+    Optional<UUID> findParentId(@Param("contentId") UUID contentId);
+
+    @Query("""
             select content.id
             from Content content
             where content.hidden = false

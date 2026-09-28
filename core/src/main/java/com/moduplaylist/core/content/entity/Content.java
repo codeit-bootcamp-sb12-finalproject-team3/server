@@ -288,6 +288,13 @@ public class Content extends BaseEntity {
 		touchUpdatedAt();
 	}
 
+	public void mergeMetadata(Map<String, Object> additions) {
+		Map<String, Object> merged = new java.util.LinkedHashMap<>();
+		if (metadata != null) merged.putAll(metadata);
+		merged.putAll(additions);
+		this.metadata = merged;
+	}
+
 	public boolean isReviewable() {
 		return type != null && type.isReviewable();
 	}
