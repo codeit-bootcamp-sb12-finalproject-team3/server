@@ -18,6 +18,11 @@ public class ContentEmbeddingTargetService {
 
     private static final List<ContentType> EMBEDDABLE_TYPES =
             List.of(ContentType.MOVIE, ContentType.TV_SEASON);
+    private static final List<Content.AiTaggingStatus> TERMINAL_TAGGING_STATUSES = List.of(
+            Content.AiTaggingStatus.COMPLETED,
+            Content.AiTaggingStatus.COMPLETED_PARTIAL,
+            Content.AiTaggingStatus.FAILED
+    );
 
     private final ContentRepository contentRepository;
     private final ContentSearchDocumentRepository searchDocumentRepository;
@@ -26,8 +31,9 @@ public class ContentEmbeddingTargetService {
     public List<UUID> findTargetContentIds(ContentEmbeddingRunWindow window) {
         List<Content> contents = window.fullScan()
                 ? contentRepository.findEmbeddingSourcesThrough(
-                        EMBEDDABLE_TYPES, window.through())
-                : contentRepository.findPendingEmbeddingSources(EMBEDDABLE_TYPES);
+                        EMBEDDABLE_TYPES, TERMINAL_TAGGING_STATUSES, window.through())
+                : contentRepository.findPendingEmbeddingSources(
+                        EMBEDDABLE_TYPES, TERMINAL_TAGGING_STATUSES);
 
         return contents.stream()
                 .filter(content -> content.isEmbeddingPending() || requiresEmbedding(content))

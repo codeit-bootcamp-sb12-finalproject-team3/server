@@ -271,6 +271,20 @@ public class Content extends BaseEntity {
 		this.aiTaggingStatus = aiTaggingStatus;
 	}
 
+	public boolean isEmbeddingAllowedByAiTaggingStatus() {
+		if (!"TMDB".equals(externalSource)
+			|| (type != ContentType.MOVIE && type != ContentType.TV_SEASON)) {
+			return true;
+		}
+		return aiTaggingStatus == AiTaggingStatus.COMPLETED
+			|| aiTaggingStatus == AiTaggingStatus.COMPLETED_PARTIAL
+			|| aiTaggingStatus == AiTaggingStatus.FAILED;
+	}
+
+	public boolean isPubliclyVisible() {
+		return !hidden && isEmbeddingAllowedByAiTaggingStatus();
+	}
+
 	public void hide() {
 		this.hidden = true;
 	}

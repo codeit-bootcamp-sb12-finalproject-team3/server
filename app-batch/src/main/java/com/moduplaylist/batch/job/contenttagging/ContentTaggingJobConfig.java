@@ -40,9 +40,10 @@ public class ContentTaggingJobConfig {
     @Bean
     public ContentTaggingTasklet contentTaggingTasklet(ContentRepository contents, TmdbKeywordService keywords,
         ContentTaggingStore store, ContentTagGenerator generator, ContentTagGuard guard,
-        ContentTaggingProperties properties, ContentIndexSynchronizer indexSynchronizer) {
+        ContentTaggingProperties properties, ContentIndexSynchronizer indexSynchronizer,
+        ContentTaggingOpenAiCircuitBreaker circuitBreaker) {
         return new ContentTaggingTasklet(contents, keywords, store, generator, guard, properties,
-            indexSynchronizer);
+            indexSynchronizer, circuitBreaker);
     }
 
     @Bean

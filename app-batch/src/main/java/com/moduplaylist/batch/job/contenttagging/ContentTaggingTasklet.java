@@ -23,6 +23,8 @@ import org.springframework.data.domain.PageRequest;
 @Slf4j
 @RequiredArgsConstructor
 public class ContentTaggingTasklet implements Tasklet {
+    private static final int PROVIDER_FAILURE_CIRCUIT_THRESHOLD = 3;
+
     private final ContentRepository contents;
     private final TmdbKeywordService keywords;
     private final ContentTaggingStore store;
@@ -30,19 +32,32 @@ public class ContentTaggingTasklet implements Tasklet {
     private final ContentTagGuard guard;
     private final ContentTaggingProperties properties;
     private final ContentIndexSynchronizer indexSynchronizer;
+    private final ContentTaggingOpenAiCircuitBreaker circuitBreaker;
     private final AtomicBoolean running = new AtomicBoolean();
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext context) {
         if (!running.compareAndSet(false, true)) throw new IllegalStateException("Tagging is already running");
         int succeeded = 0, empty = 0, failed = 0, processed = 0;
+        int consecutiveProviderFailures = 0;
+        String probeToken = context == null ? null : context.getStepContext()
+            .getStepExecution().getJobParameters().getString("circuitProbeToken");
+        boolean probe = probeToken != null;
+        boolean probeResolved = false;
+        int maxItems = probe ? 1 : properties.getMaxItems();
         UUID afterId = null;
         try {
-            while (processed < properties.getMaxItems()) {
+            while (processed < maxItems) {
                 var ids = contents.findPendingTaggingIds(List.of(ContentType.MOVIE, ContentType.TV_SEASON),
                     Content.AiTaggingStatus.PENDING, afterId,
-                    PageRequest.of(0, Math.min(100, properties.getMaxItems() - processed)));
-                if (ids.isEmpty()) break;
+                    PageRequest.of(0, Math.min(100, maxItems - processed)));
+                if (ids.isEmpty()) {
+                    if (probe) {
+                        circuitBreaker.probeSucceeded(probeToken);
+                        probeResolved = true;
+                    }
+                    break;
+                }
                 for (UUID id : ids) {
                     if (Thread.currentThread().isInterrupted()) throw new IllegalStateException("Tagging interrupted");
                     afterId = id;
@@ -76,13 +91,25 @@ public class ContentTaggingTasklet implements Tasklet {
                     long elapsed = (System.nanoTime() - started) / 1_000_000;
                     boolean providerFailure = failure != null
                         && failure.getMessage().startsWith("AI_API_");
+                    consecutiveProviderFailures = providerFailure
+                        ? consecutiveProviderFailures + 1 : 0;
+
                     if (providerFailure) {
-                        failed++;
-                        log.warn("콘텐츠 태깅 공급자 장애 contentId={}, reason={}, model={}, prompt={}, calls={}, elapsedMs={}",
+                        boolean permanentFailure = isPermanentProviderFailure(failure);
+                        log.warn("OpenAI 태깅 공급자 장애 contentId={}, reason={}, model={}, prompt={}, calls={}, elapsedMs={}",
                             id, failure.getMessage(), generator.modelName(), SpringAiContentTagGenerator.PROMPT_VERSION,
                             calls, elapsed);
-                        // Do not persist an outcome: the next job must retry this first tagging attempt.
-                        throw new IllegalStateException("Content tagging provider unavailable: " + failure.getMessage());
+                        if (probe) {
+                            circuitBreaker.probeFailed(probeToken, permanentFailure);
+                            probeResolved = true;
+                            return RepeatStatus.FINISHED;
+                        }
+                        if (failure.isAbortJob()
+                            || consecutiveProviderFailures >= PROVIDER_FAILURE_CIRCUIT_THRESHOLD) {
+                            circuitBreaker.openAfterConsecutiveFailures(permanentFailure);
+                            return RepeatStatus.FINISHED;
+                        }
+                        continue;
                     }
 
                     boolean completed = save(id, snapshot, failure == null ? verified : List.of());
@@ -103,19 +130,22 @@ public class ContentTaggingTasklet implements Tasklet {
                         log.warn("콘텐츠 태깅 실패 contentId={}, reason={}, model={}, prompt={}, calls={}, elapsedMs={}",
                             id, failure.getMessage(), generator.modelName(), SpringAiContentTagGenerator.PROMPT_VERSION,
                             calls, elapsed);
-                        if (failure.isAbortJob()) {
-                            throw new IllegalStateException("Content tagging stopped: " + failure.getMessage());
-                        }
                     } else {
                         if (verified.isEmpty()) empty++; else succeeded++;
                         log.info("콘텐츠 태깅 종료 contentId={}, result={}, count={}, model={}, prompt={}, calls={}, elapsedMs={}",
                             id, verified.isEmpty() ? "NO_USABLE_TAGS" : "SUCCESS", verified.size(),
                             generator.modelName(), SpringAiContentTagGenerator.PROMPT_VERSION, calls, elapsed);
                     }
+                    if (probe) {
+                        circuitBreaker.probeSucceeded(probeToken);
+                        probeResolved = true;
+                        return RepeatStatus.FINISHED;
+                    }
                 }
             }
             return RepeatStatus.FINISHED;
         } finally {
+            if (probe && !probeResolved) circuitBreaker.probeAborted(probeToken);
             running.set(false);
             log.info("콘텐츠 태깅 배치 종료 성공={}, 정상0개={}, 실제실패={}", succeeded, empty, failed);
         }
@@ -137,5 +167,13 @@ public class ContentTaggingTasklet implements Tasklet {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Tagging interrupted");
         }
+    }
+
+    private static boolean isPermanentProviderFailure(ContentTaggingException failure) {
+        return switch (failure.getMessage()) {
+            case "AI_API_STATUS_400", "AI_API_STATUS_401", "AI_API_STATUS_403",
+                 "AI_API_STATUS_404" -> true;
+            default -> false;
+        };
     }
 }

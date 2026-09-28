@@ -252,7 +252,8 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	private Map<UUID, Content> loadVisibleContents(Iterable<UUID> contentIds) {
 		Map<UUID, Content> visibleById = new HashMap<>();
 		contentRepository.findAllById(contentIds).stream()
-			.filter(content -> !content.isHidden() && content.getType() != ContentType.TV_SERIES)
+			.filter(content -> content.isPubliclyVisible()
+				&& content.getType() != ContentType.TV_SERIES)
 			.forEach(content -> visibleById.put(content.getId(), content));
 		return visibleById;
 	}
@@ -591,7 +592,8 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		Map<UUID, Integer> personalizedRankById = findPersonalizedRanks(userId);
 		Map<UUID, Double> popularityScoreById = findPopularityScores(candidateIds);
 		Set<UUID> visibleContentIds = contentRepository.findAllById(candidateIds).stream()
-			.filter(content -> !content.isHidden() && content.getType() != ContentType.TV_SERIES)
+			.filter(content -> content.isPubliclyVisible()
+				&& content.getType() != ContentType.TV_SERIES)
 			.map(Content::getId)
 			.collect(java.util.stream.Collectors.toSet());
 		Set<String> seenTexts = new HashSet<>();
@@ -652,6 +654,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 
 	private Content findVisibleContent(UUID contentId) {
 		return contentRepository.findByIdAndHiddenFalse(contentId)
+			.filter(Content::isEmbeddingAllowedByAiTaggingStatus)
 			.orElseThrow(() -> new ContentNotFoundException(contentId));
 	}
 

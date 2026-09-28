@@ -262,6 +262,7 @@ public class WatchPartyService {
 
     private void validateContentForWatchParty(UUID contentId) {
         Content content = contentRepository.findByIdAndHiddenFalse(contentId)
+                .filter(Content::isEmbeddingAllowedByAiTaggingStatus)
                 .orElseThrow(() -> new ContentNotFoundException(contentId));
         validateWatchPartyContent(content);
     }

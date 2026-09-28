@@ -52,6 +52,7 @@ public class ContentEmbeddingService {
         Content content = contentRepository.findById(contentId)
                 .orElseThrow(() -> new ContentNotFoundException(contentId));
         if (content.isHidden() || (content.getType() != ContentType.MOVIE && content.getType() != ContentType.TV_SEASON)
+            || !content.isEmbeddingAllowedByAiTaggingStatus()
             || (content.getType() == ContentType.TV_SEASON && (parent == null || parent.isHidden()
                 || !parent.getId().equals(content.getParentContent().getId())))) return null;
         Instant sourceUpdatedAt = content.getEmbeddingSourceUpdatedAt();

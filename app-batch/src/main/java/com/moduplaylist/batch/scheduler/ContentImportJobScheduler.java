@@ -89,7 +89,7 @@ public class ContentImportJobScheduler {
             JobExecution execution = jobLauncher.run(job, parameters);
             log.info("콘텐츠 수집 Job {} - runDate={}, executionId={}, status={}",
                 trigger, runDate, execution.getId(), execution.getStatus());
-            if (!execution.isRunning()) {
+            if (execution.getStatus() == BatchStatus.COMPLETED) {
                 ContentTaggingJobScheduler scheduler = taggingScheduler.getIfAvailable();
                 if (scheduler != null) scheduler.runAfterContentImport(execution.getId());
             }

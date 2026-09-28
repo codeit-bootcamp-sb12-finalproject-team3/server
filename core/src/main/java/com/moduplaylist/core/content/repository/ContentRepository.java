@@ -60,10 +60,14 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
             where content.type in :types
               and content.hidden = false
               and content.embeddingSourceUpdatedAt <= :through
+              and (content.externalSource is null
+                   or content.externalSource <> 'TMDB'
+                   or content.aiTaggingStatus in :taggingStatuses)
             order by content.embeddingSourceUpdatedAt, content.id
             """)
     List<Content> findEmbeddingSourcesThrough(
             @Param("types") Collection<ContentType> types,
+            @Param("taggingStatuses") Collection<Content.AiTaggingStatus> taggingStatuses,
             @Param("through") Instant through
     );
 
@@ -73,10 +77,14 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
             where content.type in :types
               and content.hidden = false
               and content.embeddingPending = true
+              and (content.externalSource is null
+                   or content.externalSource <> 'TMDB'
+                   or content.aiTaggingStatus in :taggingStatuses)
             order by content.embeddingSourceUpdatedAt, content.id
             """)
     List<Content> findPendingEmbeddingSources(
-            @Param("types") Collection<ContentType> types
+            @Param("types") Collection<ContentType> types,
+            @Param("taggingStatuses") Collection<Content.AiTaggingStatus> taggingStatuses
     );
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)

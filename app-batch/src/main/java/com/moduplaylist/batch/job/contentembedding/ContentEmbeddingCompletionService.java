@@ -53,6 +53,7 @@ public class ContentEmbeddingCompletionService {
         return content != null
                 && !content.isHidden()
                 && (content.getType() == ContentType.MOVIE || content.getType() == ContentType.TV_SEASON)
+                && content.isEmbeddingAllowedByAiTaggingStatus()
                 && (content.getType() != ContentType.TV_SEASON
                     || (parent != null && !parent.isHidden()
                         && parent.getId().equals(content.getParentContent().getId())))
