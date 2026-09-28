@@ -5,6 +5,7 @@ import com.moduplaylist.api.auth.dto.PasswordChangeRequest;
 import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
 import com.moduplaylist.core.user.entity.User;
+import com.moduplaylist.core.user.repository.JwtRegistry;
 import com.moduplaylist.core.user.repository.TemporaryPasswordStore;
 import com.moduplaylist.core.user.repository.UserRepository;
 import java.util.UUID;
@@ -23,6 +24,7 @@ public class PasswordChangeService {
   private final TemporaryPasswordService temporaryPasswordService;
   private final TemporaryPasswordStore temporaryPasswordStore;
   private final PasswordEncoder passwordEncoder;
+  private final JwtRegistry jwtRegistry;
 
   @Transactional
   public void change(UUID userId, PasswordChangeRequest request) {
@@ -45,12 +47,13 @@ public class PasswordChangeService {
     user.updatePassword(passwordEncoder.encode(request.getNewPassword()));
 
     TransactionSynchronizationManager.registerSynchronization(
-        new TransactionSynchronization() {
-          @Override
-          public void afterCommit() {
-            temporaryPasswordStore.delete(userId);
-          }
+      new TransactionSynchronization() {
+        @Override
+        public void afterCommit() {
+          jwtRegistry.invalidateByUserId(userId);
+          temporaryPasswordStore.delete(userId);
         }
+      }
     );
   }
 }
