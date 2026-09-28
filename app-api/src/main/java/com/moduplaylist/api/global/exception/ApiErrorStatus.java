@@ -31,6 +31,8 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.USER_ALREADY_EXISTS, HttpStatus.CONFLICT);
         STATUS_MAP.put(ErrorCode.USER_PROFILE_ACCESS_DENIED, HttpStatus.FORBIDDEN);
         STATUS_MAP.put(ErrorCode.INVALID_USER_PROFILE_UPDATE, HttpStatus.BAD_REQUEST);
+        STATUS_MAP.put(ErrorCode.INVALID_OAUTH_ACCOUNT, HttpStatus.BAD_REQUEST);
+        STATUS_MAP.put(ErrorCode.INVALID_OAUTH2_LOGIN_CODE, HttpStatus.UNAUTHORIZED);
 
         STATUS_MAP.put(ErrorCode.CONTENT_NOT_FOUND, HttpStatus.NOT_FOUND);
         STATUS_MAP.put(ErrorCode.CONTENT_TYPE_NOT_VIEWABLE, HttpStatus.BAD_REQUEST);
@@ -76,6 +78,7 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.AI_PLAYLIST_INVALID_TITLE, HttpStatus.BAD_GATEWAY);
         STATUS_MAP.put(ErrorCode.AI_PLAYLIST_INVALID_DESCRIPTION, HttpStatus.BAD_GATEWAY);
         STATUS_MAP.put(ErrorCode.AI_PLAYLIST_INVALID_TAG_RESULT, HttpStatus.BAD_GATEWAY);
+        STATUS_MAP.put(ErrorCode.AI_PLAYLIST_OWNER_NOT_FOUND, HttpStatus.INTERNAL_SERVER_ERROR);
         STATUS_MAP.put(
             ErrorCode.AI_PLAYLIST_CANDIDATE_SERIALIZATION_FAILED,
             HttpStatus.INTERNAL_SERVER_ERROR
@@ -105,6 +108,7 @@ public final class ApiErrorStatus {
         // WatchParty
         STATUS_MAP.put(ErrorCode.WATCHPARTY_NOT_FOUND, HttpStatus.NOT_FOUND);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_INVALID_EPISODE_RANGE, HttpStatus.BAD_REQUEST);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_EPISODE_RANGE_EXCEEDED, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_ALREADY_ENDED, HttpStatus.CONFLICT);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_HOST_CANNOT_JOIN, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_ALREADY_JOINED, HttpStatus.CONFLICT);
@@ -116,6 +120,10 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.WATCHPARTY_NOT_A_PARTICIPANT, HttpStatus.NOT_FOUND);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_PARTICIPANT_NOT_JOINED, HttpStatus.CONFLICT);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_INVALID_STATE, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_MAX_PARTICIPANTS_BELOW_CURRENT, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_MAX_PARTICIPANTS_EXCEEDED, HttpStatus.BAD_REQUEST);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_CHAT_ACCESS_DENIED, HttpStatus.FORBIDDEN);
+
     }
 
     private ApiErrorStatus() {

@@ -26,6 +26,10 @@ final class WatchPartyRedisKey {
         return PREFIX + require(partyId) + ":online";
     }
 
+    static String lastSeen(UUID partyId) {
+        return PREFIX + require(partyId) + ":lastSeen";
+    }
+
     static String joinedParty(UUID userId) {
         return "user:" + require(userId) + ":joinedParty";
     }

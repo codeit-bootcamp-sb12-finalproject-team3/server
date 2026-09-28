@@ -34,6 +34,7 @@ class StompAuthChannelInterceptorTest {
     private WatchPartyHostRegistry watchPartyHostRegistry;
     private WatchPartyActivePartyRegistry watchPartyActivePartyRegistry;
     private WatchPartyOnlineRegistry watchPartyOnlineRegistry;
+    private WatchPartyPlaybackRegistry watchPartyPlaybackRegistry;
     private SimpMessagingTemplate messagingTemplate;
 
     private static final UUID USER_ID = UUID.randomUUID();
@@ -58,6 +59,7 @@ class StompAuthChannelInterceptorTest {
         watchPartyHostRegistry = mock(WatchPartyHostRegistry.class);
         watchPartyActivePartyRegistry = mock(WatchPartyActivePartyRegistry.class);
         watchPartyOnlineRegistry = mock(WatchPartyOnlineRegistry.class);
+        watchPartyPlaybackRegistry = mock(WatchPartyPlaybackRegistry.class);
         messagingTemplate = mock(SimpMessagingTemplate.class);
 
         interceptor = new StompAuthChannelInterceptor(
@@ -68,6 +70,7 @@ class StompAuthChannelInterceptorTest {
                 watchPartyHostRegistry,
                 watchPartyActivePartyRegistry,
                 watchPartyOnlineRegistry,
+                watchPartyPlaybackRegistry,
                 messagingTemplate
         );
 
@@ -243,6 +246,37 @@ class StompAuthChannelInterceptorTest {
         assertThat(interceptor.preSend(chat, null)).isEqualTo(chat);
         assertThat(interceptor.preSend(playback, null)).isEqualTo(playback);
         verify(watchPartyOnlineRegistry).addOnline(partyId, USER_ID);
+    }
+
+    @Test
+    @DisplayName("종료된 파티를 SUBSCRIBE하면 에러 응답 후 거부한다")
+    void endedParty_subscribe_rejectedWithError() {
+        UUID partyId = UUID.randomUUID();
+        Message<byte[]> message = createMessage
+                (StompCommand.SUBSCRIBE, "/sub/watch-parties/" + partyId + "/chat");
+        when(watchPartyPlaybackRegistry.isEnded(partyId)).thenReturn(true);
+
+        Message<?> result = interceptor.preSend(message, null);
+
+        assertThat(result).isNull();
+        verify(messagingTemplate).convertAndSendToUser(
+                eq(USER_ID.toString()), eq("/queue/errors"), eq("이미 종료된 Watch Party입니다."));
+        verify(watchPartyOnlineRegistry, never()).addOnline(any(), any());
+    }
+
+    @Test
+    @DisplayName("강퇴된 유저는 종료된 파티여도 에러 없이 조용히 거부한다")
+    void kickedUser_endedParty_subscribe_silentlyRejected() {
+        UUID partyId = UUID.randomUUID();
+        Message<byte[]> message = createMessage
+                (StompCommand.SUBSCRIBE, "/sub/watch-parties/" + partyId + "/chat");
+        when(watchPartyKickedRegistry.isKicked(partyId, USER_ID)).thenReturn(true);
+        when(watchPartyPlaybackRegistry.isEnded(partyId)).thenReturn(true);
+
+        Message<?> result = interceptor.preSend(message, null);
+
+        assertThat(result).isNull();
+        verify(messagingTemplate, never()).convertAndSendToUser(any(), any(), any());
     }
 
     private Message<byte[]> createMessage(

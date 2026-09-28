@@ -19,6 +19,7 @@ import com.moduplaylist.core.playlist.exception.InvalidAiPlaylistContentResultEx
 import com.moduplaylist.core.playlist.exception.InvalidAiPlaylistDescriptionException;
 import com.moduplaylist.core.playlist.exception.InvalidAiPlaylistTagResultException;
 import com.moduplaylist.core.playlist.exception.InvalidAiPlaylistTitleException;
+import com.moduplaylist.core.playlist.service.AiPlaylistGenerationValidator;
 import com.moduplaylist.core.playlist.service.AiPlaylistPersistenceService;
 import java.util.List;
 import java.util.UUID;
@@ -47,16 +48,20 @@ class AiPlaylistGenerationServiceImplTest {
   private AiPlaylistCreateRequest request;
 
   private AiPlaylistGenerationServiceImpl service;
+  private AiPlaylistGenerationValidator aiPlaylistGenerationValidator;
   private List<AiPlaylistCandidate> candidates;
   private UUID userId;
 
   @BeforeEach
   void setUp() {
+    aiPlaylistGenerationValidator = new AiPlaylistGenerationValidator();
+
     service = new AiPlaylistGenerationServiceImpl(
         aiPlaylistGenerator,
         candidateProvider,
         playlistResponseAssembler,
-        aiPlaylistPersistenceService
+        aiPlaylistPersistenceService,
+        aiPlaylistGenerationValidator
     );
 
     userId = UUID.randomUUID();
@@ -193,31 +198,6 @@ class AiPlaylistGenerationServiceImplTest {
     );
   }
 
-  private AiPlaylistGenerationResult validResult(List<UUID> contentIds) {
-    return new AiPlaylistGenerationResult(
-        "주말 힐링 플레이리스트",
-        "편하게 보기 좋은 콘텐츠입니다.",
-        contentIds,
-        List.of("힐링", "감성", "잔잔함")
-    );
-  }
-
-  private List<UUID> candidateIds() {
-    return candidates.stream()
-        .map(AiPlaylistCandidate::getContentId)
-        .toList();
-  }
-
-  private AiPlaylistCandidate candidate(String title) {
-    return new AiPlaylistCandidate(
-        UUID.randomUUID(),
-        title,
-        title + " 설명",
-        ContentType.MOVIE,
-        List.of("힐링", "감성")
-    );
-  }
-
   @Test
   void 정상_AI_결과는_저장_서비스로_전달한다() {
     AiPlaylistGenerationResult result = new AiPlaylistGenerationResult(
@@ -250,6 +230,31 @@ class AiPlaylistGenerationServiceImplTest {
 
     verify(aiPlaylistPersistenceService, never()).save(
         any(), any(), any(), any(), any()
+    );
+  }
+
+  private AiPlaylistGenerationResult validResult(List<UUID> contentIds) {
+    return new AiPlaylistGenerationResult(
+        "주말 힐링 플레이리스트",
+        "편하게 보기 좋은 콘텐츠입니다.",
+        contentIds,
+        List.of("힐링", "감성", "잔잔함")
+    );
+  }
+
+  private List<UUID> candidateIds() {
+    return candidates.stream()
+        .map(AiPlaylistCandidate::getContentId)
+        .toList();
+  }
+
+  private AiPlaylistCandidate candidate(String title) {
+    return new AiPlaylistCandidate(
+        UUID.randomUUID(),
+        title,
+        title + " 설명",
+        ContentType.MOVIE,
+        List.of("힐링", "감성")
     );
   }
 }
