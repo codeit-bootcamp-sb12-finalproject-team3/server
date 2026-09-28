@@ -20,6 +20,9 @@ public class WatchPartySearch {
     private WatchPartyStatus statusEqual;
     private UUID contentIdEqual;
 
+    // 파티 제목 또는 콘텐츠 제목 부분 일치. 서비스에서 앞뒤 공백 정리 후 전달(빈 값이면 null)
+    private String keywordLike;
+
     // ② 기본값 = 기존 동작(시작 시각순)
     @Builder.Default
     private Sort sort = Sort.SCHEDULED_AT;

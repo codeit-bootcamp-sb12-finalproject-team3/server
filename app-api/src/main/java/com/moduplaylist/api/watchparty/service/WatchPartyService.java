@@ -43,6 +43,8 @@ public class WatchPartyService {
     private static final int CONTENT_WIDGET_LIMIT = 20;
     // 정원 상한(현재는 30명). 참가자 목록·방송 부하와 방 분위기를 고려한 값
     static final int MAX_PARTICIPANTS_LIMIT = 30;
+    // 목록 검색어 최대 길이 — 콘텐츠 검색(ContentSearchRequest @Size(max = 100))과 맞춤
+    static final int KEYWORD_MAX_LENGTH = 100;
 
     private final WatchPartyRepository watchPartyRepository;
     private final UserRepository userRepository;
@@ -178,12 +180,13 @@ public class WatchPartyService {
 
     @Transactional(readOnly = true)
     public CursorPageResponse<WatchPartySummaryResponse> getWatchParties(
-            WatchPartyStatus statusEqual, UUID contentIdEqual, WatchPartySearch.Sort sort,
+            WatchPartyStatus statusEqual, UUID contentIdEqual,  String keywordLike,  WatchPartySearch.Sort sort,
             String cursor, UUID idAfter, int limit, SortDirection sortDirection) {
 
         if (contentIdEqual != null && statusEqual != null) {
             throw new BaseException(ErrorCode.INVALID_REQUEST);
         }
+        String keyword = normalizeKeyword(keywordLike);
 
         boolean popularSort = sort == WatchPartySearch.Sort.PARTICIPANT_COUNT;
         boolean contentSearch = contentIdEqual != null;
@@ -207,6 +210,7 @@ public class WatchPartyService {
         WatchPartySearch search = WatchPartySearch.builder()
                 .statusEqual(statusEqual)
                 .contentIdEqual(contentIdEqual)
+                .keywordLike(keyword)
                 .sort(sort)
                 .cursorScheduledAt(cursorScheduledAt)
                 .cursorId(idAfter)
@@ -326,6 +330,21 @@ public class WatchPartyService {
         } catch (IllegalArgumentException e) {   // NumberFormatException도 여기로 (하위 클래스)
             throw new BaseException(ErrorCode.INVALID_REQUEST, e);
         }
+    }
+
+    // 검색어 정리: 앞뒤 공백 제거, 비었으면 검색 안 함(null), 너무 길면 400
+    private String normalizeKeyword(String keywordLike) {
+        if (keywordLike == null) {
+            return null;
+        }
+        String stripped = keywordLike.strip();
+        if (stripped.isEmpty()) {
+            return null;
+        }
+        if (stripped.length() > KEYWORD_MAX_LENGTH) {
+            throw new BaseException(ErrorCode.INVALID_REQUEST);
+        }
+        return stripped;
     }
 
     // 리포지토리는 count를 Long으로, 응답 DTO는 int로 쓰므로 변환

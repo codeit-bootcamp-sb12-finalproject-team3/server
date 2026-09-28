@@ -218,6 +218,13 @@ public class WatchPartyQueryRepository {
             params.put("status", request.getStatusEqual());
         }
 
+        if (request.getKeywordLike() != null) {
+            // 콘텐츠는 연관관계 없이 contentId(UUID)만 있으므로 join 대신 서브쿼리 (where 안에서 끝나 세 경로 공통 적용)
+            where.append(" and (w.title like :keyword escape '!'")
+                    .append(" or w.contentId in (select c.id from Content c where c.title like :keyword escape '!'))");
+            params.put("keyword", "%" + escapeLike(request.getKeywordLike()) + "%");
+        }
+
         // 종료 파티 제외: 콘텐츠 검색은 항상, 인기순은 statusEqual이 없을 때
         // (종료 파티는 JOINED 행이 정리되지 않아 인기순 상위에 계속 남기 때문)
         boolean activeOnly = request.getContentIdEqual() != null
@@ -229,5 +236,12 @@ public class WatchPartyQueryRepository {
         }
 
         return where.toString();
+    }
+
+    // 검색어 속 LIKE 특수문자(%, _)를 글자 그대로 찾도록 '!'로 탈출. 탈출 문자 자신(!)을 먼저 바꿔야 한다
+    private static String escapeLike(String keyword) {
+        return keyword.replace("!", "!!")
+                .replace("%", "!%")
+                .replace("_", "!_");
     }
 }

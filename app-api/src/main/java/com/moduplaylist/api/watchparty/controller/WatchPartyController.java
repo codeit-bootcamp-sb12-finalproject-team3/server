@@ -46,6 +46,7 @@ public class WatchPartyController {
     public ResponseEntity<CursorPageResponse<WatchPartySummaryResponse>> findAll(
             @RequestParam(required = false) WatchPartyStatus statusEqual,
             @RequestParam(required = false) UUID contentIdEqual,
+            @RequestParam(required = false) String keywordLike,
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) UUID idAfter,
@@ -56,7 +57,7 @@ public class WatchPartyController {
         SortDirection direction = parseDirection(sortDirection);
         return ResponseEntity.ok(
                 watchPartyService.getWatchParties(
-                        statusEqual, contentIdEqual, sort, cursor, idAfter, limit, direction)
+                        statusEqual, contentIdEqual, keywordLike, sort, cursor, idAfter, limit, direction)
         );
     }
 
