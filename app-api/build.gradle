@@ -22,6 +22,7 @@ dependencies {
 
     // actuator + Spring Boot Admin Client
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 
     // MapStruct
     implementation 'org.mapstruct:mapstruct:1.6.3'

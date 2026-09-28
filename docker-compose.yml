@@ -144,6 +144,30 @@ services:
     networks:
       - mopl-network
 
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: mopl-prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - mopl-network
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    container_name: mopl-grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - mopl-network
+
 
 networks:
   mopl-network:
@@ -154,6 +178,8 @@ volumes:
   mysql-data:
   redis-data:
   opensearch-data:
+  prometheus-data:
+  grafana-data:
 
 # 사용법:
 #   docker-compose up -d

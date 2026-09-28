@@ -1,7 +1,9 @@
 package com.moduplaylist.api.recommendation.service.impl;
 
+import com.github.f4b6a3.uuid.UuidCreator;
 import com.moduplaylist.api.recommendation.dto.UserPreferenceCreateRequest;
 import com.moduplaylist.api.recommendation.dto.UserPreferenceResponse;
+import com.moduplaylist.api.recommendation.event.InitialPreferenceCreatedEvent;
 import com.moduplaylist.api.recommendation.service.UserContentGenrePreferenceService;
 import com.moduplaylist.api.recommendation.service.UserContentTagPreferenceService;
 import com.moduplaylist.api.recommendation.service.UserPlaylistGenrePreferenceService;
@@ -18,21 +20,16 @@ import com.moduplaylist.core.recommendation.repository.UserPreferenceContentRepo
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.exception.UserNotFoundException;
 import com.moduplaylist.core.user.repository.UserRepository;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import com.moduplaylist.infrastructure.recommendation.embedding.UserContentProfileEmbeddingService;
-import com.moduplaylist.infrastructure.recommendation.embedding.UserPlaylistProfileEmbeddingService;
-import com.moduplaylist.infrastructure.recommendation.ContentRecommendationService;
-import com.moduplaylist.infrastructure.recommendation.PlaylistRecommendationService;
-
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserPreferenceServiceImpl implements UserPreferenceService {
@@ -44,14 +41,8 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
     private final UserContentGenrePreferenceService userContentGenrePreferenceService;
     private final UserPlaylistTagPreferenceService userPlaylistTagPreferenceService;
     private final UserPlaylistGenrePreferenceService userPlaylistGenrePreferenceService;
-    private final UserContentProfileEmbeddingService userContentProfileEmbeddingService;
-    private final UserPlaylistProfileEmbeddingService userPlaylistProfileEmbeddingService;
-    private final ContentRecommendationService contentRecommendationService;
-    private final PlaylistRecommendationService playlistRecommendationService;
+    private final ApplicationEventPublisher eventPublisher;
 
-    // TODO: 현재는 DB 트랜잭션 안에서 OpenSearch/Redis까지 함께 호출하고 있음. -> 트러블슈팅 소스 메모..
-    // 외부 저장소 처리 이후 DB commit 실패 시 데이터 정합성 문제가 생길 수 있으므로,
-    // 추후 DB commit 이후 임베딩/추천 갱신이 실행되도록 후처리 구조로 분리 필요.
     @Override
     @Transactional
     public UserPreferenceResponse createUserPreference(
@@ -93,10 +84,11 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
         userPlaylistGenrePreferenceService.createFromInitialPreferences(user, contentIds);
         userPlaylistTagPreferenceService.createFromInitialPreferences(user, contentIds);
 
-        userContentProfileEmbeddingService.embedAndIndex(userId);
-        userPlaylistProfileEmbeddingService.embedAndIndex(userId);
-        contentRecommendationService.generateAndCache(userId);
-        playlistRecommendationService.generateAndCache(userId);
+        eventPublisher.publishEvent(new InitialPreferenceCreatedEvent(
+                UuidCreator.getTimeOrderedEpoch(),
+                userId,
+                Instant.now()
+        ));
 
         return UserPreferenceResponse.builder()
                 .contentIds(contentIds)

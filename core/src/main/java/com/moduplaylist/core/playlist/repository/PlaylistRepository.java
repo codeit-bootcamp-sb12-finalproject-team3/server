@@ -18,6 +18,23 @@ public interface PlaylistRepository extends JpaRepository<Playlist, UUID> {
   @Query("select playlist.id from Playlist playlist")
   List<UUID> findAllIds();
 
+  @Query("""
+      select playlist.id
+      from Playlist playlist
+      where playlist.id in :candidateIds
+        and playlist.owner.id <> :userId
+        and not exists (
+          select subscription.id
+          from PlaylistSubscription subscription
+          where subscription.user.id = :userId
+            and subscription.playlist.id = playlist.id
+        )
+      """)
+  List<UUID> findRecommendableIds(
+      @Param("userId") UUID userId,
+      @Param("candidateIds") List<UUID> candidateIds
+  );
+
   // 동일 플레이리스트의 콘텐츠 삭제 요청을 직렬화
   // -> 동시 삭제로 콘텐츠 수가 최소 4개 미만이 되는 것을 방지한다.
   @Lock(LockModeType.PESSIMISTIC_WRITE)
