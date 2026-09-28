@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.Locale;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -89,6 +90,7 @@ public class AiPlaylistGenerationValidator {
 
     Set<String> normalizedTags = tags.stream()
         .map(String::strip)
+        .map(tag -> tag.toLowerCase(Locale.ROOT))
         .collect(Collectors.toSet());
 
     if (normalizedTags.size() != tags.size()) {

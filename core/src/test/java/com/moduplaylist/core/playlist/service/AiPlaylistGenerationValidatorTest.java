@@ -166,6 +166,18 @@ class AiPlaylistGenerationValidatorTest {
   }
 
   @Test
+  void 대소문자만_다른_태그가_있으면_예외가_발생한다() {
+    AiPlaylistGenerationResult result = result(
+        "가을밤 플레이리스트",
+        "편하게 즐길 수 있는 콘텐츠입니다.",
+        List.of("SF", "sf", "액션")
+    );
+
+    assertThatThrownBy(() -> validator.validate(result, candidates))
+        .isInstanceOf(InvalidAiPlaylistTagResultException.class);
+  }
+
+  @Test
   void 태그가_100자를_초과하면_예외가_발생한다() {
     AiPlaylistGenerationResult result = result(
         "가을밤 플레이리스트",
