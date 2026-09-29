@@ -2,14 +2,15 @@ package com.moduplaylist.api.global.config;
 
 import com.moduplaylist.api.auth.oauth.OAuth2AuthenticationFailureHandler;
 import com.moduplaylist.api.auth.oauth.OAuth2AuthenticationSuccessHandler;
+import com.moduplaylist.api.auth.oauth.RedisOAuth2AuthorizationRequestRepository;
 import com.moduplaylist.api.global.security.CustomUserDetailsService;
+import com.moduplaylist.api.global.security.TemporaryPasswordAuthenticationProvider;
 import com.moduplaylist.api.global.security.handler.CustomAccessDeniedHandler;
 import com.moduplaylist.api.global.security.handler.CustomAuthenticationEntryPoint;
 import com.moduplaylist.api.global.security.handler.CustomAuthenticationFailureHandler;
 import com.moduplaylist.api.global.security.handler.CustomAuthenticationSuccessHandler;
 import com.moduplaylist.api.global.security.jwt.JwtAuthenticationFilter;
 import com.moduplaylist.api.global.security.jwt.JwtTokenProvider;
-import com.moduplaylist.api.auth.oauth.RedisOAuth2AuthorizationRequestRepository;
 import com.moduplaylist.core.user.repository.JwtRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,8 +22,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -50,6 +49,7 @@ public class SecurityConfig {
   private final RedisOAuth2AuthorizationRequestRepository oauth2AuthorizationRequestRepository;
   private final OAuth2AuthenticationSuccessHandler oauth2AuthenticationSuccessHandler;
   private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
+  private final TemporaryPasswordAuthenticationProvider temporaryPasswordAuthenticationProvider;
 
   @Value("${security.jwt.cookie-secure}")
   private boolean cookieSecure;
@@ -123,7 +123,8 @@ public class SecurityConfig {
                 "/api/auth/login",
                 "/api/auth/refresh",
                 "/api/auth/logout",
-                "/api/auth/oauth/exchange"
+                "/api/auth/oauth/exchange",
+                "/api/auth/password/reset-request"
             ).permitAll()
             .requestMatchers(
                 HttpMethod.GET,
@@ -154,6 +155,7 @@ public class SecurityConfig {
             // 그 외 요청은 JWT 인증 필요
             .anyRequest().authenticated()
         )
+        .authenticationProvider(temporaryPasswordAuthenticationProvider)
 
         // 이메일·비밀번호 로그인 및 성공·실패 처리
         .formLogin(form -> form
@@ -185,10 +187,5 @@ public class SecurityConfig {
         );
 
     return http.build();
-  }
-
-  @Bean
-  public PasswordEncoder passwordEncoder() {
-    return new BCryptPasswordEncoder();
   }
 }

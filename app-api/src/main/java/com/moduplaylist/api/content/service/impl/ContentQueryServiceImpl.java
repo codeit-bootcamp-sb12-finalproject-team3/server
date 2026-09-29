@@ -24,6 +24,8 @@ import com.moduplaylist.api.content.dto.SportDetail;
 import com.moduplaylist.api.content.dto.TvSeasonDetail;
 import com.moduplaylist.api.content.dto.EpisodeResponse;
 import com.moduplaylist.api.content.service.ContentQueryService;
+import com.moduplaylist.api.content.service.ContentSemanticSearchProperties;
+import com.moduplaylist.api.content.service.ContentSemanticSearchService;
 import com.moduplaylist.api.content.service.ContentSummaryResponseAssembler;
 import com.moduplaylist.api.content.service.ContentViewActivityService;
 import com.moduplaylist.api.content.service.ContentAutocompletePopularityScoreProvider;
@@ -57,6 +59,8 @@ import com.moduplaylist.core.content.repository.SportTypeRepository;
 import com.moduplaylist.core.content.repository.PlatformRepository;
 import com.moduplaylist.core.playlist.repository.PlaylistSearch;
 import com.moduplaylist.infrastructure.opensearch.content.ContentKeywordSearchRepository;
+import com.moduplaylist.infrastructure.opensearch.content.ContentKeywordSearchResult;
+import com.moduplaylist.infrastructure.opensearch.content.ContentSimilarityCandidate;
 import com.moduplaylist.infrastructure.opensearch.content.ContentAutocompleteCandidate;
 import com.moduplaylist.infrastructure.redis.content.ContentSearchSnapshotRepository;
 import com.moduplaylist.infrastructure.redis.recommendation.ContentRecommendationRedisRepository;
@@ -71,6 +75,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -101,6 +106,8 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	private final PlaylistQueryService playlistQueryService;
 	private final WatchPartyService watchPartyService;
 	private final ObjectProvider<ContentKeywordSearchRepository> keywordSearchRepositoryProvider;
+	private final ContentSemanticSearchService semanticSearchService;
+	private final ContentSemanticSearchProperties semanticSearchProperties;
 	private final ObjectProvider<ContentAutocompletePopularityScoreProvider>
 		popularityScoreProvider;
 	private final ContentSearchSnapshotRepository contentSearchSnapshotRepository;
@@ -183,30 +190,26 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		String signature = searchSignature(request, contentType, sort);
 		UUID snapshotId = cursor.snapshotId();
 		List<UUID> orderedIds;
+		Map<UUID, Content> visibleById;
 		if (snapshotId == null) {
-			List<UUID> matchedIds = findMatchedContentIds(
+			ContentKeywordSearchResult matches = findKeywordMatches(
 				request.getKeywordLike(), contentType);
-			ContentSearch initialSearch = new ContentSearch(
-				contentType,
-				null,
-				null,
-				null,
-				matchedIds,
-				toRepositorySort(sort),
-				null,
-				null,
-				null,
-				null,
-				null,
-				100
-			);
-			orderedIds = contentRepository.searchWithoutTotalCount(initialSearch)
-				.getContents().stream()
-				.map(Content::getId)
-				.toList();
+			List<ContentSimilarityCandidate> semanticMatches = semanticSearchService.search(
+				request.getKeywordLike(), contentType);
+			LinkedHashSet<UUID> candidateIds = new LinkedHashSet<>();
+			candidateIds.addAll(matches.titleExactIds());
+			candidateIds.addAll(matches.originalTitleExactIds());
+			candidateIds.addAll(matches.titlePhrasePrefixIds());
+			candidateIds.addAll(matches.bm25Ids());
+			semanticMatches.stream()
+				.map(ContentSimilarityCandidate::contentId)
+				.forEach(candidateIds::add);
+			visibleById = loadVisibleContents(candidateIds);
+			orderedIds = orderHybridMatches(matches, semanticMatches, visibleById, sort);
 		} else {
 			orderedIds = contentSearchSnapshotRepository.find(snapshotId, signature)
 				.orElseThrow(InvalidContentSearchException::new);
+			visibleById = loadVisibleContents(orderedIds);
 		}
 
 		int offset = cursor.offset() == null ? 0 : cursor.offset();
@@ -217,10 +220,6 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			throw new InvalidContentSearchException();
 		}
 
-		Map<UUID, Content> visibleById = new HashMap<>();
-		contentRepository.findAllById(orderedIds).stream()
-			.filter(content -> !content.isHidden() && content.getType() != ContentType.TV_SERIES)
-			.forEach(content -> visibleById.put(content.getId(), content));
 		long totalCount = orderedIds.size();
 		List<Content> page = new ArrayList<>(request.getLimit());
 		int nextOffset = offset;
@@ -248,6 +247,94 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			.sortBy(sort.getValue())
 			.sortDirection(SortDirection.DESCENDING)
 			.build();
+	}
+
+	private Map<UUID, Content> loadVisibleContents(Iterable<UUID> contentIds) {
+		Map<UUID, Content> visibleById = new HashMap<>();
+		contentRepository.findAllById(contentIds).stream()
+			.filter(content -> content.isPubliclyVisible()
+				&& content.getType() != ContentType.TV_SERIES)
+			.forEach(content -> visibleById.put(content.getId(), content));
+		return visibleById;
+	}
+
+	private List<UUID> orderHybridMatches(
+		ContentKeywordSearchResult matches,
+		List<ContentSimilarityCandidate> semanticMatches,
+		Map<UUID, Content> visibleById,
+		ContentSort sort
+	) {
+		LinkedHashSet<UUID> orderedIds = new LinkedHashSet<>();
+		addSortedGroup(orderedIds, matches.titleExactIds(), visibleById, sort);
+		addSortedGroup(orderedIds, matches.originalTitleExactIds(), visibleById, sort);
+		addSortedGroup(orderedIds, matches.titlePhrasePrefixIds(), visibleById, sort);
+
+		Map<UUID, Double> fusedScores = new HashMap<>();
+		addRrfScores(
+			fusedScores,
+			matches.bm25Ids(),
+			semanticSearchProperties.getKeywordWeight()
+		);
+		addRrfScores(
+			fusedScores,
+			semanticMatches.stream()
+				.map(ContentSimilarityCandidate::contentId)
+				.toList(),
+			semanticSearchProperties.getSemanticWeight()
+		);
+
+		Comparator<Content> tieBreaker = keywordGroupComparator(sort);
+		fusedScores.keySet().stream()
+			.filter(visibleById::containsKey)
+			.sorted((left, right) -> {
+				int scoreComparison = Double.compare(
+					fusedScores.get(right), fusedScores.get(left));
+				if (scoreComparison != 0) {
+					return scoreComparison;
+				}
+				return tieBreaker.compare(visibleById.get(left), visibleById.get(right));
+			})
+			.filter(contentId -> orderedIds.size() < 100)
+			.forEach(orderedIds::add);
+		return List.copyOf(orderedIds);
+	}
+
+	private void addRrfScores(
+		Map<UUID, Double> scores,
+		List<UUID> rankedIds,
+		double weight
+	) {
+		int rrfK = Math.max(1, semanticSearchProperties.getRrfK());
+		double effectiveWeight = Math.max(0.0, weight);
+		for (int index = 0; index < rankedIds.size(); index++) {
+			double score = effectiveWeight / (rrfK + index + 1.0);
+			scores.merge(rankedIds.get(index), score, Double::sum);
+		}
+	}
+
+	private void addSortedGroup(
+		Set<UUID> orderedIds,
+		List<UUID> groupIds,
+		Map<UUID, Content> visibleById,
+		ContentSort sort
+	) {
+		groupIds.stream()
+			.map(visibleById::get)
+			.filter(java.util.Objects::nonNull)
+			.sorted(keywordGroupComparator(sort))
+			.map(Content::getId)
+			.filter(contentId -> orderedIds.size() < 100)
+			.forEach(orderedIds::add);
+	}
+
+	private Comparator<Content> keywordGroupComparator(ContentSort sort) {
+		if (sort == ContentSort.LATEST) {
+			return Comparator.comparing(Content::getCreatedAt).reversed()
+				.thenComparing(Content::getId, Comparator.reverseOrder());
+		}
+		return Comparator.comparing(Content::getAverageRating).reversed()
+			.thenComparing(Comparator.comparingLong(Content::getReviewCount).reversed())
+			.thenComparing(Content::getId, Comparator.reverseOrder());
 	}
 
 	@Override
@@ -294,6 +381,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 				.id(content.getId())
 				.title(content.getTitle())
 				.originalTitle(content.getOriginalTitle())
+				.englishTitle(content.getEnglishTitle())
 				.build())
 			.toList();
 		return ContentSeriesSearchResponse.builder()
@@ -391,6 +479,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			.reviewCount(content.getReviewCount())
 			.likeCount(content.getLikeCount())
 			.originalTitle(findOriginalTitle(content))
+			.englishTitle(findEnglishTitle(content))
 			.genres(genres)
 			.tags(tags)
 			.cast(cast)
@@ -407,6 +496,14 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 			return content.getParentContent().getOriginalTitle();
 		}
 		return content.getOriginalTitle();
+	}
+
+	private String findEnglishTitle(Content content) {
+		if (content.getType() == ContentType.TV_SEASON) {
+			String parentEnglishTitle = content.getParentContent().getEnglishTitle();
+			return parentEnglishTitle == null ? content.getEnglishTitle() : parentEnglishTitle;
+		}
+		return content.getEnglishTitle();
 	}
 
 	@Override
@@ -452,6 +549,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		PlaylistSearch search = new PlaylistSearch(
 			null,
 			null,
+			null,
 			contentId,
 			null,
 			null,
@@ -495,7 +593,8 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		Map<UUID, Integer> personalizedRankById = findPersonalizedRanks(userId);
 		Map<UUID, Double> popularityScoreById = findPopularityScores(candidateIds);
 		Set<UUID> visibleContentIds = contentRepository.findAllById(candidateIds).stream()
-			.filter(content -> !content.isHidden() && content.getType() != ContentType.TV_SERIES)
+			.filter(content -> content.isPubliclyVisible()
+				&& content.getType() != ContentType.TV_SERIES)
 			.map(Content::getId)
 			.collect(java.util.stream.Collectors.toSet());
 		Set<String> seenTexts = new HashSet<>();
@@ -542,7 +641,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 	private Map<UUID, Double> findPopularityScores(List<UUID> contentIds) {
 		ContentAutocompletePopularityScoreProvider provider = popularityScoreProvider.getIfAvailable();
 		if (provider == null) {
-			// TODO: 트렌딩 도메인의 Redis ZSet 구현이 완료되면 ZMSCORE 기반 provider를 연결한다.
+			// provider가 없는 구성에서는 인기 점수 없이 정렬한다.
 			return Map.of();
 		}
 		try {
@@ -556,6 +655,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 
 	private Content findVisibleContent(UUID contentId) {
 		return contentRepository.findByIdAndHiddenFalse(contentId)
+			.filter(Content::isEmbeddingAllowedByAiTaggingStatus)
 			.orElseThrow(() -> new ContentNotFoundException(contentId));
 	}
 
@@ -675,6 +775,26 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		if (keyword == null || keyword.isBlank()) {
 			return null;
 		}
+		ContentKeywordSearchRepository repository =
+			keywordSearchRepositoryProvider.getIfAvailable();
+		if (repository == null) {
+			throw new ContentSearchUnavailableException();
+		}
+		String contentTypeValue = contentType == null ? null : contentType.getValue();
+		ContentKeywordSearchResult matches = repository.findContentIds(
+			keyword, contentTypeValue);
+		LinkedHashSet<UUID> ids = new LinkedHashSet<>();
+		ids.addAll(matches.titleExactIds());
+		ids.addAll(matches.originalTitleExactIds());
+		ids.addAll(matches.titlePhrasePrefixIds());
+		ids.addAll(matches.bm25Ids());
+		return ids.stream().limit(100).toList();
+	}
+
+	private ContentKeywordSearchResult findKeywordMatches(
+		String keyword,
+		ContentType contentType
+	) {
 		ContentKeywordSearchRepository repository =
 			keywordSearchRepositoryProvider.getIfAvailable();
 		if (repository == null) {

@@ -14,6 +14,7 @@ public enum ErrorCode {
 
     // Auth
     INVALID_CREDENTIALS("이메일 또는 비밀번호가 올바르지 않습니다."),
+    PASSWORD_CONFIRMATION_MISMATCH("새 비밀번호와 새 비밀번호 확인이 일치하지 않습니다."),
     USER_LOCKED("잠긴 계정입니다."),
     FORBIDDEN("요청 권한이 없습니다."),
     INVALID_CSRF_TOKEN("CSRF 토큰이 없거나 올바르지 않습니다."),
@@ -45,6 +46,7 @@ public enum ErrorCode {
     HIDDEN_SEASON_ALREADY_EXISTS("복원 가능한 삭제 시즌이 이미 존재합니다."),
     CONTENT_DELETION_BLOCKED("연결된 Watch Party가 있어 콘텐츠를 삭제할 수 없습니다."),
     CONTENT_SEARCH_UNAVAILABLE("콘텐츠 검색 서비스를 사용할 수 없습니다."),
+    CONTENT_TAGGING_PENDING("최초 자동 태깅이 종료된 후 요청을 다시 시도해 주세요."),
 
     // Review
     REVIEW_NOT_FOUND("존재하지 않는 리뷰입니다."),
@@ -111,7 +113,11 @@ public enum ErrorCode {
     WATCHPARTY_INVALID_STATE("현재 상태에서는 처리할 수 없는 요청입니다."),
     WATCHPARTY_MAX_PARTICIPANTS_BELOW_CURRENT("현재 참가자 수보다 적은 값으로 최대 인원을 변경할 수 없습니다."),
     WATCHPARTY_MAX_PARTICIPANTS_EXCEEDED("최대 인원 상한을 초과했습니다."),
-    WATCHPARTY_CHAT_ACCESS_DENIED("강퇴된 방의 채팅 이력은 볼 수 없습니다.");
+    WATCHPARTY_CHAT_ACCESS_DENIED("강퇴된 방의 채팅 이력은 볼 수 없습니다."),
+    WATCHPARTY_REMINDER_ALREADY_EXISTS("이미 시작 알림을 설정했습니다."),
+    WATCHPARTY_REMINDER_NOT_FOUND("설정된 시작 알림이 없습니다."),
+    WATCHPARTY_HOST_CANNOT_SET_REMINDER("방장은 시작 알림 설정 대상이 아닙니다.");
+
 
     private final String message;
 }

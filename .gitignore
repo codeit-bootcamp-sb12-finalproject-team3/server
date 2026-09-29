@@ -10,6 +10,8 @@ Desktop.ini
 
 # --- Gradle ---
 .gradle
+/.gradle-user/
+/.gradle-codex/
 **/build/
 !gradle/wrapper/gradle-wrapper.jar
 

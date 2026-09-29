@@ -52,11 +52,24 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.type.mapping: dm-send-requested:com.moduplaylist.infrastructure.kafka.event.DmSendRequestedKafkaEvent,
+                                  dm-message-created:com.moduplaylist.infrastructure.kafka.event.DmMessageCreatedKafkaEvent,
                                   content-activity:com.moduplaylist.infrastructure.kafka.event.ContentActivityKafkaEvent,
                                   content-deleted:com.moduplaylist.infrastructure.kafka.event.ContentDeleted,
                                   content-upserted:com.moduplaylist.infrastructure.kafka.event.ContentUpserted,
                                   watchparty-participant-joined:com.moduplaylist.infrastructure.kafka.event.WatchPartyParticipantJoinedKafkaEvent
         spring.json.trusted.packages: com.moduplaylist.infrastructure.kafka.event
+
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 logging:
   pattern:
@@ -89,9 +102,17 @@ mopl:
     enabled: ${EMBEDDING_ENABLED:true}
     model: text-embedding-3-small
     dimensions: 1536
+  search:
+    semantic:
+      enabled: ${SEMANTIC_SEARCH_ENABLED:true}
+      candidate-limit: ${SEMANTIC_SEARCH_CANDIDATE_LIMIT:100}
+      minimum-query-length: ${SEMANTIC_SEARCH_MINIMUM_QUERY_LENGTH:3}
+      rrf-k: ${SEMANTIC_SEARCH_RRF_K:60}
+      keyword-weight: ${SEMANTIC_SEARCH_KEYWORD_WEIGHT:1.0}
+      semantic-weight: ${SEMANTIC_SEARCH_SEMANTIC_WEIGHT:0.7}
   opensearch:
     enabled: ${OPENSEARCH_ENABLED:true}
-    autocomplete-initial-indexing-enabled: ${CONTENT_AUTOCOMPLETE_INITIAL_INDEXING_ENABLED:false}
+    content-initial-indexing-enabled: ${CONTENT_INITIAL_INDEXING_ENABLED:false}
     uris: ${OPENSEARCH_URIS:http://localhost:9200}
     username: ${OPENSEARCH_USERNAME:}
     password: ${OPENSEARCH_PASSWORD:}

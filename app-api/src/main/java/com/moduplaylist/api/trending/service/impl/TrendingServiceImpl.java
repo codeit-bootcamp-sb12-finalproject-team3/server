@@ -66,7 +66,7 @@ public class TrendingServiceImpl implements TrendingService {
     }
 
     private boolean isVisibleSummaryContent(Content content) {
-        if (content == null || content.isHidden()) {
+        if (content == null || !content.isPubliclyVisible()) {
             return false;
         }
 

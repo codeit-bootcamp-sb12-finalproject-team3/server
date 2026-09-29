@@ -20,6 +20,7 @@ public class ContentImportMetrics {
     private static final String TMDB_MOVIE_PROVIDER_RETRY_TARGETS =
         "tmdbMovieProviderRetryTargets";
     private static final String AUTOCOMPLETE_RETRY_CONTENT_IDS = "autocompleteRetryContentIds";
+    private static final String SEARCH_RETRY_CONTENT_IDS = "searchRetryContentIds";
     private static final String SPORTS_SEARCH_RETRY_CONTENT_IDS = "sportsSearchRetryContentIds";
     private static final String SPORTS_AUTOCOMPLETE_RETRY_CONTENT_IDS =
         "sportsAutocompleteRetryContentIds";
@@ -39,6 +40,7 @@ public class ContentImportMetrics {
     private final Set<TmdbMovieProviderRetryTarget> tmdbMovieProviderRetryTargets =
         new LinkedHashSet<>();
     private final Set<UUID> autocompleteRetryContentIds = new LinkedHashSet<>();
+    private final Set<UUID> searchRetryContentIds = new LinkedHashSet<>();
     private final Set<UUID> sportsSearchRetryContentIds = new LinkedHashSet<>();
     private final Set<UUID> sportsAutocompleteRetryContentIds = new LinkedHashSet<>();
     private final Set<Integer> movieRetryIds = new LinkedHashSet<>();
@@ -52,6 +54,7 @@ public class ContentImportMetrics {
         restoreTmdbProviderRetryTargets(context);
         restoreTmdbMovieProviderRetryTargets(context);
         restoreAutocompleteRetryContentIds(context);
+        restoreSearchRetryContentIds(context);
         restoreSportsSearchRetryContentIds(context);
         restoreSportsAutocompleteRetryContentIds(context);
         restoreMovieRetryIds(context);
@@ -134,6 +137,18 @@ public class ContentImportMetrics {
         autocompleteRetryContentIds.remove(contentId);
     }
 
+    public Set<UUID> searchRetryContentIds() {
+        return Set.copyOf(searchRetryContentIds);
+    }
+
+    public void addSearchRetry(UUID contentId) {
+        searchRetryContentIds.add(contentId);
+    }
+
+    public void completeSearchRetry(UUID contentId) {
+        searchRetryContentIds.remove(contentId);
+    }
+
     public Set<UUID> sportsSearchRetryContentIds() {
         return Set.copyOf(sportsSearchRetryContentIds);
     }
@@ -214,6 +229,9 @@ public class ContentImportMetrics {
         context.putString(AUTOCOMPLETE_RETRY_CONTENT_IDS, autocompleteRetryContentIds.stream()
             .map(UUID::toString)
             .collect(Collectors.joining(",")));
+        context.putString(SEARCH_RETRY_CONTENT_IDS, searchRetryContentIds.stream()
+            .map(UUID::toString)
+            .collect(Collectors.joining(",")));
         context.putString(SPORTS_SEARCH_RETRY_CONTENT_IDS, sportsSearchRetryContentIds.stream()
             .map(UUID::toString)
             .collect(Collectors.joining(",")));
@@ -257,6 +275,14 @@ public class ContentImportMetrics {
         if (serialized.isBlank()) return;
         for (String value : serialized.split(",")) {
             autocompleteRetryContentIds.add(UUID.fromString(value));
+        }
+    }
+
+    private void restoreSearchRetryContentIds(ExecutionContext context) {
+        String serialized = context.getString(SEARCH_RETRY_CONTENT_IDS, "");
+        if (serialized.isBlank()) return;
+        for (String value : serialized.split(",")) {
+            searchRetryContentIds.add(UUID.fromString(value));
         }
     }
 

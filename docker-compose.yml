@@ -98,7 +98,9 @@ services:
 
 
   opensearch:
-    image: opensearchproject/opensearch:2.19.6
+    build:
+      context: ./infrastructure/opensearch
+    image: mopl-opensearch:2.19.6-nori
     container_name: mopl-opensearch
 
     environment:

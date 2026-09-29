@@ -21,6 +21,7 @@ public final class ApiErrorStatus {
     static {
         // Auth
         STATUS_MAP.put(ErrorCode.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
+        STATUS_MAP.put(ErrorCode.PASSWORD_CONFIRMATION_MISMATCH, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.USER_LOCKED, HttpStatus.UNAUTHORIZED);
         STATUS_MAP.put(ErrorCode.FORBIDDEN, HttpStatus.FORBIDDEN);
         STATUS_MAP.put(ErrorCode.INVALID_CSRF_TOKEN, HttpStatus.FORBIDDEN);
@@ -51,6 +52,7 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.HIDDEN_SEASON_ALREADY_EXISTS, HttpStatus.CONFLICT);
         STATUS_MAP.put(ErrorCode.CONTENT_DELETION_BLOCKED, HttpStatus.CONFLICT);
         STATUS_MAP.put(ErrorCode.CONTENT_SEARCH_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE);
+        STATUS_MAP.put(ErrorCode.CONTENT_TAGGING_PENDING, HttpStatus.CONFLICT);
 
         // Review
         STATUS_MAP.put(ErrorCode.REVIEW_NOT_FOUND, HttpStatus.NOT_FOUND);
@@ -123,7 +125,9 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.WATCHPARTY_MAX_PARTICIPANTS_BELOW_CURRENT, HttpStatus.CONFLICT);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_MAX_PARTICIPANTS_EXCEEDED, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_CHAT_ACCESS_DENIED, HttpStatus.FORBIDDEN);
-
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_REMINDER_ALREADY_EXISTS, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_REMINDER_NOT_FOUND, HttpStatus.NOT_FOUND);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_HOST_CANNOT_SET_REMINDER, HttpStatus.BAD_REQUEST);
     }
 
     private ApiErrorStatus() {

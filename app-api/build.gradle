@@ -36,6 +36,8 @@ dependencies {
     // UUID v7
     implementation 'com.github.f4b6a3:uuid-creator:6.1.1'
 
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+
     runtimeOnly 'com.mysql:mysql-connector-j'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

@@ -19,6 +19,22 @@ import org.springframework.data.domain.Pageable;
 public interface ContentRepository extends JpaRepository<Content, UUID>, ContentQueryRepository {
 
     @Query("""
+        select c.id from Content c left join c.parentContent parent
+        where c.externalSource = 'TMDB' and c.hidden = false
+          and c.type in :types and c.aiTaggingStatus = :status
+          and (:afterId is null or c.id > :afterId)
+          and (parent is null or parent.hidden = false)
+        order by c.id
+        """)
+    List<UUID> findPendingTaggingIds(
+        @Param("types") Collection<ContentType> types,
+        @Param("status") Content.AiTaggingStatus status,
+        @Param("afterId") UUID afterId, Pageable pageable);
+
+    @Query("select c.parentContent.id from Content c where c.id = :contentId")
+    Optional<UUID> findParentId(@Param("contentId") UUID contentId);
+
+    @Query("""
             select content.id
             from Content content
             where content.hidden = false
@@ -44,10 +60,14 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
             where content.type in :types
               and content.hidden = false
               and content.embeddingSourceUpdatedAt <= :through
+              and (content.externalSource is null
+                   or content.externalSource <> 'TMDB'
+                   or content.aiTaggingStatus in :taggingStatuses)
             order by content.embeddingSourceUpdatedAt, content.id
             """)
     List<Content> findEmbeddingSourcesThrough(
             @Param("types") Collection<ContentType> types,
+            @Param("taggingStatuses") Collection<Content.AiTaggingStatus> taggingStatuses,
             @Param("through") Instant through
     );
 
@@ -57,10 +77,14 @@ public interface ContentRepository extends JpaRepository<Content, UUID>, Content
             where content.type in :types
               and content.hidden = false
               and content.embeddingPending = true
+              and (content.externalSource is null
+                   or content.externalSource <> 'TMDB'
+                   or content.aiTaggingStatus in :taggingStatuses)
             order by content.embeddingSourceUpdatedAt, content.id
             """)
     List<Content> findPendingEmbeddingSources(
-            @Param("types") Collection<ContentType> types
+            @Param("types") Collection<ContentType> types,
+            @Param("taggingStatuses") Collection<Content.AiTaggingStatus> taggingStatuses
     );
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)

@@ -15,5 +15,10 @@ public class ContentEmbeddingResult{
     private UUID contentId;
     private String embeddingText;
     private int dimensions;
+    private boolean published;
+
+    public ContentEmbeddingResult(UUID contentId, String embeddingText, int dimensions) {
+        this(contentId, embeddingText, dimensions, true);
+    }
 
 }
