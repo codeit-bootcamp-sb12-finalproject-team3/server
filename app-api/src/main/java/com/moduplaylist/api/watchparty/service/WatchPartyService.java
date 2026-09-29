@@ -40,8 +40,9 @@ import java.util.stream.Collectors;
 public class WatchPartyService {
 
     private static final int CONTENT_WIDGET_LIMIT = 20;
-    // 정원 상한(현재는 30명). 참가자 목록·방송 부하와 방 분위기를 고려한 값
-    static final int MAX_PARTICIPANTS_LIMIT = 30;
+    // 정원 상한(999,999명). 사실상 무제한 의도의 허용 값이며, 실제로 버티는 인원은 부하 테스트 전까지 미검증.
+    // 방장은 1~999,999 사이로 정할 수 있고 프론트 기본값도 이 값(프론트 상수와 짝).
+    static final int MAX_PARTICIPANTS_LIMIT = 999_999;
     // 목록 검색어 최대 길이 — 콘텐츠 검색(ContentSearchRequest @Size(max = 100))과 맞춤
     static final int KEYWORD_MAX_LENGTH = 100;
 
