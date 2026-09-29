@@ -5,17 +5,17 @@ import com.moduplaylist.batch.job.contentembedding.dto.ContentEmbeddingSource;
 import com.moduplaylist.core.content.entity.*;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.repository.ContentGenreRepository;
+import com.moduplaylist.core.content.repository.ContentCastRepository;
 import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.content.repository.ContentTagRepository;
-import com.moduplaylist.core.content.repository.SportEventRepository;
 import com.moduplaylist.infrastructure.embedding.EmbeddingGenerator;
-import com.moduplaylist.infrastructure.opensearch.content.ContentVectorDocument;
-import com.moduplaylist.infrastructure.opensearch.content.ContentVectorRepository;
+import com.moduplaylist.infrastructure.opensearch.content.ContentEmbeddingFields;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 @RequiredArgsConstructor
@@ -24,15 +24,37 @@ public class ContentEmbeddingService {
     private final ContentRepository contentRepository;
     private final ContentGenreRepository contentGenreRepository;
     private final ContentTagRepository contentTagRepository;
-    private final SportEventRepository sportEventRepository;
+    private final ContentCastRepository contentCastRepository;
     private final ContentEmbeddingTextBuilder textBuilder;
     private final EmbeddingGenerator embeddingGenerator;
-    private final ContentVectorRepository vectorRepository;
     private final ContentEmbeddingCompletionService completionService;
+    private final TransactionTemplate transactionTemplate;
 
     public ContentEmbeddingResult embedAndIndex(UUID contentId) {
+        EmbeddingSnapshot snapshot = transactionTemplate.execute(status -> loadSnapshot(contentId));
+        if (snapshot == null) return new ContentEmbeddingResult(contentId, "", 0, false);
+        String embeddingText = textBuilder.build(snapshot.source());
+        // No transaction/row lock while calling the embedding provider.
+        float[] embedding = embeddingGenerator.embed(embeddingText);
+        ContentEmbeddingFields embeddingFields = ContentEmbeddingFields.builder()
+                .embedding(embedding)
+                .embeddingModel(embeddingGenerator.modelName())
+                .sourceUpdatedAt(snapshot.sourceUpdatedAt())
+                .embeddedAt(Instant.now())
+                .build();
+        boolean published = completionService.publishIfCurrent(contentId, snapshot.sourceUpdatedAt(), embeddingFields);
+        return new ContentEmbeddingResult(contentId, embeddingText, embedding.length, published);
+    }
+
+    private EmbeddingSnapshot loadSnapshot(UUID contentId) {
+        UUID parentId = contentRepository.findParentId(contentId).orElse(null);
+        Content parent = parentId == null ? null : contentRepository.findById(parentId).orElse(null);
         Content content = contentRepository.findById(contentId)
                 .orElseThrow(() -> new ContentNotFoundException(contentId));
+        if (content.isHidden() || (content.getType() != ContentType.MOVIE && content.getType() != ContentType.TV_SEASON)
+            || !content.isEmbeddingAllowedByAiTaggingStatus()
+            || (content.getType() == ContentType.TV_SEASON && (parent == null || parent.isHidden()
+                || !parent.getId().equals(content.getParentContent().getId())))) return null;
         Instant sourceUpdatedAt = content.getEmbeddingSourceUpdatedAt();
         List<String> genres = contentGenreRepository
                 .findAllWithGenreByContentIdIn(List.of(contentId)).stream()
@@ -48,65 +70,27 @@ public class ContentEmbeddingService {
                 .distinct()
                 .sorted()
                 .toList();
+        List<ContentCast> casts = contentCastRepository
+                .findAllByContent_IdOrderByDisplayOrderAsc(contentId);
+        List<String> castNames = casts.stream()
+                .map(ContentCast::getName)
+                .toList();
+        Content titleSource = content.getType() == ContentType.TV_SEASON
+                ? content.getParentContent()
+                : content;
+        String originalTitle = titleSource == null ? null : titleSource.getOriginalTitle();
 
         ContentEmbeddingSource source = new ContentEmbeddingSource(
                 content.getTitle(),
+                originalTitle,
+                castNames,
                 content.getType().getValue(),
                 content.getDescription(),
                 genres,
                 tags
         );
-        String embeddingText = textBuilder.build(source);
-        float[] embedding = embeddingGenerator.embed(embeddingText);
-        ContentVectorDocument document = ContentVectorDocument.builder()
-                .contentId(contentId)
-                .type(source.getType())
-                .title(source.getTitle())
-                .description(source.getDescription())
-                .hidden(content.isHidden())
-                .genres(genres)
-                .tags(tags)
-                .embedding(embedding)
-                .embeddingModel(embeddingGenerator.modelName())
-                .sourceUpdatedAt(sourceUpdatedAt)
-                .embeddedAt(Instant.now())
-                .build();
-        completionService.publishIfCurrent(contentId, sourceUpdatedAt, document);
-
-        return new ContentEmbeddingResult(contentId, embeddingText, embedding.length);
+        return new EmbeddingSnapshot(source, sourceUpdatedAt);
     }
 
-    public void indexSportSearchDocument(UUID contentId) {
-        Content content = contentRepository.findById(contentId)
-                .orElseThrow(() -> new ContentNotFoundException(contentId));
-        if (content.getType() != ContentType.SPORT) {
-            throw new IllegalArgumentException("스포츠 검색 문서는 SPORT 콘텐츠만 생성할 수 있습니다.");
-        }
-        SportEvent sportEvent = sportEventRepository.findWithSportTypeByContentId(contentId)
-                .orElseThrow(() -> new IllegalStateException(
-                        "스포츠 콘텐츠에 경기 정보가 없습니다. contentId=" + contentId
-                ));
-
-        ContentVectorDocument document = ContentVectorDocument.builder()
-                .contentId(contentId)
-                .type(content.getType().getValue())
-                .title(content.getTitle())
-                .description(content.getDescription())
-                .hidden(content.isHidden())
-                .genres(List.of())
-                .tags(List.of())
-                .sportTypeCode(sportEvent.getSportType().getCode())
-                .sportType(sportEvent.getSportType().getName())
-                .leagueName(sportEvent.getLeagueName())
-                .season(sportEvent.getSeason())
-                .homeTeamName(sportEvent.getHomeTeamName())
-                .awayTeamName(sportEvent.getAwayTeamName())
-                .sourceUpdatedAt(content.getUpdatedAt())
-                .build();
-        vectorRepository.upsert(document);
-    }
-
-    public void deleteFromIndex(UUID contentId) {
-        vectorRepository.deleteById(contentId);
-    }
+    private record EmbeddingSnapshot(ContentEmbeddingSource source, Instant sourceUpdatedAt) { }
 }

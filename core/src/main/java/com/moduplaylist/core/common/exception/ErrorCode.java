@@ -46,6 +46,7 @@ public enum ErrorCode {
     HIDDEN_SEASON_ALREADY_EXISTS("복원 가능한 삭제 시즌이 이미 존재합니다."),
     CONTENT_DELETION_BLOCKED("연결된 Watch Party가 있어 콘텐츠를 삭제할 수 없습니다."),
     CONTENT_SEARCH_UNAVAILABLE("콘텐츠 검색 서비스를 사용할 수 없습니다."),
+    CONTENT_TAGGING_PENDING("최초 자동 태깅이 종료된 후 요청을 다시 시도해 주세요."),
 
     // Review
     REVIEW_NOT_FOUND("존재하지 않는 리뷰입니다."),

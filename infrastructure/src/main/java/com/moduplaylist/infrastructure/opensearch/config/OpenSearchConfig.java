@@ -33,6 +33,11 @@ public class OpenSearchConfig {
                 .map(HttpHost::create)
                 .toArray(HttpHost[]::new);
         RestClientBuilder builder = RestClient.builder(hosts);
+        // Content publication holds a short row lock; bound network waits in that completion phase.
+        builder.setRequestConfigCallback(request -> request
+                .setConnectTimeout(5_000)
+                .setConnectionRequestTimeout(5_000)
+                .setSocketTimeout(20_000));
 
         if (!properties.getUsername().isBlank()) {
             BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();

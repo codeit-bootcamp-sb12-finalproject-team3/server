@@ -10,6 +10,7 @@ dependencies {
 
     // Embedding abstraction and OpenSearch vector persistence
     implementation 'org.springframework.ai:spring-ai-model'
+    implementation 'org.springframework.ai:spring-ai-openai'
     implementation 'org.opensearch.client:opensearch-java:2.19.0'
     implementation 'org.opensearch.client:opensearch-rest-client:2.19.0'
 

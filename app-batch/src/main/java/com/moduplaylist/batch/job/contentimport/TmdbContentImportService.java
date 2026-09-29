@@ -3,6 +3,7 @@ package com.moduplaylist.batch.job.contentimport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.moduplaylist.batch.job.contentimport.ContentImportMetrics.TmdbMovieProviderRetryTarget;
 import com.moduplaylist.batch.job.contentimport.ContentImportMetrics.TmdbProviderRetryTarget;
+import com.moduplaylist.batch.job.contenttagging.TmdbKeywordService;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.Content.AiTaggingStatus;
 import com.moduplaylist.core.content.entity.ContentCast;
@@ -16,7 +17,9 @@ import com.moduplaylist.core.content.repository.ContentRepository;
 import com.moduplaylist.core.content.repository.EpisodeRepository;
 import com.moduplaylist.core.content.repository.GenreRepository;
 import com.moduplaylist.infrastructure.externalapi.ExternalApiException;
-import com.moduplaylist.infrastructure.opensearch.content.ContentAutocompleteSynchronizer;
+import com.moduplaylist.infrastructure.opensearch.content.ContentIndexSource;
+import com.moduplaylist.infrastructure.opensearch.content.ContentIndexSynchronizer;
+import com.moduplaylist.infrastructure.opensearch.content.OpenSearchFailureClassifier;
 import com.moduplaylist.infrastructure.tmdb.TmdbContentClient;
 import com.moduplaylist.infrastructure.tmdb.TmdbProperties;
 import com.moduplaylist.infrastructure.tmdb.TmdbWatchProviderClient;
@@ -27,11 +30,15 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.IntFunction;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -45,6 +52,7 @@ public class TmdbContentImportService {
     private static final int CAST_LIMIT = 10;
 
     private final TmdbContentClient tmdbClient;
+    private final TmdbKeywordService keywordService;
     private final TmdbWatchProviderClient watchProviderClient;
     private final TmdbContentPlatformService contentPlatformService;
     private final TmdbProperties properties;
@@ -53,36 +61,45 @@ public class TmdbContentImportService {
     private final GenreRepository genreRepository;
     private final ContentGenreRepository contentGenreRepository;
     private final ContentCastRepository contentCastRepository;
-    private final ContentAutocompleteSynchronizer autocompleteSynchronizer;
+    private final ContentIndexSynchronizer contentIndexSynchronizer;
     private final TransactionTemplate transactionTemplate;
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public void importMovies(LocalDate runDate, ContentImportMetrics metrics) {
         LocalDate from = runDate.minusDays(1);
         Set<Integer> handledIds = new HashSet<>();
         Set<UUID> attemptedProviderContentIds = new HashSet<>();
-        Set<UUID> attemptedAutocompleteContentIds = new HashSet<>();
+        IndexSyncAttempts indexSyncAttempts = new IndexSyncAttempts();
         GenreCache genreCache = loadGenreCache();
         retryFailedMovieImports(
             handledIds,
             attemptedProviderContentIds,
-            attemptedAutocompleteContentIds,
+            indexSyncAttempts,
             genreCache,
             metrics
         );
         retryFailedMovieSynchronizations(
             metrics,
             attemptedProviderContentIds,
-            attemptedAutocompleteContentIds
+            indexSyncAttempts
         );
         Set<Integer> ids = new HashSet<>();
         int totalPages = 1;
         for (int page = 1; page <= totalPages; page++) {
-            JsonNode response = tmdbClient.discoverMovies(from, runDate, page);
-            response.path("results").forEach(candidate -> {
-                int id = candidate.path("id").asInt();
-                if (id > 0 && !handledIds.contains(id) && ids.add(id)) metrics.candidate();
-            });
-            totalPages = response.path("total_pages").asInt(1);
+            try {
+                JsonNode response = tmdbClient.discoverMovies(from, runDate, page);
+                response.path("results").forEach(candidate -> {
+                    int id = candidate.path("id").asInt();
+                    if (id > 0 && !handledIds.contains(id) && ids.add(id)) metrics.candidate();
+                });
+                totalPages = response.path("total_pages").asInt(1);
+            } catch (RuntimeException exception) {
+                rethrowIfFatal(exception);
+                metrics.failed("movie-discover:page-" + page);
+                log.warn("TMDB 영화 목록 조회에 실패해 다음 페이지를 처리합니다. page={}",
+                    page, exception);
+            }
         }
         Map<Integer, Content> existingMovies = findExistingContentsByExternalId(
             ContentType.MOVIE, ids);
@@ -90,7 +107,7 @@ public class TmdbContentImportService {
             id,
             existingMovies.get(id),
             attemptedProviderContentIds,
-            attemptedAutocompleteContentIds,
+            indexSyncAttempts,
             genreCache,
             metrics
         ));
@@ -100,25 +117,25 @@ public class TmdbContentImportService {
         LocalDate from = runDate.minusDays(1);
         Set<Integer> handledIds = new HashSet<>();
         Set<UUID> attemptedProviderContentIds = new HashSet<>();
-        Set<UUID> attemptedAutocompleteContentIds = new HashSet<>();
+        IndexSyncAttempts indexSyncAttempts = new IndexSyncAttempts();
         GenreCache genreCache = loadGenreCache();
         retryFailedTvImports(
             handledIds,
             runDate,
             attemptedProviderContentIds,
-            attemptedAutocompleteContentIds,
+            indexSyncAttempts,
             genreCache,
             metrics
         );
         retryFailedSeasonSynchronizations(
             metrics,
             attemptedProviderContentIds,
-            attemptedAutocompleteContentIds
+            indexSyncAttempts
         );
         Set<Integer> ids = new HashSet<>();
-        collectTvCandidates(ids, handledIds, metrics,
+        collectTvCandidates(ids, handledIds, metrics, "networks",
             page -> tmdbClient.discoverTvByNetworks(from, runDate, page));
-        collectTvCandidates(ids, handledIds, metrics,
+        collectTvCandidates(ids, handledIds, metrics, "watch-providers",
             page -> tmdbClient.discoverTvByWatchProviders(from, runDate, page));
         Map<Integer, Content> existingSeries = findExistingContentsByExternalId(
             ContentType.TV_SERIES, ids);
@@ -127,7 +144,7 @@ public class TmdbContentImportService {
             existingSeries.get(id),
             runDate,
             attemptedProviderContentIds,
-            attemptedAutocompleteContentIds,
+            indexSyncAttempts,
             genreCache,
             metrics
         ));
@@ -137,23 +154,33 @@ public class TmdbContentImportService {
         Set<Integer> ids,
         Set<Integer> handledIds,
         ContentImportMetrics metrics,
+        String discoverySource,
         IntFunction<JsonNode> requestPage
     ) {
         int totalPages = 1;
         for (int page = 1; page <= totalPages; page++) {
-            JsonNode response = requestPage.apply(page);
-            response.path("results").forEach(candidate -> {
-                int id = candidate.path("id").asInt();
-                if (id > 0 && !handledIds.contains(id) && ids.add(id)) metrics.candidate();
-            });
-            totalPages = response.path("total_pages").asInt(1);
+            try {
+                JsonNode response = requestPage.apply(page);
+                response.path("results").forEach(candidate -> {
+                    int id = candidate.path("id").asInt();
+                    if (id > 0 && !handledIds.contains(id) && ids.add(id)) metrics.candidate();
+                });
+                totalPages = response.path("total_pages").asInt(1);
+            } catch (RuntimeException exception) {
+                rethrowIfFatal(exception);
+                metrics.failed("tv-discover:" + discoverySource + ":page-" + page);
+                log.warn(
+                    "TMDB TV 목록 조회에 실패해 다음 페이지를 처리합니다. source={}, page={}",
+                    discoverySource, page, exception
+                );
+            }
         }
     }
 
     private void fetchAndImportMovieSafely(
         int id,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         GenreCache genreCache,
         ContentImportMetrics metrics
     ) {
@@ -164,7 +191,7 @@ public class TmdbContentImportService {
                 id,
                 existing,
                 attemptedProviderContentIds,
-                attemptedAutocompleteContentIds,
+                indexSyncAttempts,
                 genreCache,
                 metrics
             );
@@ -181,7 +208,7 @@ public class TmdbContentImportService {
         int id,
         Content existing,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         GenreCache genreCache,
         ContentImportMetrics metrics
     ) {
@@ -190,7 +217,7 @@ public class TmdbContentImportService {
                 id,
                 existing,
                 attemptedProviderContentIds,
-                attemptedAutocompleteContentIds,
+                indexSyncAttempts,
                 genreCache,
                 metrics
             );
@@ -207,7 +234,7 @@ public class TmdbContentImportService {
         int seriesId,
         LocalDate runDate,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         GenreCache genreCache,
         ContentImportMetrics metrics
     ) {
@@ -219,7 +246,7 @@ public class TmdbContentImportService {
                 series,
                 runDate,
                 attemptedProviderContentIds,
-                attemptedAutocompleteContentIds,
+                indexSyncAttempts,
                 genreCache,
                 metrics
             );
@@ -238,7 +265,7 @@ public class TmdbContentImportService {
         Content series,
         LocalDate runDate,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         GenreCache genreCache,
         ContentImportMetrics metrics
     ) {
@@ -248,7 +275,7 @@ public class TmdbContentImportService {
                 series,
                 runDate,
                 attemptedProviderContentIds,
-                attemptedAutocompleteContentIds,
+                indexSyncAttempts,
                 genreCache,
                 metrics
             );
@@ -266,7 +293,7 @@ public class TmdbContentImportService {
         int id,
         Content existing,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         GenreCache genreCache,
         ContentImportMetrics metrics
     ) {
@@ -276,15 +303,13 @@ public class TmdbContentImportService {
                 existing,
                 id,
                 attemptedProviderContentIds,
-                attemptedAutocompleteContentIds,
+                indexSyncAttempts,
                 metrics
             );
             return;
         }
         JsonNode ko = tmdbClient.movieDetails(id, "ko-KR");
-        JsonNode en = needsFallback(ko, "title", "overview", "poster_path")
-            || !hasValidGenres(ko.path("genres"))
-            ? tmdbClient.movieDetails(id, "en-US") : ko;
+        JsonNode en = tmdbClient.movieDetails(id, "en-US");
         String title = limit(firstText(ko, en, "title"), 255);
         String description = firstText(ko, en, "overview");
         JsonNode genres = hasValidGenres(ko.path("genres"))
@@ -294,8 +319,9 @@ public class TmdbContentImportService {
             log.info("TMDB 영화 필수 정보가 없어 건너뜁니다. tmdbId={}", id);
             return;
         }
+        Map<String, Object> keywordMetadata = keywordService.fetch(id, false);
         MovieSaveResult result = transactionTemplate.execute(status ->
-            importMovie(id, ko, en, genres, genreCache));
+            importMovie(id, ko, en, genres, genreCache, keywordMetadata));
         if (result == null) {
             metrics.existing();
             contentRepository.findByExternalSourceAndTypeAndExternalId(
@@ -305,7 +331,7 @@ public class TmdbContentImportService {
                         content,
                         id,
                         attemptedProviderContentIds,
-                        attemptedAutocompleteContentIds,
+                        indexSyncAttempts,
                         metrics
                     );
                 });
@@ -318,7 +344,7 @@ public class TmdbContentImportService {
             movie,
             id,
             attemptedProviderContentIds,
-            attemptedAutocompleteContentIds,
+            indexSyncAttempts,
             metrics
         );
     }
@@ -328,20 +354,24 @@ public class TmdbContentImportService {
         JsonNode ko,
         JsonNode en,
         JsonNode genres,
-        GenreCache genreCache
+        GenreCache genreCache,
+        Map<String, Object> keywordMetadata
     ) {
         if (contentRepository.findByExternalSourceAndTypeAndExternalId(
             SOURCE, ContentType.MOVIE, id).isPresent()) return null;
         String title = limit(firstText(ko, en, "title"), 255);
         String description = firstText(ko, en, "overview");
+        String originalTitle = limit(text(ko, "original_title", title), 255);
+        String englishTitle = limit(text(en, "title", originalTitle), 255);
         Content movie = Content.builder()
             .title(title).type(ContentType.MOVIE).description(description)
             .thumbnailUrl(properties.imageUrl(firstText(ko, en, "poster_path")))
             .releaseDate(koreanMovieReleaseDate(ko, en))
             .runtime(positiveInt(ko.path("runtime")))
-            .metadata(Map.of("originalTitle", text(ko, "original_title", title)))
+            .metadata(titleMetadata(originalTitle, englishTitle))
             .externalSource(SOURCE).externalId(id).build();
         movie.updateAiTaggingStatus(AiTaggingStatus.PENDING);
+        movie.mergeMetadata(keywordMetadata);
         contentRepository.save(movie);
         List<GenreResolution> genreResolutions = saveGenres(movie, genres, genreCache);
         saveCast(movie, ko.path("credits").path("cast"));
@@ -353,7 +383,7 @@ public class TmdbContentImportService {
         Content series,
         LocalDate runDate,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         GenreCache genreCache,
         ContentImportMetrics metrics
     ) {
@@ -378,7 +408,7 @@ public class TmdbContentImportService {
                 : Set.of();
         synchronizeExistingSeasons(
             existingSeasons.values(),
-            attemptedAutocompleteContentIds,
+            indexSyncAttempts,
             metrics
         );
         Set<Integer> episodeSeasonNumbers = episodeSeasonNumbers(ko, runDate);
@@ -398,8 +428,7 @@ public class TmdbContentImportService {
             .toList();
         if (candidates.isEmpty()) return false;
 
-        JsonNode en = needsFallback(ko, "name") || !hasValidGenres(ko.path("genres"))
-            ? tmdbClient.tvDetails(seriesId, "en-US") : ko;
+        JsonNode en = tmdbClient.tvDetails(seriesId, "en-US");
         if (series == null && firstText(ko, en, "name") == null
             && text(ko, "original_name", null) == null) {
             metrics.missingRequired();
@@ -407,15 +436,16 @@ public class TmdbContentImportService {
         }
         JsonNode genres = hasValidGenres(ko.path("genres"))
             ? ko.path("genres") : en.path("genres");
+        Map<String, Object> keywordMetadata = hasMissingRemoteSeason
+            && (series == null || !TmdbKeywordService.successful(series.getMetadata()))
+            ? keywordService.fetch(seriesId, true) : Map.of();
         boolean failed = false;
         for (JsonNode candidate : candidates) {
             int number = candidate.path("season_number").asInt();
             String failureId = "tv-season:" + seriesId + "/" + number;
             try {
                 JsonNode seasonKo = tmdbClient.seasonDetails(seriesId, number, "ko-KR");
-                JsonNode seasonEn = needsSeasonEnglishFallback(seasonKo)
-                    ? tmdbClient.seasonDetails(seriesId, number, "en-US")
-                    : seasonKo;
+                JsonNode seasonEn = tmdbClient.seasonDetails(seriesId, number, "en-US");
                 Content existing = existingSeasons.get(candidate.path("id").asInt());
                 SeasonData data = new SeasonData(
                     candidate,
@@ -430,7 +460,7 @@ public class TmdbContentImportService {
                     continue;
                 }
                 SeasonSaveResult result = transactionTemplate.execute(status ->
-                    saveSeason(seriesId, data, ko, en, genres, runDate, genreCache)
+                    saveSeason(seriesId, data, ko, en, genres, runDate, genreCache, keywordMetadata)
                 );
                 if (result != null) genreCache.putAll(result.genreResolutions());
                 if (result != null && result.season() != null) {
@@ -442,13 +472,11 @@ public class TmdbContentImportService {
                         try {
                             synchronizeSeasonProvidersSafely(providerTarget, failureId, metrics);
                         } catch (RuntimeException exception) {
-                            metrics.addAutocompleteRetry(contentId);
+                            addAllIndexRetries(contentId, metrics);
                             throw exception;
                         }
                     }
-                    if (attemptedAutocompleteContentIds.add(contentId)) {
-                        synchronizeSeasonAutocompleteSafely(contentId, failureId, metrics);
-                    }
+                    synchronizeIndexesOnce(contentId, failureId, indexSyncAttempts, metrics);
                 }
             } catch (RuntimeException exception) {
                 rethrowIfFatal(exception);
@@ -483,33 +511,25 @@ public class TmdbContentImportService {
 
     private void synchronizeExistingSeasons(
         Collection<Content> seasons,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         ContentImportMetrics metrics
     ) {
         for (Content season : seasons) {
             if (season.isHidden()) continue;
             metrics.existing();
             UUID contentId = season.getId();
-            if (attemptedAutocompleteContentIds.add(contentId)) {
-                synchronizeSeasonAutocompleteSafely(
-                    contentId,
-                    "tv-season-autocomplete:" + contentId,
-                    metrics
-                );
-            }
+            synchronizeIndexesOnce(
+                contentId,
+                "tv-season-index:" + contentId,
+                indexSyncAttempts,
+                metrics
+            );
         }
     }
 
     private static boolean missingSeasonRequired(SeasonData data, JsonNode genres) {
         return firstText(data.ko(), data.en(), "overview") == null
             || !hasValidGenres(genres);
-    }
-
-    private static boolean needsSeasonEnglishFallback(JsonNode season) {
-        return text(season, "name", null) == null
-            || text(season, "overview", null) == null
-            || iterable(season.path("episodes")).stream()
-                .anyMatch(episode -> text(episode, "name", null) == null);
     }
 
     private SeasonSaveResult saveSeason(
@@ -519,10 +539,15 @@ public class TmdbContentImportService {
         JsonNode seriesEn,
         JsonNode genres,
         LocalDate runDate,
-        GenreCache genreCache
+        GenreCache genreCache,
+        Map<String, Object> keywordMetadata
     ) {
         Content series = contentRepository.findByExternalSourceAndTypeAndExternalId(
             SOURCE, ContentType.TV_SERIES, seriesId).orElse(null);
+        if (series != null) {
+            // Refresh the entity read above after taking the parent lock to preserve concurrent metadata edits.
+            entityManager.refresh(series, LockModeType.PESSIMISTIC_WRITE);
+        }
         int seasonId = data.candidate().path("id").asInt();
         Content existing = contentRepository.findByExternalSourceAndTypeAndExternalId(
             SOURCE, ContentType.TV_SEASON, seasonId).orElse(null);
@@ -543,12 +568,18 @@ public class TmdbContentImportService {
                 seriesTitle = limit(text(seriesKo, "original_name", null), 255);
             }
             if (seriesTitle == null) return SeasonSaveResult.empty();
+            String originalTitle = limit(
+                text(seriesKo, "original_name", seriesTitle), 255);
+            String englishTitle = limit(text(seriesEn, "name", originalTitle), 255);
             series = contentRepository.save(Content.builder()
                 .title(seriesTitle).type(ContentType.TV_SERIES)
-                .metadata(Map.of("originalTitle", text(seriesKo, "original_name", seriesTitle)))
+                .metadata(titleMetadata(originalTitle, englishTitle))
                 .externalSource(SOURCE).externalId(seriesId).build());
         }
-        Content season = importSeason(series, data, seriesKo, runDate);
+        if (!keywordMetadata.isEmpty() && !TmdbKeywordService.successful(series.getMetadata())) {
+            series.mergeMetadata(keywordMetadata);
+        }
+        Content season = importSeason(series, data, seriesKo, seriesEn, runDate);
         if (season == null) return SeasonSaveResult.empty();
         List<GenreResolution> genreResolutions = saveGenres(season, genres, genreCache);
         saveCast(season, seasonCast(data, seriesKo, seriesEn));
@@ -559,6 +590,7 @@ public class TmdbContentImportService {
         Content series,
         SeasonData data,
         JsonNode seriesKo,
+        JsonNode seriesEn,
         LocalDate runDate
     ) {
         JsonNode candidate = data.candidate();
@@ -571,13 +603,16 @@ public class TmdbContentImportService {
             : number == 0 ? "스페셜" : "시즌 " + number;
         String title = limit(series.getTitle() + " " + resolvedSeasonName, 255);
         String description = firstText(ko, en, "overview");
+        String originalTitle = limit(
+            text(seriesKo, "original_name", series.getTitle()), 255);
+        String englishTitle = limit(text(seriesEn, "name", originalTitle), 255);
         int seasonId = candidate.path("id").asInt();
         Content season = Content.builder()
             .parentContent(series).title(title).seasonNumber(number)
             .episodeCount(remoteEpisodeCount(data)).type(ContentType.TV_SEASON)
             .description(description).thumbnailUrl(properties.imageUrl(firstText(ko, en, "poster_path")))
             .releaseDate(date(firstText(ko, en, "air_date")))
-            .metadata(Map.of("originalTitle", text(seriesKo, "original_name", title)))
+            .metadata(titleMetadata(originalTitle, englishTitle))
             .externalSource(SOURCE).externalId(seasonId).build();
         season.updateAiTaggingStatus(AiTaggingStatus.PENDING);
         contentRepository.save(season);
@@ -598,7 +633,7 @@ public class TmdbContentImportService {
         Content movie,
         int movieId,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         ContentImportMetrics metrics
     ) {
         UUID contentId = movie.getId();
@@ -608,13 +643,16 @@ public class TmdbContentImportService {
             try {
                 synchronizeMovieProvidersSafely(providerTarget, metrics);
             } catch (RuntimeException exception) {
-                metrics.addAutocompleteRetry(contentId);
+                addAllIndexRetries(contentId, metrics);
                 throw exception;
             }
         }
-        if (attemptedAutocompleteContentIds.add(contentId)) {
-            synchronizeAutocompleteSafely(contentId, "movie:" + movieId, metrics);
-        }
+        synchronizeIndexesOnce(
+            contentId,
+            "movie:" + movieId,
+            indexSyncAttempts,
+            metrics
+        );
     }
 
     private void synchronizeMovieProvidersSafely(
@@ -655,60 +693,128 @@ public class TmdbContentImportService {
         }
     }
 
-    private void synchronizeSeasonAutocompleteSafely(
+    private void synchronizeIndexesOnce(
         UUID contentId,
         String failureId,
+        IndexSyncAttempts attempts,
         ContentImportMetrics metrics
     ) {
-        try {
-            autocompleteSynchronizer.synchronize(contentId);
-            metrics.completeAutocompleteRetry(contentId);
-        } catch (RuntimeException exception) {
-            metrics.addAutocompleteRetry(contentId);
-            rethrowIfFatal(exception);
-            metrics.failed(failureId);
-            log.warn("TMDB 시즌 자동완성 동기화에 실패했습니다. contentId={}, externalId={}",
-                contentId, failureId, exception);
-        }
+        boolean synchronizeAutocomplete = attempts.autocomplete().add(contentId);
+        boolean synchronizeSearch = attempts.search().add(contentId);
+        synchronizeIndexesSafely(
+            contentId,
+            failureId,
+            synchronizeAutocomplete,
+            synchronizeSearch,
+            metrics
+        );
     }
 
-    private void synchronizeAutocompleteSafely(
+    private void synchronizeIndexesSafely(
         UUID contentId,
         String failureId,
+        boolean synchronizeAutocomplete,
+        boolean synchronizeSearch,
         ContentImportMetrics metrics
     ) {
-        try {
-            autocompleteSynchronizer.synchronize(contentId);
-            metrics.completeAutocompleteRetry(contentId);
-        } catch (RuntimeException exception) {
-            metrics.addAutocompleteRetry(contentId);
-            rethrowIfFatal(exception);
-            metrics.failed(failureId);
-            log.warn("TMDB 콘텐츠 자동완성 동기화에 실패했습니다. contentId={}, externalId={}",
-                contentId, failureId, exception);
+        if (!synchronizeAutocomplete && !synchronizeSearch) return;
+        boolean taggingPending = contentRepository.findById(contentId)
+            .map(content -> content.getAiTaggingStatus() == AiTaggingStatus.PENDING)
+            .orElse(false);
+        if (taggingPending) {
+            if (synchronizeAutocomplete) metrics.completeAutocompleteRetry(contentId);
+            if (synchronizeSearch) metrics.completeSearchRetry(contentId);
+            log.debug("AI 태깅 전 TMDB 콘텐츠 색인을 보류합니다. contentId={}", contentId);
+            return;
         }
+
+        ContentIndexSource source;
+        try {
+            source = contentIndexSynchronizer.load(contentId);
+        } catch (RuntimeException exception) {
+            addIndexRetries(contentId, synchronizeAutocomplete, synchronizeSearch, metrics);
+            metrics.failed(failureId + ":index-source");
+            log.warn("TMDB 색인 원본 조회에 실패했습니다. contentId={}, externalId={}",
+                contentId, failureId, exception);
+            rethrowIfFatal(exception);
+            return;
+        }
+
+        RuntimeException fatalFailure = null;
+        if (synchronizeAutocomplete) {
+            try {
+                contentIndexSynchronizer.synchronizeAutocomplete(source);
+                metrics.completeAutocompleteRetry(contentId);
+            } catch (RuntimeException exception) {
+                metrics.addAutocompleteRetry(contentId);
+                metrics.failed(failureId + ":autocomplete");
+                log.warn("TMDB 자동완성 동기화에 실패했습니다. contentId={}, externalId={}",
+                    contentId, failureId, exception);
+                fatalFailure = fatalFailure(fatalFailure, exception);
+            }
+        }
+        if (synchronizeSearch) {
+            try {
+                contentIndexSynchronizer.synchronizeSearch(source);
+                metrics.completeSearchRetry(contentId);
+            } catch (RuntimeException exception) {
+                metrics.addSearchRetry(contentId);
+                metrics.failed(failureId + ":search");
+                log.warn("TMDB 검색 문서 동기화에 실패했습니다. contentId={}, externalId={}",
+                    contentId, failureId, exception);
+                fatalFailure = fatalFailure(fatalFailure, exception);
+            }
+        }
+        if (fatalFailure != null) throw fatalFailure;
+    }
+
+    private static RuntimeException fatalFailure(
+        RuntimeException current,
+        RuntimeException candidate
+    ) {
+        if (!isFatal(candidate)) return current;
+        if (current == null) return candidate;
+        current.addSuppressed(candidate);
+        return current;
+    }
+
+    private static boolean isFatal(RuntimeException exception) {
+        return OpenSearchFailureClassifier.shouldAbortStep(exception);
+    }
+
+    private static void addAllIndexRetries(
+        UUID contentId,
+        ContentImportMetrics metrics
+    ) {
+        addIndexRetries(contentId, true, true, metrics);
+    }
+
+    private static void addIndexRetries(
+        UUID contentId,
+        boolean autocomplete,
+        boolean search,
+        ContentImportMetrics metrics
+    ) {
+        if (autocomplete) metrics.addAutocompleteRetry(contentId);
+        if (search) metrics.addSearchRetry(contentId);
     }
 
     private void retryFailedMovieSynchronizations(
         ContentImportMetrics metrics,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds
+        IndexSyncAttempts indexSyncAttempts
     ) {
         for (TmdbMovieProviderRetryTarget target : metrics.tmdbMovieProviderRetryTargets()) {
             attemptedProviderContentIds.add(target.contentId());
             synchronizeMovieProvidersSafely(target, metrics);
         }
-        for (UUID contentId : metrics.autocompleteRetryContentIds()) {
-            attemptedAutocompleteContentIds.add(contentId);
-            synchronizeAutocompleteSafely(
-                contentId, "movie-autocomplete:" + contentId, metrics);
-        }
+        retryFailedIndexes(metrics, indexSyncAttempts, "movie-index:");
     }
 
     private void retryFailedMovieImports(
         Set<Integer> handledIds,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         GenreCache genreCache,
         ContentImportMetrics metrics
     ) {
@@ -717,7 +823,7 @@ public class TmdbContentImportService {
             fetchAndImportMovieSafely(
                 movieId,
                 attemptedProviderContentIds,
-                attemptedAutocompleteContentIds,
+                indexSyncAttempts,
                 genreCache,
                 metrics
             );
@@ -727,17 +833,38 @@ public class TmdbContentImportService {
     private void retryFailedSeasonSynchronizations(
         ContentImportMetrics metrics,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds
+        IndexSyncAttempts indexSyncAttempts
     ) {
         for (TmdbProviderRetryTarget target : metrics.tmdbProviderRetryTargets()) {
             attemptedProviderContentIds.add(target.contentId());
             String failureId = "tv-season:" + target.seriesId() + "/" + target.seasonNumber();
             synchronizeSeasonProvidersSafely(target, failureId, metrics);
         }
-        for (UUID contentId : metrics.autocompleteRetryContentIds()) {
-            attemptedAutocompleteContentIds.add(contentId);
-            synchronizeSeasonAutocompleteSafely(
-                contentId, "tv-season-autocomplete:" + contentId, metrics);
+        retryFailedIndexes(metrics, indexSyncAttempts, "tv-season-index:");
+    }
+
+    private void retryFailedIndexes(
+        ContentImportMetrics metrics,
+        IndexSyncAttempts attempts,
+        String failureIdPrefix
+    ) {
+        Set<UUID> autocompleteRetries = metrics.autocompleteRetryContentIds();
+        Set<UUID> searchRetries = metrics.searchRetryContentIds();
+        Set<UUID> contentIds = new LinkedHashSet<>(autocompleteRetries);
+        contentIds.addAll(searchRetries);
+
+        for (UUID contentId : contentIds) {
+            boolean synchronizeAutocomplete = autocompleteRetries.contains(contentId)
+                && attempts.autocomplete().add(contentId);
+            boolean synchronizeSearch = searchRetries.contains(contentId)
+                && attempts.search().add(contentId);
+            synchronizeIndexesSafely(
+                contentId,
+                failureIdPrefix + contentId,
+                synchronizeAutocomplete,
+                synchronizeSearch,
+                metrics
+            );
         }
     }
 
@@ -745,7 +872,7 @@ public class TmdbContentImportService {
         Set<Integer> handledIds,
         LocalDate runDate,
         Set<UUID> attemptedProviderContentIds,
-        Set<UUID> attemptedAutocompleteContentIds,
+        IndexSyncAttempts indexSyncAttempts,
         GenreCache genreCache,
         ContentImportMetrics metrics
     ) {
@@ -755,7 +882,7 @@ public class TmdbContentImportService {
                 seriesId,
                 runDate,
                 attemptedProviderContentIds,
-                attemptedAutocompleteContentIds,
+                indexSyncAttempts,
                 genreCache,
                 metrics
             );
@@ -910,10 +1037,6 @@ public class TmdbContentImportService {
         }
     }
 
-    private static boolean needsFallback(JsonNode node, String... fields) {
-        for (String field : fields) if (text(node, field, null) == null) return true;
-        return false;
-    }
     private static String firstText(JsonNode primary, JsonNode fallback, String field) {
         String value = text(primary, field, null);
         return value != null ? value : text(fallback, field, null);
@@ -1022,6 +1145,16 @@ public class TmdbContentImportService {
     private static String limit(String value, int maxLength) {
         return value == null || value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
+    private static Map<String, Object> titleMetadata(
+        String originalTitle,
+        String englishTitle
+    ) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (originalTitle != null) metadata.put("originalTitle", originalTitle);
+        if (englishTitle != null) metadata.put("englishTitle", englishTitle);
+        return Map.copyOf(metadata);
+    }
+
     private static List<JsonNode> iterable(JsonNode array) {
         if (!array.isArray()) return List.of();
         java.util.ArrayList<JsonNode> values = new java.util.ArrayList<>();
@@ -1048,6 +1181,15 @@ public class TmdbContentImportService {
     ) {
         private static SeasonSaveResult empty() {
             return new SeasonSaveResult(null, 0, List.of());
+        }
+    }
+
+    private record IndexSyncAttempts(
+        Set<UUID> autocomplete,
+        Set<UUID> search
+    ) {
+        private IndexSyncAttempts() {
+            this(new HashSet<>(), new HashSet<>());
         }
     }
 

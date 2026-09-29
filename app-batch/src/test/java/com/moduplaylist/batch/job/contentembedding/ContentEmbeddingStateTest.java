@@ -39,6 +39,36 @@ class ContentEmbeddingStateTest {
         assertThat(movie.isEmbeddingPending()).isTrue();
     }
 
+    @Test
+    void pendingTmdbContentIsNotEmbeddingEligibleUntilTaggingTerminates() {
+        Content movie = Content.builder()
+                .title("tmdb movie")
+                .type(ContentType.MOVIE)
+                .externalSource("TMDB")
+                .externalId(1)
+                .build();
+
+        movie.updateAiTaggingStatus(Content.AiTaggingStatus.PENDING);
+        assertThat(movie.isEmbeddingAllowedByAiTaggingStatus()).isFalse();
+        assertThat(movie.isPubliclyVisible()).isFalse();
+
+        movie.updateAiTaggingStatus(Content.AiTaggingStatus.COMPLETED);
+        assertThat(movie.isEmbeddingAllowedByAiTaggingStatus()).isTrue();
+        assertThat(movie.isPubliclyVisible()).isTrue();
+
+        movie.updateAiTaggingStatus(Content.AiTaggingStatus.COMPLETED_PARTIAL);
+        assertThat(movie.isEmbeddingAllowedByAiTaggingStatus()).isTrue();
+
+        movie.updateAiTaggingStatus(Content.AiTaggingStatus.FAILED);
+        assertThat(movie.isEmbeddingAllowedByAiTaggingStatus()).isTrue();
+        assertThat(movie.isPubliclyVisible()).isTrue();
+    }
+
+    @Test
+    void nonTmdbContentDoesNotRequireAiTaggingForEmbedding() {
+        assertThat(content(ContentType.MOVIE).isEmbeddingAllowedByAiTaggingStatus()).isTrue();
+    }
+
     private Content content(ContentType type) {
         return Content.builder()
                 .title(type.getValue())

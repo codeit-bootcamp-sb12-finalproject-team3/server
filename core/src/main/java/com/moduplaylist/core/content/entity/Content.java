@@ -56,6 +56,7 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Content extends BaseEntity {
 	private static final String ORIGINAL_TITLE_METADATA_KEY = "originalTitle";
+	private static final String ENGLISH_TITLE_METADATA_KEY = "englishTitle";
 	private static final BigDecimal MAX_RATING = new BigDecimal("5.00");
 	private static final BigDecimal MIN_REVIEW_RATING = new BigDecimal("0.50");
 	private static final int RATING_SCALE = 2;
@@ -197,14 +198,22 @@ public class Content extends BaseEntity {
 	}
 
 	public String getOriginalTitle() {
+		return getMetadataText(ORIGINAL_TITLE_METADATA_KEY);
+	}
+
+	public String getEnglishTitle() {
+		return getMetadataText(ENGLISH_TITLE_METADATA_KEY);
+	}
+
+	private String getMetadataText(String key) {
 		if (metadata == null) {
 			return null;
 		}
-		Object value = metadata.get(ORIGINAL_TITLE_METADATA_KEY);
-		if (!(value instanceof String originalTitle)) {
+		Object value = metadata.get(key);
+		if (!(value instanceof String text)) {
 			return null;
 		}
-		String normalized = originalTitle.strip();
+		String normalized = text.strip();
 		return normalized.isEmpty() ? null : normalized;
 	}
 
@@ -262,6 +271,20 @@ public class Content extends BaseEntity {
 		this.aiTaggingStatus = aiTaggingStatus;
 	}
 
+	public boolean isEmbeddingAllowedByAiTaggingStatus() {
+		if (!"TMDB".equals(externalSource)
+			|| (type != ContentType.MOVIE && type != ContentType.TV_SEASON)) {
+			return true;
+		}
+		return aiTaggingStatus == AiTaggingStatus.COMPLETED
+			|| aiTaggingStatus == AiTaggingStatus.COMPLETED_PARTIAL
+			|| aiTaggingStatus == AiTaggingStatus.FAILED;
+	}
+
+	public boolean isPubliclyVisible() {
+		return !hidden && isEmbeddingAllowedByAiTaggingStatus();
+	}
+
 	public void hide() {
 		this.hidden = true;
 	}
@@ -277,6 +300,13 @@ public class Content extends BaseEntity {
 
 	public void markUpdated() {
 		touchUpdatedAt();
+	}
+
+	public void mergeMetadata(Map<String, Object> additions) {
+		Map<String, Object> merged = new java.util.LinkedHashMap<>();
+		if (metadata != null) merged.putAll(metadata);
+		merged.putAll(additions);
+		this.metadata = merged;
 	}
 
 	public boolean isReviewable() {

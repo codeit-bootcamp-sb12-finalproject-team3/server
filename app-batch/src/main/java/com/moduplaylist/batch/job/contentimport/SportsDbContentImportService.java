@@ -1,7 +1,6 @@
 package com.moduplaylist.batch.job.contentimport;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.moduplaylist.batch.job.contentembedding.ContentEmbeddingService;
 import com.moduplaylist.batch.job.contentimport.ContentImportMetrics.SportsRetryTarget;
 import com.moduplaylist.batch.job.contentimport.SportsImportProperties.SportCode;
 import com.moduplaylist.core.content.entity.Content;
@@ -15,7 +14,9 @@ import com.moduplaylist.core.content.repository.SportTypeRepository;
 import com.moduplaylist.infrastructure.externalapi.ExternalApiException;
 import com.moduplaylist.infrastructure.externalapi.ExternalApiException.FailureType;
 import com.moduplaylist.infrastructure.sportsdb.SportsDbClient;
-import com.moduplaylist.infrastructure.opensearch.content.ContentAutocompleteSynchronizer;
+import com.moduplaylist.infrastructure.opensearch.content.ContentIndexSource;
+import com.moduplaylist.infrastructure.opensearch.content.ContentIndexSynchronizer;
+import com.moduplaylist.infrastructure.opensearch.content.OpenSearchFailureClassifier;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -23,6 +24,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -94,8 +96,7 @@ public class SportsDbContentImportService {
     private final ContentRepository contentRepository;
     private final SportEventRepository sportEventRepository;
     private final SportTypeRepository sportTypeRepository;
-    private final ContentEmbeddingService contentEmbeddingService;
-    private final ContentAutocompleteSynchronizer autocompleteSynchronizer;
+    private final ContentIndexSynchronizer contentIndexSynchronizer;
     private final TransactionTemplate transactionTemplate;
 
     public void syncEvents(LocalDate runDate, ContentImportMetrics metrics) {
@@ -124,7 +125,19 @@ public class SportsDbContentImportService {
             }
             for (int offset = -3; offset <= 7; offset++) {
                 LocalDate date = runDate.plusDays(offset);
-                JsonNode events = client.eventsOn(date, league.getExternalLeagueId());
+                JsonNode events;
+                try {
+                    events = client.eventsOn(date, league.getExternalLeagueId());
+                } catch (RuntimeException exception) {
+                    rethrowIfFatal(exception);
+                    metrics.failed("sport-discover:"
+                        + league.getExternalLeagueId() + ":" + date);
+                    log.warn(
+                        "TheSportsDB 경기 목록 조회에 실패해 다음 날짜를 처리합니다. leagueId={}, date={}",
+                        league.getExternalLeagueId(), date, exception
+                    );
+                    continue;
+                }
                 if (!events.isArray()) continue;
                 if (events.size() == 3) {
                     metrics.freeLimitHit();
@@ -195,11 +208,15 @@ public class SportsDbContentImportService {
             SportsRetryTarget retryTarget = sportsRetryTarget(candidate);
 
             try {
-                JsonNode event = client.event(externalId);
+                JsonNode event = lookupEventWithMissingRetry(externalId);
                 if (!event.isObject()) {
-                    if (retryTarget != null) metrics.addSportsRetry(retryTarget);
-                    metrics.failed("sport:" + externalId);
-                    log.warn("TheSportsDB 기존 경기 조회 결과가 없습니다. externalEventId={}", externalId);
+                    markEventAsNotFound(externalId);
+                    metrics.missingRequired();
+                    log.warn(
+                        "TheSportsDB 기존 경기 조회 결과가 재시도 후에도 없어 재조회 대상에서 제외합니다. "
+                            + "externalEventId={}",
+                        externalId
+                    );
                     continue;
                 }
 
@@ -241,52 +258,84 @@ public class SportsDbContentImportService {
     ) {
         if (result == null || result.contentId() == null) return;
         UUID contentId = result.contentId();
-        if (result.searchDocumentSyncRequired() && attemptedSearchContentIds.add(contentId)) {
+        boolean synchronizeSearch = result.searchDocumentSyncRequired()
+            && attemptedSearchContentIds.add(contentId);
+        boolean synchronizeAutocomplete = result.autocompleteSyncRequired()
+            && attemptedAutocompleteContentIds.add(contentId);
+        if (!synchronizeSearch && !synchronizeAutocomplete) {
+            return;
+        }
+        synchronizeIndexesSafely(
+            contentId,
+            synchronizeAutocomplete,
+            synchronizeSearch,
+            metrics
+        );
+    }
+
+    private void synchronizeIndexesSafely(
+        UUID contentId,
+        boolean synchronizeAutocomplete,
+        boolean synchronizeSearch,
+        ContentImportMetrics metrics
+    ) {
+        ContentIndexSource source;
+        try {
+            source = contentIndexSynchronizer.load(contentId);
+        } catch (RuntimeException exception) {
+            if (synchronizeSearch) {
+                metrics.addSportsSearchRetry(contentId);
+            }
+            if (synchronizeAutocomplete) {
+                metrics.addSportsAutocompleteRetry(contentId);
+            }
+            metrics.failed("sport-index-source:" + contentId);
+            log.warn("TheSportsDB 색인 원본 조회에 실패했습니다. contentId={}",
+                contentId, exception);
+            rethrowIfFatal(exception);
+            return;
+        }
+
+        RuntimeException fatalFailure = null;
+        if (synchronizeAutocomplete) {
             try {
-                synchronizeSportSearchDocumentSafely(contentId, metrics);
+                contentIndexSynchronizer.synchronizeAutocomplete(source);
+                metrics.completeSportsAutocompleteRetry(contentId);
             } catch (RuntimeException exception) {
-                if (result.autocompleteSyncRequired()) {
-                    metrics.addSportsAutocompleteRetry(contentId);
-                }
-                throw exception;
+                metrics.addSportsAutocompleteRetry(contentId);
+                metrics.failed("sport-autocomplete:" + contentId);
+                log.warn("TheSportsDB 자동완성 동기화에 실패했습니다. contentId={}",
+                    contentId, exception);
+                fatalFailure = fatalFailure(fatalFailure, exception);
             }
         }
-        if (result.autocompleteSyncRequired()
-            && attemptedAutocompleteContentIds.add(contentId)) {
-            synchronizeSportAutocompleteSafely(contentId, metrics);
+        if (synchronizeSearch) {
+            try {
+                contentIndexSynchronizer.synchronizeSearch(source);
+                metrics.completeSportsSearchRetry(contentId);
+            } catch (RuntimeException exception) {
+                metrics.addSportsSearchRetry(contentId);
+                metrics.failed("sport-search:" + contentId);
+                log.warn("TheSportsDB 검색 문서 동기화에 실패했습니다. contentId={}",
+                    contentId, exception);
+                fatalFailure = fatalFailure(fatalFailure, exception);
+            }
         }
+        if (fatalFailure != null) throw fatalFailure;
     }
 
-    private void synchronizeSportSearchDocumentSafely(
-        UUID contentId,
-        ContentImportMetrics metrics
+    private static RuntimeException fatalFailure(
+        RuntimeException current,
+        RuntimeException candidate
     ) {
-        try {
-            contentEmbeddingService.indexSportSearchDocument(contentId);
-            metrics.completeSportsSearchRetry(contentId);
-        } catch (RuntimeException exception) {
-            metrics.addSportsSearchRetry(contentId);
-            rethrowIfFatal(exception);
-            metrics.failed("sport-search:" + contentId);
-            log.warn("TheSportsDB 검색 문서 동기화에 실패했습니다. contentId={}",
-                contentId, exception);
-        }
+        if (!isFatal(candidate)) return current;
+        if (current == null) return candidate;
+        current.addSuppressed(candidate);
+        return current;
     }
 
-    private void synchronizeSportAutocompleteSafely(
-        UUID contentId,
-        ContentImportMetrics metrics
-    ) {
-        try {
-            autocompleteSynchronizer.synchronize(contentId);
-            metrics.completeSportsAutocompleteRetry(contentId);
-        } catch (RuntimeException exception) {
-            metrics.addSportsAutocompleteRetry(contentId);
-            rethrowIfFatal(exception);
-            metrics.failed("sport-autocomplete:" + contentId);
-            log.warn("TheSportsDB 자동완성 동기화에 실패했습니다. contentId={}",
-                contentId, exception);
-        }
+    private static boolean isFatal(RuntimeException exception) {
+        return OpenSearchFailureClassifier.shouldAbortStep(exception);
     }
 
     private void retryFailedSportSynchronizations(
@@ -294,13 +343,22 @@ public class SportsDbContentImportService {
         Set<UUID> attemptedSearchContentIds,
         Set<UUID> attemptedAutocompleteContentIds
     ) {
-        for (UUID contentId : metrics.sportsSearchRetryContentIds()) {
-            attemptedSearchContentIds.add(contentId);
-            synchronizeSportSearchDocumentSafely(contentId, metrics);
-        }
-        for (UUID contentId : metrics.sportsAutocompleteRetryContentIds()) {
-            attemptedAutocompleteContentIds.add(contentId);
-            synchronizeSportAutocompleteSafely(contentId, metrics);
+        Set<UUID> autocompleteRetries = metrics.sportsAutocompleteRetryContentIds();
+        Set<UUID> searchRetries = metrics.sportsSearchRetryContentIds();
+        Set<UUID> contentIds = new LinkedHashSet<>(autocompleteRetries);
+        contentIds.addAll(searchRetries);
+
+        for (UUID contentId : contentIds) {
+            boolean synchronizeAutocomplete = autocompleteRetries.contains(contentId)
+                && attemptedAutocompleteContentIds.add(contentId);
+            boolean synchronizeSearch = searchRetries.contains(contentId)
+                && attemptedSearchContentIds.add(contentId);
+            synchronizeIndexesSafely(
+                contentId,
+                synchronizeAutocomplete,
+                synchronizeSearch,
+                metrics
+            );
         }
     }
 
@@ -313,11 +371,14 @@ public class SportsDbContentImportService {
         for (SportsRetryTarget target : metrics.sportsRetryTargets()) {
             if (!handled.add(target.eventId())) continue;
             try {
-                JsonNode event = client.event(target.eventId());
+                JsonNode event = lookupEventWithMissingRetry(target.eventId());
                 if (!event.isObject()) {
-                    metrics.failed("sport:" + target.eventId());
+                    markEventAsNotFound(target.eventId());
+                    metrics.completeSportsRetry(target);
+                    metrics.missingRequired();
                     log.warn(
-                        "TheSportsDB 재시도 경기 조회 결과가 없습니다. externalEventId={}",
+                        "TheSportsDB 재시도 경기 조회 결과가 다시 없어 재조회 대상에서 제외합니다. "
+                            + "externalEventId={}",
                         target.eventId()
                     );
                     continue;
@@ -343,6 +404,34 @@ public class SportsDbContentImportService {
                 );
             }
         }
+    }
+
+    private JsonNode lookupEventWithMissingRetry(int externalEventId) {
+        JsonNode event = client.event(externalEventId);
+        if (event.isObject()) return event;
+
+        log.warn(
+            "TheSportsDB 경기 조회 결과가 없어 즉시 한 번 재시도합니다. externalEventId={}",
+            externalEventId
+        );
+        return client.event(externalEventId);
+    }
+
+    private void markEventAsNotFound(int externalEventId) {
+        transactionTemplate.executeWithoutResult(status ->
+            contentRepository.findByExternalSourceAndTypeAndExternalId(
+                    SOURCE,
+                    ContentType.SPORT,
+                    externalEventId
+                )
+                .flatMap(content -> sportEventRepository.findById(content.getId()))
+                .filter(event -> !event.getContent().isHidden())
+                .ifPresent(event -> event.updateStatus(
+                    event.getRawStatus(),
+                    NormalizedStatus.UNKNOWN,
+                    Instant.now()
+                ))
+        );
     }
 
     private static SportsImportProperties.League league(SportsRetryTarget target) {

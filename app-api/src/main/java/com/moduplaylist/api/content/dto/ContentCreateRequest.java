@@ -67,7 +67,7 @@ public class ContentCreateRequest {
 	private Integer runtime;
 
 	@Size(max = 255)
-	private String originalTitle;
+	private String englishTitle;
 
 	private List<@NotNull UUID> genreIds;
 
@@ -133,8 +133,8 @@ public class ContentCreateRequest {
 		this.runtime = runtime;
 	}
 
-	public void setOriginalTitle(String originalTitle) {
-		this.originalTitle = strip(originalTitle);
+	public void setEnglishTitle(String englishTitle) {
+		this.englishTitle = strip(englishTitle);
 	}
 
 	public void setGenreIds(List<UUID> genreIds) {
