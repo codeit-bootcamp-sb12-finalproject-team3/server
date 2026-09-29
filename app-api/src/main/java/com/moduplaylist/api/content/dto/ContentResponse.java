@@ -23,6 +23,7 @@ public class ContentResponse {
 	private long reviewCount;
 	private long likeCount;
 	private String originalTitle;
+	private String englishTitle;
 
 	@Builder.Default
 	private List<GenreResponse> genres = List.of();

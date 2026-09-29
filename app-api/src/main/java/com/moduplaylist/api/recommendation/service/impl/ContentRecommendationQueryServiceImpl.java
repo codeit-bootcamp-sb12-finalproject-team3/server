@@ -91,7 +91,7 @@ public class ContentRecommendationQueryServiceImpl
                 .map(contentById::get)
                 .filter(content ->
                         content != null
-                                && !content.isHidden()
+                                && content.isPubliclyVisible()
                                 && content.getType().isPersonalizable())
                 .toList();
         return contentSummaryResponseAssembler.toResponses(contents, userId);

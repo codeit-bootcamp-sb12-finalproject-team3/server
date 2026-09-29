@@ -9,6 +9,8 @@ import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.interceptor.DefaultTransactionAttribute;
 
 @Configuration
 public class ContentEmbeddingJobConfig {
@@ -31,8 +33,11 @@ public class ContentEmbeddingJobConfig {
             PlatformTransactionManager transactionManager,
             ContentEmbeddingTasklet contentEmbeddingTasklet
     ) {
+        var noTransaction = new DefaultTransactionAttribute();
+        noTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
         return new StepBuilder("contentEmbeddingStep", jobRepository)
                 .tasklet(contentEmbeddingTasklet, transactionManager)
+                .transactionAttribute(noTransaction)
                 .build();
     }
 }

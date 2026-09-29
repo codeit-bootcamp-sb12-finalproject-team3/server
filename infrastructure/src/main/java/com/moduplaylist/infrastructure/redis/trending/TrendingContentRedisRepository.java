@@ -4,7 +4,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import com.moduplaylist.infrastructure.trending.TrendingProperties;
@@ -123,6 +127,42 @@ public class TrendingContentRedisRepository {
                 .map(TypedTuple::getValue)
                 .map(UUID::fromString)
                 .toList();
+    }
+
+    public Map<UUID, Double> findScores(Collection<UUID> contentIds, Instant now) {
+        Objects.requireNonNull(contentIds, "콘텐츠 ID 목록은 필수입니다.");
+        Objects.requireNonNull(now, "트렌딩 점수 기준 시각은 필수입니다.");
+
+        List<UUID> distinctContentIds = contentIds.stream()
+                .map(contentId -> Objects.requireNonNull(
+                        contentId,
+                        "콘텐츠 ID는 null일 수 없습니다."
+                ))
+                .distinct()
+                .toList();
+        if (distinctContentIds.isEmpty()) {
+            return Map.of();
+        }
+
+        String aggregateKey = TrendingRedisKey.aggregate(now);
+        aggregateBucketsIfNecessary(aggregateKey, now);
+
+        Object[] members = distinctContentIds.stream()
+                .map(UUID::toString)
+                .toArray();
+        List<Double> scores = redisTemplate.opsForZSet().score(aggregateKey, members);
+
+        Map<UUID, Double> scoresByContentId = new LinkedHashMap<>();
+        for (int index = 0; index < distinctContentIds.size(); index++) {
+            Double score = scores != null && index < scores.size()
+                    ? scores.get(index)
+                    : null;
+            scoresByContentId.put(
+                    distinctContentIds.get(index),
+                    score == null ? 0.0 : score
+            );
+        }
+        return Map.copyOf(scoresByContentId);
     }
 
     private void aggregateBucketsIfNecessary(String aggregateKey, Instant now) {

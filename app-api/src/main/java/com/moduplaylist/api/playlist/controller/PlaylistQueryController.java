@@ -31,6 +31,7 @@ public class PlaylistQueryController {
   @GetMapping
   public ResponseEntity<CursorPageResponse<PlaylistSummaryResponse>> findAll(
       @AuthenticationPrincipal CustomUserDetails userDetails,
+      @RequestParam(required = false) String keywordLike,
       @RequestParam(required = false) UUID ownerIdEqual,
       @RequestParam(required = false) UUID subscriberIdEqual,
       @RequestParam(required = false) UUID contentIdEqual,
@@ -59,6 +60,7 @@ public class PlaylistQueryController {
     }
 
     PlaylistSearch search = new PlaylistSearch(
+        keywordLike,
         ownerIdEqual,
         subscriberIdEqual,
         contentIdEqual,
@@ -73,6 +75,35 @@ public class PlaylistQueryController {
     return ResponseEntity.ok(
         playlistQueryService.findAll(userId, search)
     );
+  }
+
+  @GetMapping("/ai")
+  public ResponseEntity<CursorPageResponse<PlaylistSummaryResponse>> findAiPlaylists(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @RequestParam(required = false) String keywordLike,
+      @RequestParam(required = false) String cursor,
+      @RequestParam(required = false) UUID idAfter,
+      @RequestParam int limit,
+      @RequestParam String sortBy,
+      @RequestParam String sortDirection
+  ) {
+    PlaylistSearch.Sort sort = parseSort(sortBy);
+    PlaylistSearch.Direction direction = parseDirection(sortDirection);
+
+    Instant cursorCreatedAt = null;
+    BigDecimal cursorWeeklyPopularityScore = null;
+    if (cursor != null) {
+      switch (sort) {
+        case CREATED_AT -> cursorCreatedAt = parseCreatedAtCursor(cursor);
+        case WEEKLY_POPULARITY_SCORE -> cursorWeeklyPopularityScore = parsePopularityCursor(cursor);
+      }
+    }
+
+    PlaylistSearch search = new PlaylistSearch(
+        keywordLike, null, null, null, cursorCreatedAt,
+        cursorWeeklyPopularityScore, idAfter, limit, sort, direction
+    );
+    return ResponseEntity.ok(playlistQueryService.findAiPlaylists(userDetails.getUserId(), search));
   }
 
   @GetMapping("/{playlistId}")

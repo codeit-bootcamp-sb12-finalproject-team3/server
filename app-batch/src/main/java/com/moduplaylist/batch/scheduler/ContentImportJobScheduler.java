@@ -16,6 +16,7 @@ import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -30,13 +31,16 @@ public class ContentImportJobScheduler {
     private final JobLauncher jobLauncher;
     private final JobExplorer jobExplorer;
     private final Job job;
+    private final ObjectProvider<ContentTaggingJobScheduler> taggingScheduler;
     private final Clock clock;
 
     public ContentImportJobScheduler(JobLauncher jobLauncher, JobExplorer jobExplorer,
-        @Qualifier(ContentImportJobConfig.JOB_NAME) Job job) {
+        @Qualifier(ContentImportJobConfig.JOB_NAME) Job job,
+        ObjectProvider<ContentTaggingJobScheduler> taggingScheduler) {
         this.jobLauncher = jobLauncher;
         this.jobExplorer = jobExplorer;
         this.job = job;
+        this.taggingScheduler = taggingScheduler;
         this.clock = Clock.system(CONTENT_IMPORT_ZONE);
     }
 
@@ -85,6 +89,10 @@ public class ContentImportJobScheduler {
             JobExecution execution = jobLauncher.run(job, parameters);
             log.info("콘텐츠 수집 Job {} - runDate={}, executionId={}, status={}",
                 trigger, runDate, execution.getId(), execution.getStatus());
+            if (execution.getStatus() == BatchStatus.COMPLETED) {
+                ContentTaggingJobScheduler scheduler = taggingScheduler.getIfAvailable();
+                if (scheduler != null) scheduler.runAfterContentImport(execution.getId());
+            }
         } catch (JobExecutionAlreadyRunningException exception) {
             log.info("동일 실행일의 콘텐츠 수집 Job이 이미 실행 중입니다. runDate={}", runDate);
         } catch (JobInstanceAlreadyCompleteException exception) {

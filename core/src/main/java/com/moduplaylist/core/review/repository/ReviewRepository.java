@@ -3,6 +3,7 @@ package com.moduplaylist.core.review.repository;
 import com.moduplaylist.core.review.entity.Review;
 import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,6 +15,13 @@ public interface ReviewRepository
         extends JpaRepository<Review, UUID>, ReviewQueryRepository {
 
     boolean existsByUser_IdAndContent_Id(UUID userId, UUID contentId);
+
+    @Query("""
+            select review.content.id
+            from Review review
+            where review.user.id = :userId
+            """)
+    List<UUID> findContentIdsByUserId(@Param("userId") UUID userId);
 
     @Query("""
             select

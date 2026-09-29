@@ -1,6 +1,10 @@
 package com.moduplaylist.api.global.config;
 
+import com.moduplaylist.api.auth.oauth.OAuth2AuthenticationFailureHandler;
+import com.moduplaylist.api.auth.oauth.OAuth2AuthenticationSuccessHandler;
+import com.moduplaylist.api.auth.oauth.RedisOAuth2AuthorizationRequestRepository;
 import com.moduplaylist.api.global.security.CustomUserDetailsService;
+import com.moduplaylist.api.global.security.TemporaryPasswordAuthenticationProvider;
 import com.moduplaylist.api.global.security.handler.CustomAccessDeniedHandler;
 import com.moduplaylist.api.global.security.handler.CustomAuthenticationEntryPoint;
 import com.moduplaylist.api.global.security.handler.CustomAuthenticationFailureHandler;
@@ -18,8 +22,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -44,6 +46,10 @@ public class SecurityConfig {
   private final CustomAuthenticationFailureHandler failureHandler;
   private final CustomAuthenticationEntryPoint authenticationEntryPoint;
   private final CustomAccessDeniedHandler accessDeniedHandler;
+  private final RedisOAuth2AuthorizationRequestRepository oauth2AuthorizationRequestRepository;
+  private final OAuth2AuthenticationSuccessHandler oauth2AuthenticationSuccessHandler;
+  private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
+  private final TemporaryPasswordAuthenticationProvider temporaryPasswordAuthenticationProvider;
 
   @Value("${security.jwt.cookie-secure}")
   private boolean cookieSecure;
@@ -74,7 +80,8 @@ public class SecurityConfig {
 
       return "/api/auth/login".equals(path)
           || "/api/auth/refresh".equals(path)
-          || "/api/auth/logout".equals(path);
+          || "/api/auth/logout".equals(path)
+          || "/api/auth/oauth/exchange".equals(path);
     };
 
     JwtAuthenticationFilter jwtAuthenticationFilter =
@@ -115,11 +122,19 @@ public class SecurityConfig {
                 HttpMethod.POST,
                 "/api/auth/login",
                 "/api/auth/refresh",
-                "/api/auth/logout"
+                "/api/auth/logout",
+                "/api/auth/oauth/exchange",
+                "/api/auth/password/reset-request"
             ).permitAll()
             .requestMatchers(
                 HttpMethod.GET,
                 "/api/auth/csrf-token"
+            ).permitAll()
+
+            // OAuth2 로그인 시작 및 콜백
+            .requestMatchers(
+                "/oauth2/authorization/**",
+                "/login/oauth2/code/**"
             ).permitAll()
 
             // Swagger
@@ -134,6 +149,7 @@ public class SecurityConfig {
             // 그 외 요청은 JWT 인증 필요
             .anyRequest().authenticated()
         )
+        .authenticationProvider(temporaryPasswordAuthenticationProvider)
 
         // 이메일·비밀번호 로그인 및 성공·실패 처리
         .formLogin(form -> form
@@ -142,6 +158,14 @@ public class SecurityConfig {
             .passwordParameter("password")
             .successHandler(successHandler)
             .failureHandler(failureHandler)
+        )
+
+        .oauth2Login(oauth2 -> oauth2
+            .authorizationEndpoint(authorization -> authorization
+                .authorizationRequestRepository(oauth2AuthorizationRequestRepository)
+            )
+            .successHandler(oauth2AuthenticationSuccessHandler)
+            .failureHandler(oAuth2AuthenticationFailureHandler)
         )
 
         // 인증·인가 오류를 공통 JSON 형식으로 응답
@@ -157,10 +181,5 @@ public class SecurityConfig {
         );
 
     return http.build();
-  }
-
-  @Bean
-  public PasswordEncoder passwordEncoder() {
-    return new BCryptPasswordEncoder();
   }
 }

@@ -13,6 +13,8 @@ import java.util.List;
 @Builder
 public class ContentEmbeddingSource{
     private String title;
+    private String originalTitle;
+    private List<String> castNames;
     private String type;
     private String description;
     private List<String> genres;

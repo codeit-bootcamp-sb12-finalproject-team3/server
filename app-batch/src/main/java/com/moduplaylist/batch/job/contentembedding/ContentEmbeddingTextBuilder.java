@@ -23,6 +23,8 @@ public class ContentEmbeddingTextBuilder {
 
         List<String> lines = new ArrayList<>();
         lines.add("제목: " + normalize(source.getTitle()));
+        addTextLine(lines, "원제", source.getOriginalTitle());
+        addCollectionLine(lines, "출연진", source.getCastNames());
         lines.add("콘텐츠 유형: " + normalize(source.getType()));
         addCollectionLine(lines, "장르", source.getGenres());
         addCollectionLine(lines, "태그", source.getTags());

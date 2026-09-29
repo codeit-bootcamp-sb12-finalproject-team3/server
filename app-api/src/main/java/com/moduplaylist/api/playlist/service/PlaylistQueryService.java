@@ -10,6 +10,8 @@ public interface PlaylistQueryService {
 
   PlaylistResponse findById(UUID userId, UUID playlistId);
 
+  CursorPageResponse<PlaylistSummaryResponse> findAiPlaylists(UUID userId, PlaylistSearch search);
+
   CursorPageResponse<PlaylistSummaryResponse> findAll(
       UUID userId,
       PlaylistSearch search

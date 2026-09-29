@@ -59,6 +59,14 @@ public class TmdbContentClient {
             Map.of("language", language, "append_to_response", "aggregate_credits"));
     }
 
+    public JsonNode movieKeywords(int movieId) {
+        return get("/movie/" + movieId + "/keywords", Map.of());
+    }
+
+    public JsonNode tvKeywords(int seriesId) {
+        return get("/tv/" + seriesId + "/keywords", Map.of());
+    }
+
     private Map<String, String> commonDiscoverQuery(LocalDate from, LocalDate to, int page) {
         Map<String, String> query = new LinkedHashMap<>();
         query.put("language", "ko-KR");

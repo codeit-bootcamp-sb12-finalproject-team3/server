@@ -4,7 +4,9 @@ import com.moduplaylist.api.content.dto.ContentWatchPartyResponse;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
 import com.moduplaylist.api.watchparty.dto.*;
+import com.moduplaylist.api.watchparty.event.WatchPartyCancelledEvent;
 import com.moduplaylist.api.watchparty.event.WatchPartyCreatedEvent;
+import com.moduplaylist.api.watchparty.event.WatchPartyUpdatedEvent;
 import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
 import com.moduplaylist.api.user.dto.UserSummary;
@@ -19,9 +21,7 @@ import com.moduplaylist.core.user.repository.UserRepository;
 import com.moduplaylist.core.watchparty.entity.ParticipantStatus;
 import com.moduplaylist.core.watchparty.entity.WatchParty;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
-import com.moduplaylist.core.watchparty.exception.WatchPartyHostOnlyException;
-import com.moduplaylist.core.watchparty.exception.WatchPartyInvalidEpisodeRangeException;
-import com.moduplaylist.core.watchparty.exception.WatchPartyNotFoundException;
+import com.moduplaylist.core.watchparty.exception.*;
 import com.moduplaylist.core.watchparty.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -30,9 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -42,6 +40,10 @@ import java.util.stream.Collectors;
 public class WatchPartyService {
 
     private static final int CONTENT_WIDGET_LIMIT = 20;
+    // 정원 상한(현재는 30명). 참가자 목록·방송 부하와 방 분위기를 고려한 값
+    static final int MAX_PARTICIPANTS_LIMIT = 30;
+    // 목록 검색어 최대 길이 — 콘텐츠 검색(ContentSearchRequest @Size(max = 100))과 맞춤
+    static final int KEYWORD_MAX_LENGTH = 100;
 
     private final WatchPartyRepository watchPartyRepository;
     private final UserRepository userRepository;
@@ -63,6 +65,7 @@ public class WatchPartyService {
 
         validateWatchPartyContent(content);
         validateEpisodeRange(content, request.getStartEpisode(), request.getEndEpisode());
+        validateMaxParticipantsLimit(request.getMaxParticipants());
 
         WatchParty watchParty = WatchParty.builder()
                 .host(host)
@@ -85,6 +88,7 @@ public class WatchPartyService {
 
         return toResponse(saved, host, content, 0);
     }
+
     public WatchPartyResponse updateWatchParty(UUID requesterId, UUID partyId, UpdateWatchPartyRequest request) {
         WatchParty watchParty = watchPartyRepository.findById(partyId)
                 .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
@@ -96,6 +100,12 @@ public class WatchPartyService {
         Content content = contentRepository.findById(watchParty.getContentId())
                 .orElseThrow(() -> new ContentNotFoundException(watchParty.getContentId()));
         validateEpisodeRange(content, request.getStartEpisode(), request.getEndEpisode());
+        if (!Objects.equals(watchParty.getMaxParticipants(), request.getMaxParticipants())) {
+            validateMaxParticipantsLimit(request.getMaxParticipants());
+        }
+        validateMaxParticipants(partyId, request.getMaxParticipants());
+
+        Instant previousScheduledAt = watchParty.getScheduledAt();
 
         watchParty.update(
                 request.getTitle(),
@@ -107,7 +117,35 @@ public class WatchPartyService {
                 request.getEndEpisode()
         );
 
+        // 시작 시각이 바뀐 경우에만 참가자·알림 설정자에게 알림
+        if (!previousScheduledAt.equals(watchParty.getScheduledAt())) {
+            eventPublisher.publishEvent(new WatchPartyUpdatedEvent(
+                    UUID.randomUUID(),
+                    partyId,
+                    watchParty.getTitle(),
+                    previousScheduledAt,
+                    watchParty.getScheduledAt(),
+                    collectNotificationRecipients(partyId)
+            ));
+        }
+
         return toResponse(watchParty);
+    }
+
+
+    private void validateMaxParticipantsLimit(Integer maxParticipants) {
+        if (maxParticipants > MAX_PARTICIPANTS_LIMIT) {
+            throw new WatchPartyMaxParticipantsExceededException(maxParticipants, MAX_PARTICIPANTS_LIMIT);
+        }
+    }
+
+    private void validateMaxParticipants(UUID partyId, Integer maxParticipants) {
+        long currentCount = watchPartyParticipantRepository
+                .countByWatchParty_IdAndStatus(partyId, ParticipantStatus.JOINED);
+
+        if (maxParticipants < currentCount) {
+            throw new WatchPartyMaxParticipantsBelowCurrentException(partyId, currentCount, maxParticipants);
+        }
     }
 
     public void deleteWatchParty(UUID requesterId, UUID partyId) {
@@ -120,8 +158,30 @@ public class WatchPartyService {
 
         watchParty.validateEditable();
 
+        // 삭제되면 cascade로 참가자·리마인더가 사라지므로, 알림에 필요한 정보를 먼저 캡처
+        String title = watchParty.getTitle();
+        Instant scheduledAt = watchParty.getScheduledAt();
+        List<UUID> recipientIds = collectNotificationRecipients(partyId);
+
         watchPartyRepository.delete(watchParty);
         watchPartyHostRegistry.removeHost(partyId);
+
+        eventPublisher.publishEvent(new WatchPartyCancelledEvent(
+                UUID.randomUUID(),
+                partyId,
+                title,
+                scheduledAt,
+                recipientIds
+        ));
+    }
+
+    // 변경·취소 알림 대상: 참가 중(JOINED)인 사람 + 시작 알림을 설정한 사람 (중복 제거)
+    private List<UUID> collectNotificationRecipients(UUID partyId) {
+        Set<UUID> recipientIds = new LinkedHashSet<>();
+        watchPartyParticipantRepository.findJoinedParticipants(partyId, ParticipantStatus.JOINED)
+                .forEach(participant -> recipientIds.add(participant.getUser().getId()));
+        recipientIds.addAll(watchPartyReminderRepository.findUserIdsByWatchPartyId(partyId));
+        return List.copyOf(recipientIds);
     }
 
     private void validateEpisodeRange(Content content, Integer startEpisode, Integer endEpisode) {
@@ -155,19 +215,28 @@ public class WatchPartyService {
 
     @Transactional(readOnly = true)
     public CursorPageResponse<WatchPartySummaryResponse> getWatchParties(
-            WatchPartyStatus statusEqual, UUID contentIdEqual,
+            WatchPartyStatus statusEqual, UUID contentIdEqual,  String keywordLike,  WatchPartySearch.Sort sort,
             String cursor, UUID idAfter, int limit, SortDirection sortDirection) {
 
         if (contentIdEqual != null && statusEqual != null) {
             throw new BaseException(ErrorCode.INVALID_REQUEST);
         }
+        String keyword = normalizeKeyword(keywordLike);
 
+        boolean popularSort = sort == WatchPartySearch.Sort.PARTICIPANT_COUNT;
         boolean contentSearch = contentIdEqual != null;
+        // 콘텐츠 전용 커서(상태|시각)는 "콘텐츠 검색 + 기본 정렬"일 때만. 인기순이면 인기순 커서를 쓴다
+        boolean contentCursorMode = contentSearch && !popularSort;
         boolean ascending = sortDirection == SortDirection.ASCENDING;
-        ContentCursor contentCursor = contentSearch ? parseContentCursor(cursor, idAfter) : null;
-        Instant cursorScheduledAt = contentSearch
-                ? contentCursor.scheduledAt()
-                : (cursor != null ? Instant.parse(cursor) : null);
+
+        ContentCursor contentCursor = contentCursorMode ? parseContentCursor(cursor, idAfter) : null;
+        Long cursorParticipantCount = popularSort ? parseParticipantCountCursor(cursor, idAfter) : null;
+        Instant cursorScheduledAt = null;
+        if (contentCursorMode) {
+            cursorScheduledAt = contentCursor.scheduledAt();
+        } else if (!popularSort && cursor != null) {
+            cursorScheduledAt = Instant.parse(cursor);
+        }
 
         if (contentSearch) {
             validateContentForWatchParty(contentIdEqual);
@@ -176,9 +245,12 @@ public class WatchPartyService {
         WatchPartySearch search = WatchPartySearch.builder()
                 .statusEqual(statusEqual)
                 .contentIdEqual(contentIdEqual)
+                .keywordLike(keyword)
+                .sort(sort)
                 .cursorScheduledAt(cursorScheduledAt)
                 .cursorId(idAfter)
-                .cursorStatus(contentSearch ? contentCursor.status() : null)
+                .cursorStatus(contentCursorMode ? contentCursor.status() : null)
+                .cursorParticipantCount(cursorParticipantCount)
                 .contentScheduledAtFrom(contentSearch ? Instant.now().minus(1, ChronoUnit.HOURS) : null)
                 .ascending(ascending)
                 .limit(limit)
@@ -188,7 +260,10 @@ public class WatchPartyService {
 
         List<WatchParty> watchParties = result.getWatchParties();
         Map<UUID, Content> contentById = fetchContentMap(watchParties);
-        Map<UUID, Integer> participantCountById = fetchParticipantCountMap(watchParties);
+        // 인기순은 ① 순위표에서 이미 센 값을 재사용 → 참가자 수 쿼리 생략 (요청당 쿼리 4개 유지)
+        Map<UUID, Integer> participantCountById = popularSort
+                ? toIntCountMap(result.getParticipantCounts())
+                : fetchParticipantCountMap(watchParties);
 
         List<WatchPartySummaryResponse> data = watchParties.stream()
                 .map(wp -> toSummaryResponse(wp, contentById, participantCountById))
@@ -196,11 +271,15 @@ public class WatchPartyService {
 
         String nextCursor = null;
         UUID nextIdAfter = null;
-        if (!result.getWatchParties().isEmpty()) {
-            WatchParty last = result.getWatchParties().get(result.getWatchParties().size() - 1);
-            nextCursor = contentSearch
-                    ? formatContentCursor(last)
-                    : last.getScheduledAt().toString();
+        if (!watchParties.isEmpty()) {
+            WatchParty last = watchParties.get(watchParties.size() - 1);
+            if (popularSort) {
+                nextCursor = String.valueOf(result.getParticipantCounts().get(last.getId()));
+            } else if (contentSearch) {
+                nextCursor = formatContentCursor(last);
+            } else {
+                nextCursor = last.getScheduledAt().toString();
+            }
             nextIdAfter = last.getId();
         }
 
@@ -210,8 +289,8 @@ public class WatchPartyService {
                 .nextIdAfter(nextIdAfter)
                 .hasNext(result.isHasNext())
                 .totalCount(result.getTotalCount())
-                .sortBy("scheduledAt")
-                .sortDirection(contentSearch ? SortDirection.ASCENDING : sortDirection)
+                .sortBy(popularSort ? "participantCount" : "scheduledAt")
+                .sortDirection(contentCursorMode ? SortDirection.ASCENDING : sortDirection)
                 .build();
     }
 
@@ -239,6 +318,7 @@ public class WatchPartyService {
 
     private void validateContentForWatchParty(UUID contentId) {
         Content content = contentRepository.findByIdAndHiddenFalse(contentId)
+                .filter(Content::isEmbeddingAllowedByAiTaggingStatus)
                 .orElseThrow(() -> new ContentNotFoundException(contentId));
         validateWatchPartyContent(content);
     }
@@ -267,6 +347,46 @@ public class WatchPartyService {
 
     private String formatContentCursor(WatchParty watchParty) {
         return watchParty.getStatus().name() + "|" + watchParty.getScheduledAt();
+    }
+
+    // 인기순 커서: nextCursor에 담아 보낸 "참가자 수" 문자열을 다시 숫자로
+    private Long parseParticipantCountCursor(String cursor, UUID idAfter) {
+        if (cursor == null && idAfter == null) {
+            return null;   // 첫 페이지
+        }
+        if (cursor == null || idAfter == null) {
+            throw new BaseException(ErrorCode.INVALID_REQUEST);
+        }
+        try {
+            long count = Long.parseLong(cursor);
+            if (count < 0) {
+                throw new IllegalArgumentException("Negative participant count cursor");
+            }
+            return count;
+        } catch (IllegalArgumentException e) {   // NumberFormatException도 여기로 (하위 클래스)
+            throw new BaseException(ErrorCode.INVALID_REQUEST, e);
+        }
+    }
+
+    // 검색어 정리: 앞뒤 공백 제거, 비었으면 검색 안 함(null), 너무 길면 400
+    private String normalizeKeyword(String keywordLike) {
+        if (keywordLike == null) {
+            return null;
+        }
+        String stripped = keywordLike.strip();
+        if (stripped.isEmpty()) {
+            return null;
+        }
+        if (stripped.length() > KEYWORD_MAX_LENGTH) {
+            throw new BaseException(ErrorCode.INVALID_REQUEST);
+        }
+        return stripped;
+    }
+
+    // 리포지토리는 count를 Long으로, 응답 DTO는 int로 쓰므로 변환
+    private Map<UUID, Integer> toIntCountMap(Map<UUID, Long> counts) {
+        return counts.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().intValue()));
     }
 
     private record ContentCursor(WatchPartyStatus status, Instant scheduledAt) {}

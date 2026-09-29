@@ -16,6 +16,13 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
 
     private static final SearchResult EMPTY_RESULT =
             new SearchResult(List.of(), 0L, false, null);
+    private static final List<ContentType> AI_TAGGING_TYPES =
+            List.of(ContentType.MOVIE, ContentType.TV_SEASON);
+    private static final List<Content.AiTaggingStatus> TERMINAL_TAGGING_STATUSES = List.of(
+            Content.AiTaggingStatus.COMPLETED,
+            Content.AiTaggingStatus.COMPLETED_PARTIAL,
+            Content.AiTaggingStatus.FAILED
+    );
 
     private final EntityManager entityManager;
 
@@ -45,9 +52,11 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
         Map<String, Object> parameters = new HashMap<>();
         parameters.put("excludedType", ContentType.TV_SERIES);
         parameters.put("createdAtFrom", request.getCreatedAtFrom());
+        addAiTaggingVisibilityParameters(parameters);
         StringBuilder filter = new StringBuilder(
                 " where content.hidden = false"
                         + " and content.type <> :excludedType"
+                        + aiTaggingVisibilityFilter("content")
                         + " and content.createdAt >= :createdAtFrom");
         Long totalCount = request.getIdAfter() == null
                 ? countContents(filter, parameters)
@@ -152,8 +161,10 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
             String contentAlias) {
         StringBuilder filter = new StringBuilder(" where ")
                 .append(contentAlias)
-                .append(".hidden = false and ")
-                .append(contentAlias);
+                .append(".hidden = false");
+        addAiTaggingVisibilityParameters(parameters);
+        filter.append(aiTaggingVisibilityFilter(contentAlias));
+        filter.append(" and ").append(contentAlias);
         if (request.getType() == null) {
             filter.append(".type <> :excludedType");
             parameters.put("excludedType", ContentType.TV_SERIES);
@@ -190,6 +201,19 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
             parameters.put("matchedContentIds", request.getMatchedContentIds());
         }
         return filter;
+    }
+
+    private static String aiTaggingVisibilityFilter(String alias) {
+        return " and (" + alias + ".externalSource is null"
+                + " or " + alias + ".externalSource <> :aiTaggingSource"
+                + " or " + alias + ".type not in :aiTaggingTypes"
+                + " or " + alias + ".aiTaggingStatus in :terminalTaggingStatuses)";
+    }
+
+    private static void addAiTaggingVisibilityParameters(Map<String, Object> parameters) {
+        parameters.put("aiTaggingSource", "TMDB");
+        parameters.put("aiTaggingTypes", AI_TAGGING_TYPES);
+        parameters.put("terminalTaggingStatuses", TERMINAL_TAGGING_STATUSES);
     }
 
     private long countContents(
