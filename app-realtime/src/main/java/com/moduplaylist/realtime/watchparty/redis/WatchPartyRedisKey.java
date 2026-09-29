@@ -30,6 +30,10 @@ final class WatchPartyRedisKey {
         return PREFIX + require(partyId) + ":lastSeen";
     }
 
+    static String chatCooldown(UUID partyId, UUID userId) {
+        return PREFIX + require(partyId) + ":chat-cooldown:" + require(userId);
+    }
+
     static String joinedParty(UUID userId) {
         return "user:" + require(userId) + ":joinedParty";
     }
