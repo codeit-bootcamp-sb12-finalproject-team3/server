@@ -16,8 +16,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @ConditionalOnProperty(
         prefix = "mopl.recommendation.outbox",
         name = "worker-enabled",
-        havingValue = "false",
-        matchIfMissing = true
+        havingValue = "false"
 )
 public class InitialPreferenceCreatedEventListener {
 

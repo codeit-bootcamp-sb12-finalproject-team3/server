@@ -18,7 +18,8 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(
         prefix = "mopl.recommendation.outbox",
         name = "worker-enabled",
-        havingValue = "true"
+        havingValue = "true",
+        matchIfMissing = true
 )
 public class RecommendationOutboxWorker {
 

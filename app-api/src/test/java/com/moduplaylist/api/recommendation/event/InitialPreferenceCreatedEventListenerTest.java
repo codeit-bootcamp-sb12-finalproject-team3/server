@@ -27,6 +27,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -35,6 +36,7 @@ import org.springframework.transaction.event.TransactionalEventListenerFactory;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = InitialPreferenceCreatedEventListenerTest.TestConfig.class)
+@TestPropertySource(properties = "mopl.recommendation.outbox.worker-enabled=false")
 class InitialPreferenceCreatedEventListenerTest {
 
     @Autowired

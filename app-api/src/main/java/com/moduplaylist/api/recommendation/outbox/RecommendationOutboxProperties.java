@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "mopl.recommendation.outbox")
 public class RecommendationOutboxProperties {
 
-    private boolean workerEnabled = false;
+    private boolean workerEnabled = true;
     private long pollingIntervalMs = 3000;
     private int claimLimit = 10;
     private Duration processingTimeout = Duration.ofMinutes(10);
