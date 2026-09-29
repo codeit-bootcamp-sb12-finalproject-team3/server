@@ -29,16 +29,16 @@ public class ContentTaggingOpenAiCircuitBreaker {
             return 'NORMAL'
         end
         if state == 'LONG_OPEN' and ARGV[1] ~= 'content-import' then
-            return 'DENIED'
+            local openUntil = tonumber(redis.call('HGET', KEYS[1], 'openUntil') or '0')
+            if tonumber(ARGV[2]) < openUntil then
+                return 'DENIED'
+            end
         end
         if state == 'OPEN' then
             local openUntil = tonumber(redis.call('HGET', KEYS[1], 'openUntil') or '0')
             if tonumber(ARGV[2]) < openUntil then
                 return 'DENIED'
             end
-        end
-        if state == 'HALF_OPEN' and stage == 3 and ARGV[1] ~= 'content-import' then
-            return 'DENIED'
         end
         local claimed = redis.call('SET', KEYS[2], ARGV[3], 'NX', 'PX', ARGV[4])
         if not claimed then
@@ -54,7 +54,7 @@ public class ContentTaggingOpenAiCircuitBreaker {
             return 0
         end
         if ARGV[1] == 'true' then
-            redis.call('HSET', KEYS[1], 'state', 'LONG_OPEN', 'stage', '3', 'openUntil', '0')
+            redis.call('HSET', KEYS[1], 'state', 'LONG_OPEN', 'stage', '3', 'openUntil', ARGV[3])
         else
             redis.call('HSET', KEYS[1], 'state', 'OPEN', 'stage', '0', 'openUntil', ARGV[2])
         end
@@ -76,7 +76,7 @@ public class ContentTaggingOpenAiCircuitBreaker {
         end
         local stage = tonumber(redis.call('HGET', KEYS[1], 'stage') or '0')
         if ARGV[2] == 'true' or stage >= 2 then
-            redis.call('HSET', KEYS[1], 'state', 'LONG_OPEN', 'stage', '3', 'openUntil', '0')
+            redis.call('HSET', KEYS[1], 'state', 'LONG_OPEN', 'stage', '3', 'openUntil', ARGV[4])
         elseif stage == 0 then
             redis.call('HSET', KEYS[1], 'state', 'OPEN', 'stage', '1', 'openUntil', ARGV[3])
         else
@@ -92,7 +92,7 @@ public class ContentTaggingOpenAiCircuitBreaker {
         end
         local stage = tonumber(redis.call('HGET', KEYS[1], 'stage') or '0')
         if stage >= 3 then
-            redis.call('HSET', KEYS[1], 'state', 'LONG_OPEN', 'stage', '3', 'openUntil', '0')
+            redis.call('HSET', KEYS[1], 'state', 'LONG_OPEN', 'stage', '3', 'openUntil', ARGV[4])
         elseif stage == 0 then
             redis.call('HSET', KEYS[1], 'state', 'OPEN', 'openUntil', ARGV[2])
         elseif stage == 1 then
@@ -122,11 +122,13 @@ public class ContentTaggingOpenAiCircuitBreaker {
     }
 
     public void openAfterConsecutiveFailures(boolean permanent) {
+        Instant now = Instant.now();
         redisTemplate.execute(
                 OPEN_SCRIPT,
                 List.of(CIRCUIT_KEY),
                 Boolean.toString(permanent),
-                Long.toString(Instant.now().plus(INITIAL_OPEN).toEpochMilli())
+                Long.toString(now.plus(INITIAL_OPEN).toEpochMilli()),
+                Long.toString(now.plus(THIRD_OPEN).toEpochMilli())
         );
     }
 
