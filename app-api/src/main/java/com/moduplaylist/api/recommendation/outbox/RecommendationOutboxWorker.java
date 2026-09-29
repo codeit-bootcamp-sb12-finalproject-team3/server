@@ -1,6 +1,5 @@
 package com.moduplaylist.api.recommendation.outbox;
 
-import com.moduplaylist.api.recommendation.event.InitialPreferenceCreatedEvent;
 import com.moduplaylist.api.recommendation.service.InitialPreferencePostProcessingService;
 import com.moduplaylist.api.recommendation.service.RecommendationOutboxClaim;
 import com.moduplaylist.api.recommendation.service.RecommendationOutboxStateService;
@@ -65,11 +64,7 @@ public class RecommendationOutboxWorker {
                 claim.claimToken()
         );
         try {
-            postProcessingService.process(new InitialPreferenceCreatedEvent(
-                    claim.eventId(),
-                    claim.userId(),
-                    claim.createdAt()
-            ));
+            postProcessingService.process(claim.eventId(), claim.userId());
             if (stateService.complete(claim.id(), claim.claimToken(), clock.instant())) {
                 log.info(
                         "Outbox 초기 선호 후처리를 완료했습니다. "

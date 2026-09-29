@@ -1,12 +1,10 @@
 package com.moduplaylist.api.recommendation.outbox;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.moduplaylist.api.recommendation.event.InitialPreferenceCreatedEvent;
 import com.moduplaylist.api.recommendation.service.InitialPreferencePostProcessingService;
 import com.moduplaylist.api.recommendation.service.RecommendationOutboxClaim;
 import com.moduplaylist.api.recommendation.service.RecommendationOutboxStateService;
@@ -21,7 +19,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -65,20 +62,14 @@ class RecommendationOutboxWorkerTest {
                     TransactionSynchronizationManager.isActualTransactionActive()
             );
             return null;
-        }).when(postProcessingService).process(org.mockito.ArgumentMatchers.any());
+        }).when(postProcessingService).process(claim.eventId(), claim.userId());
 
         worker.poll();
 
-        ArgumentCaptor<InitialPreferenceCreatedEvent> eventCaptor =
-                ArgumentCaptor.forClass(InitialPreferenceCreatedEvent.class);
         InOrder order = inOrder(postProcessingService, stateService);
-        order.verify(postProcessingService).process(eventCaptor.capture());
+        order.verify(postProcessingService).process(claim.eventId(), claim.userId());
         order.verify(stateService).complete(claim.id(), claim.claimToken(), NOW);
-        InitialPreferenceCreatedEvent event = eventCaptor.getValue();
-        assertThat(event.eventId()).isEqualTo(claim.eventId());
-        assertThat(event.userId()).isEqualTo(claim.userId());
-        assertThat(event.occurredAt()).isEqualTo(claim.createdAt());
-        assertThat(transactionActive).isFalse();
+        org.assertj.core.api.Assertions.assertThat(transactionActive).isFalse();
     }
 
     @Test
@@ -88,7 +79,7 @@ class RecommendationOutboxWorkerTest {
                 .thenReturn(List.of(claim));
         org.mockito.Mockito.doThrow(new IllegalStateException("OpenSearch unavailable"))
                 .when(postProcessingService)
-                .process(org.mockito.ArgumentMatchers.any());
+                .process(claim.eventId(), claim.userId());
         when(stateService.retry(
                 claim.id(),
                 claim.claimToken(),
@@ -126,7 +117,7 @@ class RecommendationOutboxWorkerTest {
                 .thenReturn(List.of(claim));
         org.mockito.Mockito.doThrow(new IllegalStateException("OpenSearch unavailable"))
                 .when(postProcessingService)
-                .process(org.mockito.ArgumentMatchers.any());
+                .process(claim.eventId(), claim.userId());
         when(stateService.fail(
                 claim.id(),
                 claim.claimToken(),
@@ -161,7 +152,6 @@ class RecommendationOutboxWorkerTest {
                 UUID.fromString("00000000-0000-0000-0000-000000000002"),
                 RecommendationOutboxEventType.INITIAL_PREFERENCE_CREATED,
                 UUID.fromString("00000000-0000-0000-0000-000000000003"),
-                Instant.parse("2026-09-29T13:59:00Z"),
                 retryCount,
                 UUID.fromString("00000000-0000-0000-0000-000000000004")
         );

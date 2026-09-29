@@ -62,7 +62,6 @@ public class RecommendationOutboxStateService {
                         candidate.getEventId(),
                         candidate.getEventType(),
                         candidate.getUserId(),
-                        candidate.getCreatedAt(),
                         candidate.getRetryCount(),
                         claimToken
                 ));

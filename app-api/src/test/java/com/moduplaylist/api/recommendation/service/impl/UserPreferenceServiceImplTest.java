@@ -7,11 +7,9 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.moduplaylist.api.recommendation.dto.UserPreferenceCreateRequest;
-import com.moduplaylist.api.recommendation.event.InitialPreferenceCreatedEvent;
 import com.moduplaylist.api.recommendation.service.UserContentGenrePreferenceService;
 import com.moduplaylist.api.recommendation.service.UserContentTagPreferenceService;
 import com.moduplaylist.api.recommendation.service.UserPlaylistGenrePreferenceService;
@@ -26,7 +24,6 @@ import com.moduplaylist.core.recommendation.repository.RecommendationOutboxEvent
 import com.moduplaylist.core.recommendation.repository.UserPreferenceContentRepository;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.repository.UserRepository;
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +33,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 
 @ExtendWith(MockitoExtension.class)
@@ -58,9 +54,6 @@ class UserPreferenceServiceImplTest {
     private UserPlaylistGenrePreferenceService userPlaylistGenrePreferenceService;
     @Mock
     private RecommendationOutboxEventRepository recommendationOutboxEventRepository;
-    @Mock
-    private ApplicationEventPublisher eventPublisher;
-
     private UserPreferenceServiceImpl service;
 
     @BeforeEach
@@ -73,13 +66,12 @@ class UserPreferenceServiceImplTest {
                 userContentGenrePreferenceService,
                 userPlaylistTagPreferenceService,
                 userPlaylistGenrePreferenceService,
-                recommendationOutboxEventRepository,
-                eventPublisher
+                recommendationOutboxEventRepository
         );
     }
 
     @Test
-    void savesPendingOutboxAndPublishesEventAfterPreferencePersistence() {
+    void savesPendingOutboxAfterPreferencePersistence() {
         UUID userId = UUID.randomUUID();
         List<UUID> contentIds = List.of(
                 UUID.randomUUID(),
@@ -97,22 +89,13 @@ class UserPreferenceServiceImplTest {
         when(userPreferenceContentRepository.existsByUser_Id(userId)).thenReturn(false);
         when(contentRepository.findAllById(contentIds)).thenReturn(contents);
 
-        Instant before = Instant.now();
         service.createUserPreference(userId, request);
-        Instant after = Instant.now();
 
-        ArgumentCaptor<InitialPreferenceCreatedEvent> eventCaptor =
-                ArgumentCaptor.forClass(InitialPreferenceCreatedEvent.class);
         ArgumentCaptor<RecommendationOutboxEvent> outboxCaptor =
                 ArgumentCaptor.forClass(RecommendationOutboxEvent.class);
         verify(recommendationOutboxEventRepository).save(outboxCaptor.capture());
-        verify(eventPublisher).publishEvent(eventCaptor.capture());
         RecommendationOutboxEvent outboxEvent = outboxCaptor.getValue();
-        InitialPreferenceCreatedEvent event = eventCaptor.getValue();
-        assertThat(event.eventId()).isNotNull();
-        assertThat(event.userId()).isEqualTo(userId);
-        assertThat(event.occurredAt()).isBetween(before, after);
-        assertThat(outboxEvent.getEventId()).isEqualTo(event.eventId());
+        assertThat(outboxEvent.getEventId()).isNotNull();
         assertThat(outboxEvent.getUserId()).isEqualTo(userId);
         assertThat(outboxEvent.getEventType())
                 .isEqualTo(RecommendationOutboxEventType.INITIAL_PREFERENCE_CREATED);
@@ -129,8 +112,7 @@ class UserPreferenceServiceImplTest {
                 userContentTagPreferenceService,
                 userPlaylistGenrePreferenceService,
                 userPlaylistTagPreferenceService,
-                recommendationOutboxEventRepository,
-                eventPublisher
+                recommendationOutboxEventRepository
         );
         order.verify(userPreferenceContentRepository).saveAll(anyList());
         order.verify(userContentGenrePreferenceService)
@@ -142,11 +124,10 @@ class UserPreferenceServiceImplTest {
         order.verify(userPlaylistTagPreferenceService)
                 .createFromInitialPreferences(user, contentIds);
         order.verify(recommendationOutboxEventRepository).save(outboxEvent);
-        order.verify(eventPublisher).publishEvent(event);
     }
 
     @Test
-    void doesNotPublishEventWhenPendingOutboxPersistenceFails() {
+    void propagatesFailureWhenPendingOutboxPersistenceFails() {
         UUID userId = UUID.randomUUID();
         List<UUID> contentIds = List.of(
                 UUID.randomUUID(),
@@ -168,8 +149,6 @@ class UserPreferenceServiceImplTest {
 
         assertThatThrownBy(() -> service.createUserPreference(userId, request))
                 .isInstanceOf(DataIntegrityViolationException.class);
-
-        verifyNoInteractions(eventPublisher);
     }
 
     private Content content(UUID contentId) {

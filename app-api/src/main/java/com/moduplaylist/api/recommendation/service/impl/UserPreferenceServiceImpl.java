@@ -3,7 +3,6 @@ package com.moduplaylist.api.recommendation.service.impl;
 import com.github.f4b6a3.uuid.UuidCreator;
 import com.moduplaylist.api.recommendation.dto.UserPreferenceCreateRequest;
 import com.moduplaylist.api.recommendation.dto.UserPreferenceResponse;
-import com.moduplaylist.api.recommendation.event.InitialPreferenceCreatedEvent;
 import com.moduplaylist.api.recommendation.service.UserContentGenrePreferenceService;
 import com.moduplaylist.api.recommendation.service.UserContentTagPreferenceService;
 import com.moduplaylist.api.recommendation.service.UserPlaylistGenrePreferenceService;
@@ -22,13 +21,11 @@ import com.moduplaylist.core.recommendation.repository.UserPreferenceContentRepo
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.exception.UserNotFoundException;
 import com.moduplaylist.core.user.repository.UserRepository;
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,7 +41,6 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
     private final UserPlaylistTagPreferenceService userPlaylistTagPreferenceService;
     private final UserPlaylistGenrePreferenceService userPlaylistGenrePreferenceService;
     private final RecommendationOutboxEventRepository recommendationOutboxEventRepository;
-    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -90,11 +86,6 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
         recommendationOutboxEventRepository.save(
                 RecommendationOutboxEvent.pendingInitialPreference(eventId, userId)
         );
-        eventPublisher.publishEvent(new InitialPreferenceCreatedEvent(
-                eventId,
-                userId,
-                Instant.now()
-        ));
 
         return UserPreferenceResponse.builder()
                 .contentIds(contentIds)

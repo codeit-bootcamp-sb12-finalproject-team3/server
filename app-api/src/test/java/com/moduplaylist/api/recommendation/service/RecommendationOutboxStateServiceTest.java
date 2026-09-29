@@ -43,9 +43,8 @@ class RecommendationOutboxStateServiceTest {
         UUID eventId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         Instant now = Instant.parse("2026-09-29T13:30:00Z");
-        Instant createdAt = Instant.parse("2026-09-29T13:20:00Z");
         Duration staleAfter = Duration.ofMinutes(5);
-        RecommendationOutboxEvent candidate = candidate(id, eventId, userId, createdAt);
+        RecommendationOutboxEvent candidate = candidate(id, eventId, userId);
         when(outboxEventRepository.findClaimableEvents(
                 eq(RecommendationOutboxStatus.PENDING),
                 eq(RecommendationOutboxStatus.PROCESSING),
@@ -73,7 +72,6 @@ class RecommendationOutboxStateServiceTest {
         assertThat(firstWorkerClaims.get(0).userId()).isEqualTo(userId);
         assertThat(firstWorkerClaims.get(0).eventType())
                 .isEqualTo(RecommendationOutboxEventType.INITIAL_PREFERENCE_CREATED);
-        assertThat(firstWorkerClaims.get(0).createdAt()).isEqualTo(createdAt);
         assertThat(firstWorkerClaims.get(0).retryCount()).isZero();
         assertThat(secondWorkerClaims).isEmpty();
 
@@ -164,8 +162,7 @@ class RecommendationOutboxStateServiceTest {
         RecommendationOutboxEvent candidate = candidate(
                 id,
                 eventId,
-                userId,
-                now.minus(Duration.ofMinutes(20))
+                userId
         );
         when(outboxEventRepository.findClaimableEvents(
                 eq(RecommendationOutboxStatus.PENDING),
@@ -203,8 +200,7 @@ class RecommendationOutboxStateServiceTest {
     private RecommendationOutboxEvent candidate(
             UUID id,
             UUID eventId,
-            UUID userId,
-            Instant createdAt
+            UUID userId
     ) {
         RecommendationOutboxEvent candidate = mock(RecommendationOutboxEvent.class);
         when(candidate.getId()).thenReturn(id);
@@ -212,7 +208,6 @@ class RecommendationOutboxStateServiceTest {
         when(candidate.getEventType())
                 .thenReturn(RecommendationOutboxEventType.INITIAL_PREFERENCE_CREATED);
         when(candidate.getUserId()).thenReturn(userId);
-        when(candidate.getCreatedAt()).thenReturn(createdAt);
         when(candidate.getRetryCount()).thenReturn(0);
         return candidate;
     }

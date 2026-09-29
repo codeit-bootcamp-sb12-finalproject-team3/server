@@ -3,8 +3,6 @@ package com.moduplaylist.api.recommendation.outbox;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-import com.moduplaylist.api.recommendation.event.InitialPreferenceCreatedEventListener;
-import com.moduplaylist.api.recommendation.metric.InitialPreferencePostProcessingMetrics;
 import com.moduplaylist.api.recommendation.service.InitialPreferencePostProcessingService;
 import com.moduplaylist.api.recommendation.service.RecommendationOutboxStateService;
 import java.time.Clock;
@@ -23,14 +21,11 @@ class RecommendationOutboxCutoverTest {
     void enablesOnlyOutboxWorkerByDefault() {
         contextRunner.run(context -> {
             assertThat(context).hasSingleBean(RecommendationOutboxWorker.class);
-            assertThat(context).doesNotHaveBean(
-                    InitialPreferenceCreatedEventListener.class
-            );
         });
     }
 
     @Test
-    void enablesOnlyLegacyListenerWhenWorkerIsExplicitlyDisabled() {
+    void disablesWorkerWhenExplicitlyConfigured() {
         contextRunner
                 .withPropertyValues(
                         "mopl.recommendation.outbox.worker-enabled=false"
@@ -39,17 +34,11 @@ class RecommendationOutboxCutoverTest {
                     assertThat(context).doesNotHaveBean(
                             RecommendationOutboxWorker.class
                     );
-                    assertThat(context).hasSingleBean(
-                            InitialPreferenceCreatedEventListener.class
-                    );
                 });
     }
 
     @Configuration(proxyBeanMethods = false)
-    @Import({
-            RecommendationOutboxWorker.class,
-            InitialPreferenceCreatedEventListener.class
-    })
+    @Import(RecommendationOutboxWorker.class)
     static class TestConfig {
 
         @Bean
@@ -75,11 +64,6 @@ class RecommendationOutboxCutoverTest {
         @Bean("recommendationOutboxClock")
         Clock recommendationOutboxClock() {
             return Clock.systemUTC();
-        }
-
-        @Bean
-        InitialPreferencePostProcessingMetrics metrics() {
-            return mock(InitialPreferencePostProcessingMetrics.class);
         }
     }
 }

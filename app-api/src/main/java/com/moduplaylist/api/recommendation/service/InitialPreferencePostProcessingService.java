@@ -1,15 +1,14 @@
 package com.moduplaylist.api.recommendation.service;
 
-import com.moduplaylist.api.recommendation.event.InitialPreferenceCreatedEvent;
 import com.moduplaylist.api.recommendation.metric.InitialPreferencePostProcessingMetrics;
 import com.moduplaylist.infrastructure.recommendation.ContentRecommendationService;
 import com.moduplaylist.infrastructure.recommendation.PlaylistRecommendationService;
 import com.moduplaylist.infrastructure.recommendation.embedding.UserContentProfileEmbeddingService;
 import com.moduplaylist.infrastructure.recommendation.embedding.UserPlaylistProfileEmbeddingService;
 import java.time.Duration;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -23,31 +22,26 @@ public class InitialPreferencePostProcessingService {
     private final PlaylistRecommendationService playlistRecommendationService;
     private final InitialPreferencePostProcessingMetrics metrics;
 
-    @Async("recommendationPostProcessingExecutor")
-    public void processAsync(InitialPreferenceCreatedEvent event) {
-        process(event);
-    }
-
-    public void process(InitialPreferenceCreatedEvent event) {
+    public void process(UUID eventId, UUID userId) {
         long startedAt = System.nanoTime();
         log.info(
                 "초기 선호 추천 후처리를 시작합니다. eventId={}, userId={}",
-                event.eventId(),
-                event.userId()
+                eventId,
+                userId
         );
         String stage = "content_profile_embedding";
         int completedStageCount = 0;
         try {
-            userContentProfileEmbeddingService.embedAndIndex(event.userId());
+            userContentProfileEmbeddingService.embedAndIndex(userId);
             completedStageCount++;
             stage = "playlist_profile_embedding";
-            userPlaylistProfileEmbeddingService.embedAndIndex(event.userId());
+            userPlaylistProfileEmbeddingService.embedAndIndex(userId);
             completedStageCount++;
             stage = "content_recommendation";
-            contentRecommendationService.generateAndCache(event.userId());
+            contentRecommendationService.generateAndCache(userId);
             completedStageCount++;
             stage = "playlist_recommendation";
-            playlistRecommendationService.generateAndCache(event.userId());
+            playlistRecommendationService.generateAndCache(userId);
             completedStageCount++;
             metrics.recordSuccess();
         } catch (RuntimeException exception) {
@@ -57,8 +51,8 @@ public class InitialPreferencePostProcessingService {
                     "초기 선호 추천 후처리에 실패했습니다. "
                             + "stage={}, eventId={}, userId={}, durationMs={}",
                     stage,
-                    event.eventId(),
-                    event.userId(),
+                    eventId,
+                    userId,
                     duration.toMillis(),
                     exception
             );
@@ -69,8 +63,8 @@ public class InitialPreferencePostProcessingService {
         Duration duration = elapsedSince(startedAt);
         log.info(
                 "초기 선호 추천 후처리를 완료했습니다. eventId={}, userId={}, durationMs={}",
-                event.eventId(),
-                event.userId(),
+                eventId,
+                userId,
                 duration.toMillis()
         );
     }
