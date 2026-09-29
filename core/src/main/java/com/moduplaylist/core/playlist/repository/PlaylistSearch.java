@@ -9,6 +9,8 @@ import lombok.Getter;
 @Getter
 public class PlaylistSearch {
 
+  private final String keywordLike;
+
   private final UUID ownerIdEqual;
   private final UUID subscriberIdEqual;
   private final UUID contentIdEqual;
@@ -22,6 +24,7 @@ public class PlaylistSearch {
   private final Direction direction;
 
   public PlaylistSearch(
+      String keywordLike,
       UUID ownerIdEqual,
       UUID subscriberIdEqual,
       UUID contentIdEqual,
@@ -33,6 +36,15 @@ public class PlaylistSearch {
       Direction direction
   ) {
 
+    String normalizedKeyword = keywordLike == null ? null : keywordLike.trim();
+
+    if (normalizedKeyword != null && normalizedKeyword.length() > 100) {
+      throw new InvalidPlaylistSearchException("검색어는 100자를 초과할 수 없습니다.");
+    }
+
+    this.keywordLike = normalizedKeyword == null || normalizedKeyword.isBlank()
+        ? null : normalizedKeyword;
+    
     if (limit < 1 || limit > 100) {
       throw new InvalidPlaylistSearchException("limit은 1부터 100 사이여야 합니다.");
     }

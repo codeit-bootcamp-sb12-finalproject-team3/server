@@ -9,6 +9,7 @@ import com.moduplaylist.api.playlist.service.PlaylistQueryService;
 import com.moduplaylist.api.playlist.service.PlaylistResponseAssembler;
 import com.moduplaylist.api.user.dto.UserSummary;
 import com.moduplaylist.core.playlist.entity.Playlist;
+import com.moduplaylist.core.user.repository.UserRepository;
 import com.moduplaylist.core.playlist.entity.PlaylistContent;
 import com.moduplaylist.core.playlist.entity.PlaylistSubscription;
 import com.moduplaylist.core.playlist.exception.PlaylistNotFoundException;
@@ -26,6 +27,9 @@ import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -34,11 +38,34 @@ public class PlaylistQueryServiceImpl implements PlaylistQueryService {
 
   private static final int PREVIEW_CONTENT_LIMIT = 4;
 
+  @Value("${AI_PLAYLIST_OWNER_EMAIL:}")
+  private String aiPlaylistOwnerEmail;
+
+  private final UserRepository userRepository;
   private final PlaylistRepository playlistRepository;
   private final PlaylistSubscriptionRepository playlistSubscriptionRepository;
   private final PlaylistQueryRepository playlistQueryRepository;
   private final PlaylistContentQueryRepository playlistContentQueryRepository;
   private final PlaylistResponseAssembler playlistResponseAssembler;
+
+  @Override
+  @Transactional(readOnly = true)
+  public CursorPageResponse<PlaylistSummaryResponse> findAiPlaylists(UUID userId, PlaylistSearch search) {
+    if (aiPlaylistOwnerEmail == null || aiPlaylistOwnerEmail.isBlank()) {
+      throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "AI 플레이리스트 계정 설정이 없습니다.");
+    }
+
+    UUID ownerId = userRepository.findByEmail(aiPlaylistOwnerEmail.trim())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "AI 플레이리스트 계정을 찾을 수 없습니다."))
+        .getId();
+
+    PlaylistSearch aiSearch = new PlaylistSearch(
+        search.getKeywordLike(), ownerId, null, null,
+        search.getCursorCreatedAt(), search.getCursorWeeklyPopularityScore(),
+        search.getCursorId(), search.getLimit(), search.getSort(), search.getDirection()
+    );
+    return findAll(userId, aiSearch);
+  }
 
   @Override
   @Transactional(readOnly = true)

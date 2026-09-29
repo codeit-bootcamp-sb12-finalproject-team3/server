@@ -452,6 +452,7 @@ public class ContentQueryServiceImpl implements ContentQueryService {
 		PlaylistSearch search = new PlaylistSearch(
 			null,
 			null,
+			null,
 			contentId,
 			null,
 			null,
