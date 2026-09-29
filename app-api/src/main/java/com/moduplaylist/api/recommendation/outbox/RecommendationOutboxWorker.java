@@ -24,17 +24,20 @@ public class RecommendationOutboxWorker {
 
     private final RecommendationOutboxStateService stateService;
     private final InitialPreferencePostProcessingService postProcessingService;
+    private final RecommendationOutboxRetryPolicy retryPolicy;
     private final RecommendationOutboxProperties properties;
     private final Clock clock;
 
     public RecommendationOutboxWorker(
             RecommendationOutboxStateService stateService,
             InitialPreferencePostProcessingService postProcessingService,
+            RecommendationOutboxRetryPolicy retryPolicy,
             RecommendationOutboxProperties properties,
             @Qualifier("recommendationOutboxClock") Clock clock
     ) {
         this.stateService = stateService;
         this.postProcessingService = postProcessingService;
+        this.retryPolicy = retryPolicy;
         this.properties = properties;
         this.clock = clock;
     }
@@ -82,23 +85,27 @@ public class RecommendationOutboxWorker {
                 );
             }
         } catch (RuntimeException exception) {
-            markFailed(claim, exception);
+            handleFailure(claim, exception);
         }
     }
 
-    private void markFailed(
+    private void handleFailure(
             RecommendationOutboxClaim claim,
             RuntimeException exception
     ) {
         String lastError = exception.getClass().getSimpleName()
                 + ": " + exception.getMessage();
+        Instant failedAt = clock.instant();
         try {
-            if (!stateService.fail(
-                    claim.id(),
-                    claim.claimToken(),
-                    clock.instant(),
-                    lastError
-            )) {
+            boolean updated = retryPolicy.nextRetryAt(claim.retryCount(), failedAt)
+                    .map(nextRetryAt -> scheduleRetry(
+                            claim,
+                            failedAt,
+                            nextRetryAt,
+                            lastError
+                    ))
+                    .orElseGet(() -> markFailed(claim, failedAt, lastError));
+            if (!updated) {
                 log.warn(
                         "실패 상태 갱신 권한을 잃었습니다. eventId={}, userId={}",
                         claim.eventId(),
@@ -113,5 +120,54 @@ public class RecommendationOutboxWorker {
                     stateUpdateException
             );
         }
+    }
+
+    private boolean scheduleRetry(
+            RecommendationOutboxClaim claim,
+            Instant failedAt,
+            Instant nextRetryAt,
+            String lastError
+    ) {
+        boolean scheduled = stateService.retry(
+                claim.id(),
+                claim.claimToken(),
+                failedAt,
+                nextRetryAt,
+                lastError
+        );
+        if (scheduled) {
+            log.warn(
+                    "Outbox 초기 선호 후처리를 재시도합니다. "
+                            + "eventId={}, userId={}, retryCount={}, nextRetryAt={}",
+                    claim.eventId(),
+                    claim.userId(),
+                    claim.retryCount() + 1,
+                    nextRetryAt
+            );
+        }
+        return scheduled;
+    }
+
+    private boolean markFailed(
+            RecommendationOutboxClaim claim,
+            Instant failedAt,
+            String lastError
+    ) {
+        boolean failed = stateService.fail(
+                claim.id(),
+                claim.claimToken(),
+                failedAt,
+                lastError
+        );
+        if (failed) {
+            log.error(
+                    "Outbox 초기 선호 후처리 재시도를 소진했습니다. "
+                            + "eventId={}, userId={}, retryCount={}",
+                    claim.eventId(),
+                    claim.userId(),
+                    claim.retryCount()
+            );
+        }
+        return failed;
     }
 }

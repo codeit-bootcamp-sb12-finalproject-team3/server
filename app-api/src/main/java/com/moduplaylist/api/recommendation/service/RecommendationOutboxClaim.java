@@ -10,6 +10,7 @@ public record RecommendationOutboxClaim(
         RecommendationOutboxEventType eventType,
         UUID userId,
         Instant createdAt,
+        int retryCount,
         UUID claimToken
 ) {
 }

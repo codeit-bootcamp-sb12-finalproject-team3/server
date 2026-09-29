@@ -74,6 +74,7 @@ class RecommendationOutboxStateServiceTest {
         assertThat(firstWorkerClaims.get(0).eventType())
                 .isEqualTo(RecommendationOutboxEventType.INITIAL_PREFERENCE_CREATED);
         assertThat(firstWorkerClaims.get(0).createdAt()).isEqualTo(createdAt);
+        assertThat(firstWorkerClaims.get(0).retryCount()).isZero();
         assertThat(secondWorkerClaims).isEmpty();
 
         ArgumentCaptor<UUID> claimTokenCaptor = ArgumentCaptor.forClass(UUID.class);
@@ -152,6 +153,53 @@ class RecommendationOutboxStateServiceTest {
         assertThat(failed).isTrue();
     }
 
+    @Test
+    void staleProcessingEventGetsNewTokenAndOldTokenCannotComplete() {
+        UUID id = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID oldClaimToken = UUID.randomUUID();
+        Instant now = Instant.parse("2026-09-29T14:00:00Z");
+        Duration staleAfter = Duration.ofMinutes(10);
+        RecommendationOutboxEvent candidate = candidate(
+                id,
+                eventId,
+                userId,
+                now.minus(Duration.ofMinutes(20))
+        );
+        when(outboxEventRepository.findClaimableEvents(
+                eq(RecommendationOutboxStatus.PENDING),
+                eq(RecommendationOutboxStatus.PROCESSING),
+                eq(now),
+                eq(now.minus(staleAfter)),
+                any(Pageable.class)
+        )).thenReturn(List.of(candidate));
+        when(outboxEventRepository.tryClaim(
+                eq(id),
+                any(UUID.class),
+                eq(now),
+                eq(now.minus(staleAfter)),
+                eq(RecommendationOutboxStatus.PENDING),
+                eq(RecommendationOutboxStatus.PROCESSING)
+        )).thenReturn(1);
+        when(outboxEventRepository.complete(
+                id,
+                oldClaimToken,
+                now,
+                RecommendationOutboxStatus.PROCESSING,
+                RecommendationOutboxStatus.COMPLETED
+        )).thenReturn(0);
+
+        RecommendationOutboxClaim recovered = service.claimAvailable(
+                1,
+                now,
+                staleAfter
+        ).get(0);
+
+        assertThat(recovered.claimToken()).isNotEqualTo(oldClaimToken);
+        assertThat(service.complete(id, oldClaimToken, now)).isFalse();
+    }
+
     private RecommendationOutboxEvent candidate(
             UUID id,
             UUID eventId,
@@ -165,6 +213,7 @@ class RecommendationOutboxStateServiceTest {
                 .thenReturn(RecommendationOutboxEventType.INITIAL_PREFERENCE_CREATED);
         when(candidate.getUserId()).thenReturn(userId);
         when(candidate.getCreatedAt()).thenReturn(createdAt);
+        when(candidate.getRetryCount()).thenReturn(0);
         return candidate;
     }
 }
