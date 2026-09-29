@@ -6,9 +6,14 @@ import com.moduplaylist.api.user.dto.UserProfileUpdateRequest;
 import com.moduplaylist.api.user.dto.UserResponse;
 import com.moduplaylist.core.user.entity.UserRole;
 import java.util.UUID;
+import com.moduplaylist.api.global.dto.CursorPageResponse;
+import com.moduplaylist.api.global.dto.SortDirection;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface UserService {
+
+  CursorPageResponse<UserResponse> findAll(String emailLike, UserRole roleEqual, Boolean isLocked,
+      String cursor, UUID idAfter, int limit, String sortBy, SortDirection sortDirection);
 
   UserResponse create(UserCreateRequest request);
 

@@ -5,6 +5,18 @@ import com.moduplaylist.api.user.dto.UserProfileResponse;
 import com.moduplaylist.api.user.dto.UserProfileUpdateRequest;
 import com.moduplaylist.api.user.dto.UserResponse;
 import com.moduplaylist.api.user.service.UserService;
+import com.moduplaylist.api.global.dto.CursorPageResponse;
+import com.moduplaylist.api.global.dto.SortDirection;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
+import java.util.List;
+import java.util.Set;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
 import com.moduplaylist.core.common.exception.ImageStorageUnavailableException;
@@ -42,6 +54,111 @@ public class UserServiceImpl implements UserService {
   private final JwtRegistry jwtRegistry;
   private final UserProfileImageStorage userProfileImageStorage;
 
+
+  private static final Set<String> USER_SORT_FIELDS = Set.of("name", "email", "createdAt", "isLocked", "role");
+
+  @Override
+  @Transactional(readOnly = true)
+  @PreAuthorize("hasRole('ADMIN')")
+  public CursorPageResponse<UserResponse> findAll(String emailLike, UserRole roleEqual, Boolean isLocked,
+      String cursor, UUID idAfter, int limit, String sortBy, SortDirection sortDirection) {
+    if (limit < 1 || limit > 100 || sortBy == null || !USER_SORT_FIELDS.contains(sortBy)
+        || sortDirection == null || (cursor == null) != (idAfter == null)) {
+      throw new BaseException(ErrorCode.INVALID_REQUEST);
+    }
+
+    String property = sortBy.equals("isLocked") ? "locked" : sortBy;
+    boolean ascending = sortDirection == SortDirection.ASCENDING;
+    Object cursorValue = parseUserCursor(cursor, sortBy);
+
+    Specification<User> filters = (root, query, cb) -> {
+      Predicate result = cb.conjunction();
+      if (emailLike != null && !emailLike.isBlank()) {
+        String escaped = emailLike.trim().toLowerCase()
+            .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+        String pattern = "%" + escaped + "%";
+        result = cb.and(result, cb.or(
+            cb.like(cb.lower(root.get("email")), pattern, '\\'),
+            cb.like(cb.lower(root.get("name")), pattern, '\\')));
+      }
+      if (roleEqual != null) result = cb.and(result, cb.equal(root.get("role"), roleEqual));
+      if (isLocked != null) result = cb.and(result, cb.equal(root.get("locked"), isLocked));
+      return result;
+    };
+
+    Specification<User> pageFilter = (root, query, cb) -> {
+      Predicate filtersPredicate = filters.toPredicate(root, query, cb);
+      if (cursorValue == null) return filtersPredicate;
+
+      Predicate afterValue = switch (sortBy) {
+        case "name", "email" -> ascending
+            ? cb.greaterThan(root.get(property), (String) cursorValue)
+            : cb.lessThan(root.get(property), (String) cursorValue);
+        case "createdAt" -> ascending
+            ? cb.greaterThan(root.get(property), (Instant) cursorValue)
+            : cb.lessThan(root.get(property), (Instant) cursorValue);
+        case "role" -> ascending
+            ? cb.greaterThan(root.get(property), (UserRole) cursorValue)
+            : cb.lessThan(root.get(property), (UserRole) cursorValue);
+        case "isLocked" -> ascending
+            ? cb.and(cb.isTrue(root.get("locked")), cb.isFalse(cb.literal((Boolean) cursorValue)))
+            : cb.and(cb.isFalse(root.get("locked")), cb.isTrue(cb.literal((Boolean) cursorValue)));
+        default -> throw new BaseException(ErrorCode.INVALID_REQUEST);
+      };
+      Predicate sameValue = cb.equal(root.get(property), cursorValue);
+      Predicate afterId = ascending
+          ? cb.greaterThan(root.get("id"), idAfter)
+          : cb.lessThan(root.get("id"), idAfter);
+      return cb.and(filtersPredicate, cb.or(afterValue, cb.and(sameValue, afterId)));
+    };
+
+    Sort sort = Sort.by(ascending ? Sort.Direction.ASC : Sort.Direction.DESC, property)
+        .and(Sort.by(ascending ? Sort.Direction.ASC : Sort.Direction.DESC, "id"));
+    List<User> rows = userRepository.findAll(pageFilter, PageRequest.of(0, limit + 1, sort)).getContent();
+    boolean hasNext = rows.size() > limit;
+    List<User> visible = hasNext ? rows.subList(0, limit) : rows;
+    User last = visible.isEmpty() ? null : visible.get(visible.size() - 1);
+    return CursorPageResponse.<UserResponse>builder()
+        .data(visible.stream().map(UserResponse::from).toList())
+        .nextCursor(hasNext ? cursorFor(last, sortBy) : null)
+        .nextIdAfter(hasNext ? last.getId() : null)
+        .hasNext(hasNext)
+        .totalCount(userRepository.count(filters))
+        .sortBy(sortBy)
+        .sortDirection(sortDirection)
+        .build();
+  }
+
+  private Object parseUserCursor(String cursor, String sortBy) {
+    if (cursor == null) return null;
+    try {
+      return switch (sortBy) {
+        case "name", "email" -> cursor;
+        case "createdAt" -> Instant.parse(cursor);
+        case "isLocked" -> {
+          if (!cursor.equals("true") && !cursor.equals("false")) {
+            throw new BaseException(ErrorCode.INVALID_REQUEST);
+          }
+          yield Boolean.parseBoolean(cursor);
+        }
+        case "role" -> UserRole.valueOf(cursor);
+        default -> throw new BaseException(ErrorCode.INVALID_REQUEST);
+      };
+    } catch (IllegalArgumentException | DateTimeParseException exception) {
+      throw new BaseException(ErrorCode.INVALID_REQUEST);
+    }
+  }
+
+  private String cursorFor(User user, String sortBy) {
+    return switch (sortBy) {
+      case "name" -> user.getName();
+      case "email" -> user.getEmail();
+      case "createdAt" -> user.getCreatedAt().toString();
+      case "isLocked" -> Boolean.toString(user.isLocked());
+      case "role" -> user.getRole().name();
+      default -> throw new BaseException(ErrorCode.INVALID_REQUEST);
+    };
+  }
 
   @Override
   @Transactional
