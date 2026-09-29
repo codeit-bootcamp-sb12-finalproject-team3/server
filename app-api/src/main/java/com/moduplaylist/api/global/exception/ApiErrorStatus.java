@@ -21,6 +21,7 @@ public final class ApiErrorStatus {
     static {
         // Auth
         STATUS_MAP.put(ErrorCode.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED);
+        STATUS_MAP.put(ErrorCode.PASSWORD_CONFIRMATION_MISMATCH, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.USER_LOCKED, HttpStatus.UNAUTHORIZED);
         STATUS_MAP.put(ErrorCode.FORBIDDEN, HttpStatus.FORBIDDEN);
         STATUS_MAP.put(ErrorCode.INVALID_CSRF_TOKEN, HttpStatus.FORBIDDEN);

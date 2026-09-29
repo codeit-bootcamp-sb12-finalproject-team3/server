@@ -14,6 +14,7 @@ public enum ErrorCode {
 
     // Auth
     INVALID_CREDENTIALS("이메일 또는 비밀번호가 올바르지 않습니다."),
+    PASSWORD_CONFIRMATION_MISMATCH("새 비밀번호와 새 비밀번호 확인이 일치하지 않습니다."),
     USER_LOCKED("잠긴 계정입니다."),
     FORBIDDEN("요청 권한이 없습니다."),
     INVALID_CSRF_TOKEN("CSRF 토큰이 없거나 올바르지 않습니다."),
