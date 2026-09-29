@@ -3,8 +3,10 @@ package com.moduplaylist.core.watchparty.repository;
 import com.moduplaylist.core.watchparty.entity.WatchPartyReminder;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -38,4 +40,29 @@ public interface WatchPartyReminderRepository extends JpaRepository<WatchPartyRe
         @Param("status") WatchPartyStatus status,
         @Param("now") Instant now
     );
+
+    @Modifying
+    @Query("""
+            delete from WatchPartyReminder reminder
+            where reminder.watchParty.id = :watchPartyId
+              and reminder.user.id = :userId
+            """)
+    int deleteByWatchPartyIdAndUserId(
+            @Param("watchPartyId") UUID watchPartyId,
+            @Param("userId") UUID userId);
+
+    @Query("""
+            select reminder.user.id
+            from WatchPartyReminder reminder
+            where reminder.watchParty.id = :watchPartyId
+            """)
+    List<UUID> findUserIdsByWatchPartyId(@Param("watchPartyId") UUID watchPartyId);
+
+    @Transactional
+    @Modifying
+    @Query("""
+            delete from WatchPartyReminder reminder
+            where reminder.watchParty.id = :watchPartyId
+            """)
+    int deleteByWatchPartyId(@Param("watchPartyId") UUID watchPartyId);
 }

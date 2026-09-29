@@ -124,7 +124,9 @@ public final class ApiErrorStatus {
         STATUS_MAP.put(ErrorCode.WATCHPARTY_MAX_PARTICIPANTS_BELOW_CURRENT, HttpStatus.CONFLICT);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_MAX_PARTICIPANTS_EXCEEDED, HttpStatus.BAD_REQUEST);
         STATUS_MAP.put(ErrorCode.WATCHPARTY_CHAT_ACCESS_DENIED, HttpStatus.FORBIDDEN);
-
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_REMINDER_ALREADY_EXISTS, HttpStatus.CONFLICT);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_REMINDER_NOT_FOUND, HttpStatus.NOT_FOUND);
+        STATUS_MAP.put(ErrorCode.WATCHPARTY_HOST_CANNOT_SET_REMINDER, HttpStatus.BAD_REQUEST);
     }
 
     private ApiErrorStatus() {
