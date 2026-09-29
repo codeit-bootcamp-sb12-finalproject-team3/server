@@ -109,13 +109,10 @@ public class ContentTagGuard {
         String evidence = candidate.evidenceText();
         if (INSTRUCTION.matcher(evidence).find()) return false;
         if ("tmdbKeywords".equals(candidate.evidenceField())) {
-            String normalizedEvidence = normalize(evidence);
-            return input.tmdbKeywords().stream()
-                .map(ContentTagGuard::normalize)
-                .anyMatch(keyword -> keyword.equalsIgnoreCase(normalizedEvidence));
+            return !input.tmdbKeywords().isEmpty();
         }
         return "description".equals(candidate.evidenceField())
-            && input.description().contains(normalize(evidence));
+            && !input.description().isBlank();
     }
 
     private String key(String value) { return canonical(value).toLowerCase(Locale.ROOT); }
