@@ -1,10 +1,13 @@
 package com.moduplaylist.api.recommendation.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.moduplaylist.api.recommendation.dto.UserPreferenceCreateRequest;
@@ -16,6 +19,10 @@ import com.moduplaylist.api.recommendation.service.UserPlaylistTagPreferenceServ
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentType;
 import com.moduplaylist.core.content.repository.ContentRepository;
+import com.moduplaylist.core.recommendation.entity.RecommendationOutboxEvent;
+import com.moduplaylist.core.recommendation.entity.RecommendationOutboxEventType;
+import com.moduplaylist.core.recommendation.entity.RecommendationOutboxStatus;
+import com.moduplaylist.core.recommendation.repository.RecommendationOutboxEventRepository;
 import com.moduplaylist.core.recommendation.repository.UserPreferenceContentRepository;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.repository.UserRepository;
@@ -30,6 +37,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @ExtendWith(MockitoExtension.class)
 class UserPreferenceServiceImplTest {
@@ -49,6 +57,8 @@ class UserPreferenceServiceImplTest {
     @Mock
     private UserPlaylistGenrePreferenceService userPlaylistGenrePreferenceService;
     @Mock
+    private RecommendationOutboxEventRepository recommendationOutboxEventRepository;
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     private UserPreferenceServiceImpl service;
@@ -63,12 +73,13 @@ class UserPreferenceServiceImplTest {
                 userContentGenrePreferenceService,
                 userPlaylistTagPreferenceService,
                 userPlaylistGenrePreferenceService,
+                recommendationOutboxEventRepository,
                 eventPublisher
         );
     }
 
     @Test
-    void publishesInitialPreferenceCreatedEventAfterPreferencePersistence() {
+    void savesPendingOutboxAndPublishesEventAfterPreferencePersistence() {
         UUID userId = UUID.randomUUID();
         List<UUID> contentIds = List.of(
                 UUID.randomUUID(),
@@ -92,11 +103,25 @@ class UserPreferenceServiceImplTest {
 
         ArgumentCaptor<InitialPreferenceCreatedEvent> eventCaptor =
                 ArgumentCaptor.forClass(InitialPreferenceCreatedEvent.class);
+        ArgumentCaptor<RecommendationOutboxEvent> outboxCaptor =
+                ArgumentCaptor.forClass(RecommendationOutboxEvent.class);
+        verify(recommendationOutboxEventRepository).save(outboxCaptor.capture());
         verify(eventPublisher).publishEvent(eventCaptor.capture());
+        RecommendationOutboxEvent outboxEvent = outboxCaptor.getValue();
         InitialPreferenceCreatedEvent event = eventCaptor.getValue();
         assertThat(event.eventId()).isNotNull();
         assertThat(event.userId()).isEqualTo(userId);
         assertThat(event.occurredAt()).isBetween(before, after);
+        assertThat(outboxEvent.getEventId()).isEqualTo(event.eventId());
+        assertThat(outboxEvent.getUserId()).isEqualTo(userId);
+        assertThat(outboxEvent.getEventType())
+                .isEqualTo(RecommendationOutboxEventType.INITIAL_PREFERENCE_CREATED);
+        assertThat(outboxEvent.getStatus()).isEqualTo(RecommendationOutboxStatus.PENDING);
+        assertThat(outboxEvent.getRetryCount()).isZero();
+        assertThat(outboxEvent.getNextRetryAt()).isNull();
+        assertThat(outboxEvent.getProcessingStartedAt()).isNull();
+        assertThat(outboxEvent.getClaimToken()).isNull();
+        assertThat(outboxEvent.getLastError()).isNull();
 
         InOrder order = inOrder(
                 userPreferenceContentRepository,
@@ -104,6 +129,7 @@ class UserPreferenceServiceImplTest {
                 userContentTagPreferenceService,
                 userPlaylistGenrePreferenceService,
                 userPlaylistTagPreferenceService,
+                recommendationOutboxEventRepository,
                 eventPublisher
         );
         order.verify(userPreferenceContentRepository).saveAll(anyList());
@@ -115,7 +141,35 @@ class UserPreferenceServiceImplTest {
                 .createFromInitialPreferences(user, contentIds);
         order.verify(userPlaylistTagPreferenceService)
                 .createFromInitialPreferences(user, contentIds);
+        order.verify(recommendationOutboxEventRepository).save(outboxEvent);
         order.verify(eventPublisher).publishEvent(event);
+    }
+
+    @Test
+    void doesNotPublishEventWhenPendingOutboxPersistenceFails() {
+        UUID userId = UUID.randomUUID();
+        List<UUID> contentIds = List.of(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID()
+        );
+        User user = mock(User.class);
+        List<Content> contents = contentIds.stream()
+                .map(this::content)
+                .toList();
+        UserPreferenceCreateRequest request = UserPreferenceCreateRequest.builder()
+                .contentIds(contentIds)
+                .build();
+        when(userRepository.findById(userId)).thenReturn(java.util.Optional.of(user));
+        when(userPreferenceContentRepository.existsByUser_Id(userId)).thenReturn(false);
+        when(contentRepository.findAllById(contentIds)).thenReturn(contents);
+        when(recommendationOutboxEventRepository.save(any(RecommendationOutboxEvent.class)))
+                .thenThrow(new DataIntegrityViolationException("outbox insert failed"));
+
+        assertThatThrownBy(() -> service.createUserPreference(userId, request))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        verifyNoInteractions(eventPublisher);
     }
 
     private Content content(UUID contentId) {

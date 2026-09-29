@@ -12,10 +12,12 @@ import com.moduplaylist.api.recommendation.service.UserPreferenceService;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.repository.ContentRepository;
+import com.moduplaylist.core.recommendation.entity.RecommendationOutboxEvent;
 import com.moduplaylist.core.recommendation.entity.UserPreferenceContent;
 import com.moduplaylist.core.recommendation.exception.PreferenceAlreadyExistsException;
 import com.moduplaylist.core.recommendation.exception.PreferenceContentNotSelectableException;
 import com.moduplaylist.core.recommendation.exception.PreferenceNotFoundException;
+import com.moduplaylist.core.recommendation.repository.RecommendationOutboxEventRepository;
 import com.moduplaylist.core.recommendation.repository.UserPreferenceContentRepository;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.exception.UserNotFoundException;
@@ -41,6 +43,7 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
     private final UserContentGenrePreferenceService userContentGenrePreferenceService;
     private final UserPlaylistTagPreferenceService userPlaylistTagPreferenceService;
     private final UserPlaylistGenrePreferenceService userPlaylistGenrePreferenceService;
+    private final RecommendationOutboxEventRepository recommendationOutboxEventRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
@@ -83,8 +86,12 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
         userPlaylistGenrePreferenceService.createFromInitialPreferences(user, contentIds);
         userPlaylistTagPreferenceService.createFromInitialPreferences(user, contentIds);
 
+        UUID eventId = UuidCreator.getTimeOrderedEpoch();
+        recommendationOutboxEventRepository.save(
+                RecommendationOutboxEvent.pendingInitialPreference(eventId, userId)
+        );
         eventPublisher.publishEvent(new InitialPreferenceCreatedEvent(
-                UuidCreator.getTimeOrderedEpoch(),
+                eventId,
                 userId,
                 Instant.now()
         ));
