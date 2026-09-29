@@ -25,6 +25,10 @@ public class InitialPreferencePostProcessingService {
 
     @Async("recommendationPostProcessingExecutor")
     public void processAsync(InitialPreferenceCreatedEvent event) {
+        process(event);
+    }
+
+    public void process(InitialPreferenceCreatedEvent event) {
         long startedAt = System.nanoTime();
         log.info(
                 "초기 선호 추천 후처리를 시작합니다. eventId={}, userId={}",

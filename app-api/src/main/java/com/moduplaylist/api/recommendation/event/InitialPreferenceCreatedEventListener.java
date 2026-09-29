@@ -4,6 +4,7 @@ import com.moduplaylist.api.recommendation.metric.InitialPreferencePostProcessin
 import com.moduplaylist.api.recommendation.service.InitialPreferencePostProcessingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -12,6 +13,12 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(
+        prefix = "mopl.recommendation.outbox",
+        name = "worker-enabled",
+        havingValue = "false",
+        matchIfMissing = true
+)
 public class InitialPreferenceCreatedEventListener {
 
     private final InitialPreferencePostProcessingService postProcessingService;

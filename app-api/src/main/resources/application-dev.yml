@@ -98,6 +98,11 @@ mopl:
     refresh:
       threshold: ${RECOMMENDATION_REFRESH_THRESHOLD:3.0}
       lock-ttl: ${RECOMMENDATION_REFRESH_LOCK_TTL:5m}
+    outbox:
+      worker-enabled: ${RECOMMENDATION_OUTBOX_WORKER_ENABLED:false}
+      polling-interval-ms: ${RECOMMENDATION_OUTBOX_POLLING_INTERVAL_MS:3000}
+      claim-limit: ${RECOMMENDATION_OUTBOX_CLAIM_LIMIT:10}
+      processing-timeout: ${RECOMMENDATION_OUTBOX_PROCESSING_TIMEOUT:10m}
   embedding:
     enabled: ${EMBEDDING_ENABLED:true}
     model: text-embedding-3-small

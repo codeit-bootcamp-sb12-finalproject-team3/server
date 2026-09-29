@@ -43,8 +43,9 @@ class RecommendationOutboxStateServiceTest {
         UUID eventId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         Instant now = Instant.parse("2026-09-29T13:30:00Z");
+        Instant createdAt = Instant.parse("2026-09-29T13:20:00Z");
         Duration staleAfter = Duration.ofMinutes(5);
-        RecommendationOutboxEvent candidate = candidate(id, eventId, userId);
+        RecommendationOutboxEvent candidate = candidate(id, eventId, userId, createdAt);
         when(outboxEventRepository.findClaimableEvents(
                 eq(RecommendationOutboxStatus.PENDING),
                 eq(RecommendationOutboxStatus.PROCESSING),
@@ -72,6 +73,7 @@ class RecommendationOutboxStateServiceTest {
         assertThat(firstWorkerClaims.get(0).userId()).isEqualTo(userId);
         assertThat(firstWorkerClaims.get(0).eventType())
                 .isEqualTo(RecommendationOutboxEventType.INITIAL_PREFERENCE_CREATED);
+        assertThat(firstWorkerClaims.get(0).createdAt()).isEqualTo(createdAt);
         assertThat(secondWorkerClaims).isEmpty();
 
         ArgumentCaptor<UUID> claimTokenCaptor = ArgumentCaptor.forClass(UUID.class);
@@ -150,13 +152,19 @@ class RecommendationOutboxStateServiceTest {
         assertThat(failed).isTrue();
     }
 
-    private RecommendationOutboxEvent candidate(UUID id, UUID eventId, UUID userId) {
+    private RecommendationOutboxEvent candidate(
+            UUID id,
+            UUID eventId,
+            UUID userId,
+            Instant createdAt
+    ) {
         RecommendationOutboxEvent candidate = mock(RecommendationOutboxEvent.class);
         when(candidate.getId()).thenReturn(id);
         when(candidate.getEventId()).thenReturn(eventId);
         when(candidate.getEventType())
                 .thenReturn(RecommendationOutboxEventType.INITIAL_PREFERENCE_CREATED);
         when(candidate.getUserId()).thenReturn(userId);
+        when(candidate.getCreatedAt()).thenReturn(createdAt);
         return candidate;
     }
 }
