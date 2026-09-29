@@ -7,6 +7,8 @@ import com.moduplaylist.api.watchparty.dto.CreateWatchPartyRequest;
 import com.moduplaylist.api.watchparty.dto.UpdateWatchPartyRequest;
 import com.moduplaylist.api.watchparty.dto.WatchPartyResponse;
 import com.moduplaylist.api.watchparty.dto.WatchPartySummaryResponse;
+import com.moduplaylist.api.watchparty.event.WatchPartyCancelledEvent;
+import com.moduplaylist.api.watchparty.event.WatchPartyUpdatedEvent;
 import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.ContentType;
@@ -14,6 +16,7 @@ import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.watchparty.entity.ParticipantStatus;
 import com.moduplaylist.core.watchparty.entity.WatchParty;
+import com.moduplaylist.core.watchparty.entity.WatchPartyParticipant;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import com.moduplaylist.core.watchparty.exception.*;
 import com.moduplaylist.core.watchparty.repository.*;
@@ -25,6 +28,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -37,8 +41,7 @@ import java.util.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class WatchPartyServiceTest {
@@ -794,6 +797,109 @@ class WatchPartyServiceTest {
 
         assertThatThrownBy(() -> watchPartyService.deleteWatchParty(hostId, unknownPartyId))
                 .isInstanceOf(WatchPartyNotFoundException.class);
+    }
+
+    // ===== 8. 변경·취소 알림 이벤트  =====
+
+    private User buildUser(UUID userId) {
+        User user = User.create(userId + "@test.com", "encodedPw", "참가자");
+        ReflectionTestUtils.setField(user, "id", userId);
+        return user;
+    }
+
+    // 케이스 8-1: 시작 시각이 바뀌면 → 참가자 + 알림 설정자(중복 제거)에게 보낼 변경 이벤트 발행
+    @Test
+    void updateWatchParty_시작시각_변경시_변경이벤트_발행() {
+        WatchParty watchParty = buildWatchParty(WatchPartyStatus.SCHEDULED);
+        Instant previousScheduledAt = watchParty.getScheduledAt();
+        UpdateWatchPartyRequest request = buildUpdateRequest(null, null);   // scheduledAt: now + 2시간
+
+        UUID joinedAndReminded = UUID.randomUUID();   // 참가 중이면서 알림도 설정한 사람
+        UUID remindedOnly = UUID.randomUUID();        // 알림만 설정한 사람
+        WatchPartyParticipant participant = new WatchPartyParticipant(buildUser(joinedAndReminded), watchParty);
+
+        given(watchPartyRepository.findById(watchParty.getId())).willReturn(Optional.of(watchParty));
+        given(contentRepository.findById(contentId)).willReturn(Optional.of(buildMovieContent()));
+        given(watchPartyParticipantRepository.countByWatchParty_IdAndStatus(any(), any())).willReturn(1L);
+        given(watchPartyParticipantRepository.findJoinedParticipants(watchParty.getId(), ParticipantStatus.JOINED))
+                .willReturn(List.of(participant));
+        given(watchPartyReminderRepository.findUserIdsByWatchPartyId(watchParty.getId()))
+                .willReturn(List.of(joinedAndReminded, remindedOnly));
+
+        watchPartyService.updateWatchParty(hostId, watchParty.getId(), request);
+
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        WatchPartyUpdatedEvent event = (WatchPartyUpdatedEvent) captor.getValue();
+
+        assertThat(event.partyId()).isEqualTo(watchParty.getId());
+        assertThat(event.title()).isEqualTo("수정된 제목");
+        assertThat(event.previousScheduledAt()).isEqualTo(previousScheduledAt);
+        assertThat(event.scheduledAt()).isEqualTo(request.getScheduledAt());
+        assertThat(event.recipientIds()).containsExactly(joinedAndReminded, remindedOnly);   // 중복 제거
+    }
+
+    // 케이스 8-2: 시작 시각이 그대로면(제목만 수정) → 이벤트 발행 없음, 받는 사람 조회도 안 함
+    @Test
+    void updateWatchParty_시작시각_그대로면_이벤트_없음() {
+        WatchParty watchParty = buildWatchParty(WatchPartyStatus.SCHEDULED);
+        UpdateWatchPartyRequest request = new UpdateWatchPartyRequest(
+                "제목만 수정", "설명", watchParty.getScheduledAt(),   // 시작 시각 그대로
+                4, 90, null, null
+        );
+
+        given(watchPartyRepository.findById(watchParty.getId())).willReturn(Optional.of(watchParty));
+        given(contentRepository.findById(contentId)).willReturn(Optional.of(buildMovieContent()));
+        given(watchPartyParticipantRepository.countByWatchParty_IdAndStatus(any(), any())).willReturn(0L);
+
+        watchPartyService.updateWatchParty(hostId, watchParty.getId(), request);
+
+        verifyNoInteractions(eventPublisher, watchPartyReminderRepository);
+        verify(watchPartyParticipantRepository, never()).findJoinedParticipants(any(), any());
+    }
+
+    // 케이스 8-3: 삭제 → 삭제 전에 제목·시각·받는 사람을 캡처해 취소 이벤트 발행
+    @Test
+    void deleteWatchParty_삭제전_캡처해서_취소이벤트_발행() {
+        WatchParty watchParty = buildWatchParty(WatchPartyStatus.SCHEDULED);
+        UUID joinedUserId = UUID.randomUUID();
+        UUID remindedUserId = UUID.randomUUID();
+        WatchPartyParticipant participant = new WatchPartyParticipant(buildUser(joinedUserId), watchParty);
+
+        given(watchPartyRepository.findById(watchParty.getId())).willReturn(Optional.of(watchParty));
+        given(watchPartyParticipantRepository.findJoinedParticipants(watchParty.getId(), ParticipantStatus.JOINED))
+                .willReturn(List.of(participant));
+        given(watchPartyReminderRepository.findUserIdsByWatchPartyId(watchParty.getId()))
+                .willReturn(List.of(remindedUserId));
+
+        watchPartyService.deleteWatchParty(hostId, watchParty.getId());
+
+        // cascade로 사라지기 전에 조회해야 함 → 조회 2개가 delete보다 먼저
+        InOrder inOrder = inOrder(watchPartyParticipantRepository, watchPartyReminderRepository, watchPartyRepository);
+        inOrder.verify(watchPartyParticipantRepository).findJoinedParticipants(watchParty.getId(), ParticipantStatus.JOINED);
+        inOrder.verify(watchPartyReminderRepository).findUserIdsByWatchPartyId(watchParty.getId());
+        inOrder.verify(watchPartyRepository).delete(watchParty);
+
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        WatchPartyCancelledEvent event = (WatchPartyCancelledEvent) captor.getValue();
+
+        assertThat(event.partyId()).isEqualTo(watchParty.getId());
+        assertThat(event.title()).isEqualTo("기존 제목");
+        assertThat(event.scheduledAt()).isEqualTo(watchParty.getScheduledAt());
+        assertThat(event.recipientIds()).containsExactly(joinedUserId, remindedUserId);
+    }
+
+    // 케이스 8-4: 삭제 권한이 없으면 → 취소 이벤트 없음 (삭제도 안 됨)
+    @Test
+    void deleteWatchParty_host_아니면_취소이벤트_없음() {
+        WatchParty watchParty = buildWatchParty(WatchPartyStatus.SCHEDULED);
+        given(watchPartyRepository.findById(watchParty.getId())).willReturn(Optional.of(watchParty));
+
+        assertThatThrownBy(() -> watchPartyService.deleteWatchParty(UUID.randomUUID(), watchParty.getId()))
+                .isInstanceOf(WatchPartyHostOnlyException.class);
+
+        verifyNoInteractions(eventPublisher);
     }
 
 }

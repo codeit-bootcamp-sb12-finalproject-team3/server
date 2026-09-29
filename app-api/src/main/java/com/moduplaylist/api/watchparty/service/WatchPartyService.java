@@ -4,7 +4,9 @@ import com.moduplaylist.api.content.dto.ContentWatchPartyResponse;
 import com.moduplaylist.api.global.dto.CursorPageResponse;
 import com.moduplaylist.api.global.dto.SortDirection;
 import com.moduplaylist.api.watchparty.dto.*;
+import com.moduplaylist.api.watchparty.event.WatchPartyCancelledEvent;
 import com.moduplaylist.api.watchparty.event.WatchPartyCreatedEvent;
+import com.moduplaylist.api.watchparty.event.WatchPartyUpdatedEvent;
 import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
 import com.moduplaylist.api.user.dto.UserSummary;
@@ -28,10 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -106,6 +105,8 @@ public class WatchPartyService {
         }
         validateMaxParticipants(partyId, request.getMaxParticipants());
 
+        Instant previousScheduledAt = watchParty.getScheduledAt();
+
         watchParty.update(
                 request.getTitle(),
                 request.getDescription(),
@@ -115,6 +116,18 @@ public class WatchPartyService {
                 request.getStartEpisode(),
                 request.getEndEpisode()
         );
+
+        // 시작 시각이 바뀐 경우에만 참가자·알림 설정자에게 알림
+        if (!previousScheduledAt.equals(watchParty.getScheduledAt())) {
+            eventPublisher.publishEvent(new WatchPartyUpdatedEvent(
+                    UUID.randomUUID(),
+                    partyId,
+                    watchParty.getTitle(),
+                    previousScheduledAt,
+                    watchParty.getScheduledAt(),
+                    collectNotificationRecipients(partyId)
+            ));
+        }
 
         return toResponse(watchParty);
     }
@@ -145,8 +158,30 @@ public class WatchPartyService {
 
         watchParty.validateEditable();
 
+        // 삭제되면 cascade로 참가자·리마인더가 사라지므로, 알림에 필요한 정보를 먼저 캡처
+        String title = watchParty.getTitle();
+        Instant scheduledAt = watchParty.getScheduledAt();
+        List<UUID> recipientIds = collectNotificationRecipients(partyId);
+
         watchPartyRepository.delete(watchParty);
         watchPartyHostRegistry.removeHost(partyId);
+
+        eventPublisher.publishEvent(new WatchPartyCancelledEvent(
+                UUID.randomUUID(),
+                partyId,
+                title,
+                scheduledAt,
+                recipientIds
+        ));
+    }
+
+    // 변경·취소 알림 대상: 참가 중(JOINED)인 사람 + 시작 알림을 설정한 사람 (중복 제거)
+    private List<UUID> collectNotificationRecipients(UUID partyId) {
+        Set<UUID> recipientIds = new LinkedHashSet<>();
+        watchPartyParticipantRepository.findJoinedParticipants(partyId, ParticipantStatus.JOINED)
+                .forEach(participant -> recipientIds.add(participant.getUser().getId()));
+        recipientIds.addAll(watchPartyReminderRepository.findUserIdsByWatchPartyId(partyId));
+        return List.copyOf(recipientIds);
     }
 
     private void validateEpisodeRange(Content content, Integer startEpisode, Integer endEpisode) {

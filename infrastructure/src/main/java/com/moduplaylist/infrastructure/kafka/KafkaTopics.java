@@ -12,6 +12,8 @@ public final class KafkaTopics {
     public static final String WATCH_PARTY_CREATED = "watchparty.created";
     public static final String WATCH_PARTY_PARTICIPANT_CHANGED = "watchparty.participant-changed";
     public static final String WATCH_PARTY_PARTICIPANT_STATUS_CHANGED = "watchparty.participant-status-changed";
+    public static final String WATCH_PARTY_UPDATED = "watchparty.updated";
+    public static final String WATCH_PARTY_CANCELLED = "watchparty.cancelled";
     public static final String CONTENT_LIFECYCLE = "content-lifecycle";
     public static final String PLAYLIST_SUBSCRIBED = "playlist.subscribed";
     public static final String PLAYLIST_CONTENT_ADDED = "playlist.content-added";
