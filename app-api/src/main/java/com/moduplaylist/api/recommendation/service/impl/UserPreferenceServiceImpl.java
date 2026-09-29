@@ -65,8 +65,7 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
                 throw new ContentNotFoundException(contentId);
             }
         }
-        //tv시리즈는 선호 콘텐츠에 추가되면 안된다?는 정책이 확인돼서 추가함.. 프론트 구현시 tvSeries는 선텍 못하도록 막아야할듯
-        //sport도 추가
+
         contents.stream()
                 .filter(content -> !content.getType().isPersonalizable())
                 .findFirst()
