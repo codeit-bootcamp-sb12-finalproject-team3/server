@@ -20,3 +20,8 @@ security:
     access-token-validity-seconds: 3600 # 1시간
     refresh-token-validity-seconds: 86400 # 1일
     cookie-secure: ${JWT_COOKIE_SECURE:true}
+
+mopl:
+  admin:
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
