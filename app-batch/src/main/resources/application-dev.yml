@@ -77,24 +77,18 @@ mopl:
     embedding:
       scheduler:
         enabled: ${EMBEDDING_SCHEDULER_ENABLED:false}
-        content-cron: ${CONTENT_EMBEDDING_CRON:0 0 2 * * *} #실제 배치 실행 시간
-#        content-cron: "0 * * * * *" #테스트
-        content-reconcile-cron: ${CONTENT_EMBEDDING_RECONCILE_CRON:0 0 1 * * SUN} #콘텐츠 배치 누락을 고려한 주배치
+        content-cron: ${CONTENT_EMBEDDING_CRON:0 0 2 * * *}
+        content-reconcile-cron: ${CONTENT_EMBEDDING_RECONCILE_CRON:0 0 1 * * SUN}
         playlist-cron: ${PLAYLIST_EMBEDDING_CRON:0 30 2 * * *}
-#        playlist-cron: "0 * * * * *" #테스트
-        user-profile-cron: ${USER_PROFILE_EMBEDDING_CRON:0 0 3 * * *} #실제 배치 실행 시간
-#        user-profile-cron: "0 * * * * *" #테스트
+        user-profile-cron: ${USER_PROFILE_EMBEDDING_CRON:0 0 3 * * *}
         user-playlist-profile-cron: ${USER_PLAYLIST_PROFILE_EMBEDDING_CRON:0 30 3 * * *}
-        #user-playlist-profile-cron: "0 * * * * *" #테스트
         zone: ${EMBEDDING_SCHEDULER_ZONE:Asia/Seoul}
     recommendation:
       activity-batch-size: ${RECOMMENDATION_ACTIVITY_BATCH_SIZE:500}
       scheduler:
         enabled: ${RECOMMENDATION_SCHEDULER_ENABLED:false}
         cron: ${RECOMMENDATION_CRON:0 0 4 * * *}
-#        cron: "0 * * * * *" #테스트
         playlist-cron: ${PLAYLIST_RECOMMENDATION_CRON:0 30 4 * * *}
-#        playlist-cron: "0 * * * * *" #테스트
         zone: ${RECOMMENDATION_SCHEDULER_ZONE:Asia/Seoul}
     playlist-popularity:
       total-subscriber-weight: ${PLAYLIST_POPULARITY_TOTAL_SUBSCRIBER_WEIGHT:0.3}
