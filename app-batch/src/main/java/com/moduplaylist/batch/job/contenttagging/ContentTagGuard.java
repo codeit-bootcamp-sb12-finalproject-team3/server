@@ -29,6 +29,10 @@ public class ContentTagGuard {
     private static final java.util.regex.Pattern INSTRUCTION = java.util.regex.Pattern.compile(
         "(?i)(ignore.{0,30}instructions?|system\\s*prompt|api[ _-]?key|비밀.{0,10}출력|"
             + "지시.{0,10}무시|명령.{0,10}실행|프롬프트|클릭|구독|무료 다운로드)");
+    private static final java.util.regex.Pattern ENGLISH_TOKEN = java.util.regex.Pattern.compile(
+        "[A-Za-z]+(?:-[A-Za-z]+)*");
+    private static final Set<String> ALLOWED_ENGLISH_TOKENS = Set.of(
+        "AI", "VR", "SNS", "CIA", "FBI", "K-pop", "OTT");
 
     public ContentTagGuard(ObjectMapper mapper, Validator validator, ContentTaggingProperties properties) {
         this.parser = mapper.copy().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
@@ -84,7 +88,7 @@ public class ContentTagGuard {
 
         Set<String> excluded = new HashSet<>();
         input.genres().forEach(value -> excluded.add(key(value)));
-        input.existingTags().forEach(value -> excluded.add(key(value)));
+        input.currentTags().forEach(value -> excluded.add(key(value)));
         excluded.add(key(input.title()));
         List.of("영화", "TV 시즌", "TV 시리즈", "드라마", "애니메이션", "다큐멘터리",
             "액션", "코미디", "공포", "스릴러", "로맨스", "판타지", "movie", "tvSeason",
@@ -92,13 +96,15 @@ public class ContentTagGuard {
         Set<String> names = new LinkedHashSet<>();
         Set<String> uniqueKeys = new HashSet<>();
         for (Candidate raw : candidates) {
-            if (UNSAFE.matcher(raw.name()).find() || INSTRUCTION.matcher(raw.name()).find()) continue;
             Candidate candidate = new Candidate(normalize(raw.name()), raw.evidenceField(), raw.evidenceText());
-            if (!validator.validate(candidate).isEmpty() || !supported(candidate, input)) continue;
+            if (UNSAFE.matcher(candidate.name()).find() || INSTRUCTION.matcher(candidate.name()).find()
+                || hasDisallowedEnglishToken(candidate.name())
+                || !validator.validate(candidate).isEmpty() || !supported(candidate, input)) continue;
             String name = canonical(candidate.name());
             Candidate canonicalCandidate = new Candidate(name, candidate.evidenceField(), candidate.evidenceText());
             if (!validator.validate(canonicalCandidate).isEmpty() || INSTRUCTION.matcher(name).find()
-                || excluded.contains(key(name)) || !uniqueKeys.add(key(name))) continue;
+                || hasDisallowedEnglishToken(name) || excluded.contains(key(name))
+                || !uniqueKeys.add(key(name))) continue;
             names.add(name);
         }
         if (names.isEmpty()) throw new ContentTaggingException("VALIDATION_FAILED", false, false);
@@ -115,6 +121,14 @@ public class ContentTagGuard {
             && !input.description().isBlank();
     }
 
+    private static boolean hasDisallowedEnglishToken(String value) {
+        var matcher = ENGLISH_TOKEN.matcher(value);
+        while (matcher.find()) {
+            if (!ALLOWED_ENGLISH_TOKENS.contains(matcher.group())) return true;
+        }
+        return false;
+    }
+
     private String key(String value) { return canonical(value).toLowerCase(Locale.ROOT); }
     private static boolean textual(JsonNode node, String field) {
         return node.has(field) && node.get(field).isTextual();
@@ -125,7 +139,7 @@ public class ContentTagGuard {
 
     private record Candidate(
         @NotBlank @Size(min = 2, max = 20)
-        @Pattern(regexp = "(?=.*[가-힣])[가-힣A-Za-z0-9]+(?: [가-힣A-Za-z0-9]+)*") String name,
+        @Pattern(regexp = "(?=.*[가-힣])(?:[가-힣A-Za-z0-9]+|K-pop)(?: (?:[가-힣A-Za-z0-9]+|K-pop))*") String name,
         @Pattern(regexp = "description|tmdbKeywords") String evidenceField,
         @NotBlank @Size(max = 160) String evidenceText
     ) { }

@@ -10,5 +10,6 @@ public record ContentTagInput(
     String description,
     List<String> tmdbKeywords,
     String keywordScope,
-    List<String> existingTags
+    List<String> currentTags,
+    List<String> seriesTagCandidates
 ) { }

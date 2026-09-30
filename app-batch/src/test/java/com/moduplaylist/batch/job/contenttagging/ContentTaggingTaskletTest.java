@@ -41,7 +41,7 @@ class ContentTaggingTaskletTest {
                 UUID.randomUUID());
         ContentTaggingStore.Snapshot snapshot = new ContentTaggingStore.Snapshot(
                 new ContentTagInput("movie", "title", List.of(), "description",
-                        List.of(), "MOVIE", List.of()),
+                        List.of(), "MOVIE", List.of(), List.of()),
                 "fingerprint");
         when(contents.findPendingTaggingIds(any(), eq(Content.AiTaggingStatus.PENDING),
                 any(), any(Pageable.class))).thenReturn(ids);
@@ -75,7 +75,7 @@ class ContentTaggingTaskletTest {
         UUID id = UUID.randomUUID();
         ContentTaggingStore.Snapshot snapshot = new ContentTaggingStore.Snapshot(
                 new ContentTagInput("movie", "title", List.of(), "description",
-                        List.of(), "MOVIE", List.of()),
+                        List.of(), "MOVIE", List.of(), List.of()),
                 "fingerprint");
         when(contents.findPendingTaggingIds(any(), eq(Content.AiTaggingStatus.PENDING),
                 any(), any(Pageable.class))).thenReturn(List.of(id));
@@ -112,7 +112,7 @@ class ContentTaggingTaskletTest {
         UUID id = UUID.randomUUID();
         ContentTaggingStore.Snapshot snapshot = new ContentTaggingStore.Snapshot(
                 new ContentTagInput("movie", "title", List.of(), "description",
-                        List.of(), "MOVIE", List.of()),
+                        List.of(), "MOVIE", List.of(), List.of()),
                 "fingerprint");
         when(contents.findPendingTaggingIds(any(), eq(Content.AiTaggingStatus.PENDING),
                 any(), any(Pageable.class))).thenReturn(List.of(id));
