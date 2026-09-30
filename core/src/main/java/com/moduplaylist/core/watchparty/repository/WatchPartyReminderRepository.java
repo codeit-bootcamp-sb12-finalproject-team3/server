@@ -1,0 +1,68 @@
+package com.moduplaylist.core.watchparty.repository;
+
+import com.moduplaylist.core.watchparty.entity.WatchPartyReminder;
+import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+public interface WatchPartyReminderRepository extends JpaRepository<WatchPartyReminder, UUID> {
+    boolean existsByWatchParty_IdAndUser_Id(UUID watchPartyId, UUID userId);
+
+    @Query("""
+            select r from WatchPartyReminder r
+            join fetch r.watchParty w
+            join fetch r.user u
+            where w.status = :status
+            and w.scheduledAt <= :threshold
+            """)
+    List<WatchPartyReminder> findDueReminders(
+            @Param("status") WatchPartyStatus status,
+            @Param("threshold") Instant threshold);
+
+    @Query("""
+    select reminder
+    from WatchPartyReminder reminder
+    join fetch reminder.watchParty watchParty
+    where reminder.user.id = :userId
+      and watchParty.status = :status
+      and watchParty.scheduledAt > :now
+    order by watchParty.scheduledAt asc
+    """)
+    List<WatchPartyReminder> findScheduledByUserId(
+        @Param("userId") UUID userId,
+        @Param("status") WatchPartyStatus status,
+        @Param("now") Instant now
+    );
+
+    @Modifying
+    @Query("""
+            delete from WatchPartyReminder reminder
+            where reminder.watchParty.id = :watchPartyId
+              and reminder.user.id = :userId
+            """)
+    int deleteByWatchPartyIdAndUserId(
+            @Param("watchPartyId") UUID watchPartyId,
+            @Param("userId") UUID userId);
+
+    @Query("""
+            select reminder.user.id
+            from WatchPartyReminder reminder
+            where reminder.watchParty.id = :watchPartyId
+            """)
+    List<UUID> findUserIdsByWatchPartyId(@Param("watchPartyId") UUID watchPartyId);
+
+    @Transactional
+    @Modifying
+    @Query("""
+            delete from WatchPartyReminder reminder
+            where reminder.watchParty.id = :watchPartyId
+            """)
+    int deleteByWatchPartyId(@Param("watchPartyId") UUID watchPartyId);
+}

@@ -10,6 +10,8 @@ Desktop.ini
 
 # --- Gradle ---
 .gradle
+/.gradle-user/
+/.gradle-codex/
 **/build/
 !gradle/wrapper/gradle-wrapper.jar
 
@@ -49,3 +51,8 @@ logs/
 *.temp
 *.swp
 *~
+
+# 로컬 인증 테스트용 쿠키
+/cookies.txt
+/admin-cookies.txt
+/cookies-before-refresh.txt

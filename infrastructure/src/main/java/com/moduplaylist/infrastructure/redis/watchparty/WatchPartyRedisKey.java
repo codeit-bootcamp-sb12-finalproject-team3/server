@@ -1,0 +1,66 @@
+package com.moduplaylist.infrastructure.redis.watchparty;
+
+import java.util.Objects;
+import java.util.UUID;
+
+public final class WatchPartyRedisKey {
+
+    private static final String PREFIX = "watchparty:";
+
+    private WatchPartyRedisKey() {
+    }
+
+    public static String playback(UUID partyId) {
+        return PREFIX + require(partyId) + ":playback";
+    }
+
+    public static String online(UUID partyId) {
+        return PREFIX + require(partyId) + ":online";
+    }
+
+    // 하트비트: 파티별 사용자 마지막 확인 시각 (Hash, field=userId, value=epoch millis)
+    public static String lastSeen(UUID partyId) {
+        return PREFIX + require(partyId) + ":lastSeen";
+    }
+
+    public static String kicked(UUID partyId) {
+        return PREFIX + require(partyId) + ":kicked";
+    }
+
+    public static String chatLog(UUID partyId) {
+        return PREFIX + require(partyId) + ":chat:log";
+    }
+
+    public static String chatChannel(UUID partyId) {
+        return PREFIX + require(partyId) + ":chat";
+    }
+
+    public static String participantsChannel(UUID partyId) {
+        return PREFIX + require(partyId) + ":participants";
+    }
+
+    public static String host(UUID partyId) {
+        return PREFIX + require(partyId) + ":host";
+    }
+
+    public static String joined(UUID partyId) {
+        return PREFIX + require(partyId) + ":joined";
+    }
+
+    // 파티 기준이 아니라 유저 기준이라 prefix가 다름 (watchparty: 아니라 user:)
+    public static String joinedParty(UUID userId) {
+        return "user:" + require(userId) + ":joinedParty";
+    }
+
+    public static String uuid(UUID id) {
+        return require(id).toString();
+    }
+
+    public static UUID parseUuid(String value) {
+        return UUID.fromString(Objects.requireNonNull(value, "value must not be null"));
+    }
+
+    private static UUID require(UUID id) {
+        return Objects.requireNonNull(id, "id must not be null");
+    }
+}

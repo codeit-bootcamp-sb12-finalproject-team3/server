@@ -1,0 +1,260 @@
+{
+  "settings": {
+    "index": {
+      "knn": true,
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    },
+    "analysis": {
+      "char_filter": {
+        "remove_whitespace": {
+          "type": "pattern_replace",
+          "pattern": "\\s+",
+          "replacement": ""
+        }
+      },
+      "normalizer": {
+        "content_exact": {
+          "type": "custom",
+          "filter": ["lowercase", "asciifolding"]
+        }
+      },
+      "tokenizer": {
+        "content_nori_tokenizer": {
+          "type": "nori_tokenizer",
+          "decompound_mode": "mixed"
+        }
+      },
+      "filter": {
+        "tag_synonyms": {
+          "type": "synonym_graph",
+          "synonyms": [
+            "mcu, marvel, 마블",
+            "dceu, dcu, dc, 디씨",
+            "lotr, the lord of the rings, 반지의 제왕",
+            "twd, the walking dead, 워킹 데드",
+            "tlou, the last of us, 라스트 오브 어스",
+            "tmnt, teenage mutant ninja turtles, 닌자 거북이, 닌자터틀",
+            "gotg, guardians of the galaxy, 가디언즈 오브 갤럭시"
+          ]
+        }
+      },
+      "analyzer": {
+        "content_korean_index": {
+          "type": "custom",
+          "tokenizer": "content_nori_tokenizer",
+          "filter": ["lowercase"]
+        },
+        "content_korean_search": {
+          "type": "custom",
+          "tokenizer": "content_nori_tokenizer",
+          "filter": ["lowercase"]
+        },
+        "content_english": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "asciifolding"]
+        },
+        "content_compact": {
+          "type": "custom",
+          "char_filter": ["remove_whitespace"],
+          "tokenizer": "keyword",
+          "filter": ["lowercase", "asciifolding"]
+        },
+        "content_synonym_search": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "tag_synonyms"]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "contentId": { "type": "keyword" },
+      "type": { "type": "keyword" },
+      "title": {
+        "type": "text",
+        "analyzer": "content_korean_index",
+        "search_analyzer": "content_korean_search",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "content_exact",
+            "ignore_above": 255
+          },
+          "compact": {
+            "type": "text",
+            "analyzer": "content_compact",
+            "search_analyzer": "content_compact"
+          }
+        }
+      },
+      "seriesTitle": {
+        "type": "text",
+        "analyzer": "content_korean_index",
+        "search_analyzer": "content_korean_search",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "content_exact",
+            "ignore_above": 255
+          },
+          "compact": {
+            "type": "text",
+            "analyzer": "content_compact",
+            "search_analyzer": "content_compact"
+          }
+        }
+      },
+      "originalTitle": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "content_exact",
+            "ignore_above": 255
+          },
+          "compact": {
+            "type": "text",
+            "analyzer": "content_compact",
+            "search_analyzer": "content_compact"
+          }
+        }
+      },
+      "englishTitle": {
+        "type": "text",
+        "analyzer": "content_english",
+        "search_analyzer": "content_english",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "content_exact",
+            "ignore_above": 255
+          },
+          "compact": {
+            "type": "text",
+            "analyzer": "content_compact",
+            "search_analyzer": "content_compact"
+          }
+        }
+      },
+      "castNames": {
+        "type": "text",
+        "fields": {
+          "compact": {
+            "type": "text",
+            "analyzer": "content_compact",
+            "search_analyzer": "content_compact"
+          }
+        }
+      },
+      "description": {
+        "type": "text",
+        "analyzer": "content_korean_index",
+        "search_analyzer": "content_korean_search"
+      },
+      "hidden": { "type": "boolean" },
+      "genres": {
+        "type": "keyword",
+        "fields": {
+          "compact": {
+            "type": "text",
+            "analyzer": "content_compact",
+            "search_analyzer": "content_compact"
+          }
+        }
+      },
+      "tags": { "type": "keyword" },
+      "tagSearch": {
+        "type": "text",
+        "analyzer": "content_korean_index",
+        "search_analyzer": "content_korean_search",
+        "fields": {
+          "compact": {
+            "type": "text",
+            "analyzer": "content_compact",
+            "search_analyzer": "content_compact"
+          }
+        }
+      },
+      "sportTypeCode": {
+        "type": "text",
+        "fields": {
+          "compact": {
+            "type": "text",
+            "analyzer": "content_compact",
+            "search_analyzer": "content_compact"
+          }
+        }
+      },
+      "sportType": {
+        "type": "text",
+        "fields": {
+          "compact": {
+            "type": "text",
+            "analyzer": "content_compact",
+            "search_analyzer": "content_compact"
+          }
+        }
+      },
+      "leagueName": {
+        "type": "text",
+        "fields": {
+          "compact": {
+            "type": "text",
+            "analyzer": "content_compact",
+            "search_analyzer": "content_compact"
+          }
+        }
+      },
+      "season": {
+        "type": "text",
+        "fields": {
+          "compact": {
+            "type": "text",
+            "analyzer": "content_compact",
+            "search_analyzer": "content_compact"
+          }
+        }
+      },
+      "homeTeamName": {
+        "type": "text",
+        "fields": {
+          "compact": {
+            "type": "text",
+            "analyzer": "content_compact",
+            "search_analyzer": "content_compact"
+          }
+        }
+      },
+      "awayTeamName": {
+        "type": "text",
+        "fields": {
+          "compact": {
+            "type": "text",
+            "analyzer": "content_compact",
+            "search_analyzer": "content_compact"
+          }
+        }
+      },
+      "embedding": {
+        "type": "knn_vector",
+        "dimension": 1536,
+        "method": {
+          "name": "hnsw",
+          "space_type": "cosinesimil",
+          "engine": "lucene",
+          "parameters": {
+            "ef_construction": 128,
+            "m": 16
+          }
+        }
+      },
+      "embeddingModel": { "type": "keyword" },
+      "sourceUpdatedAt": { "type": "date" },
+      "embeddedAt": { "type": "date" }
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "settings": {
+    "index": {
+      "knn": true,
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    }
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "userId": { "type": "keyword" },
+      "genreScores": {
+        "type": "nested",
+        "properties": {
+          "genreId": { "type": "keyword" },
+          "genreName": { "type": "keyword" },
+          "score": { "type": "double" }
+        }
+      },
+      "tagScores": {
+        "type": "nested",
+        "properties": {
+          "tagId": { "type": "keyword" },
+          "tagName": { "type": "keyword" },
+          "score": { "type": "double" }
+        }
+      },
+      "embedding": {
+        "type": "knn_vector",
+        "dimension": 1536,
+        "method": {
+          "name": "hnsw",
+          "space_type": "cosinesimil",
+          "engine": "lucene",
+          "parameters": {
+            "ef_construction": 128,
+            "m": 16
+          }
+        }
+      },
+      "embeddingModel": { "type": "keyword" },
+      "preferenceUpdatedAt": { "type": "date" },
+      "embeddedAt": { "type": "date" }
+    }
+  }
+}

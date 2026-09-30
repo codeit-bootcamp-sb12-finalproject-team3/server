@@ -1,0 +1,20 @@
+package com.moduplaylist.core.watchparty.exception;
+
+import com.moduplaylist.core.common.exception.BaseException;
+import com.moduplaylist.core.common.exception.ErrorCode;
+
+import java.util.UUID;
+
+public class WatchPartyInvalidEpisodeRangeException extends BaseException {
+    public WatchPartyInvalidEpisodeRangeException(UUID contentId) {
+        super(ErrorCode.WATCHPARTY_INVALID_EPISODE_RANGE);
+        addDetail("contentId", contentId);
+    }
+
+    public WatchPartyInvalidEpisodeRangeException(UUID contentId, Integer episodeCount, Integer requestedEndEpisode) {
+        super(ErrorCode.WATCHPARTY_EPISODE_RANGE_EXCEEDED);
+        addDetail("contentId", contentId);
+        addDetail("episodeCount", episodeCount);
+        addDetail("requestedEndEpisode", requestedEndEpisode);
+    }
+}

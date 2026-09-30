@@ -1,15 +1,4 @@
 spring:
-  datasource:
-    # example address
-    url: ${DB_URL:jdbc:mysql://localhost:3306/moduplaylist}
-    username: ${DB_USERNAME:mopl}
-    password: ${DB_PASSWORD:mopl}
-
-  jpa:
-    hibernate:
-      ddl-auto: update
-    open-in-view: false
-
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -21,9 +10,14 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.type.mapping: dm-send-requested:com.moduplaylist.realtime.kafka.event.DmSendRequestedKafkaEvent
 
     consumer:
+      auto-offset-reset: latest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: com.moduplaylist.infrastructure.kafka.event
+        spring.json.type.mapping: notification-created:com.moduplaylist.realtime.kafka.event.NotificationCreatedKafkaEvent,
+                                  dm-message-created:com.moduplaylist.realtime.kafka.event.DmMessageCreatedKafkaEvent
+        spring.json.trusted.packages: com.moduplaylist.realtime.kafka.event
