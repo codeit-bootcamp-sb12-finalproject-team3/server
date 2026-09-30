@@ -1,5 +1,6 @@
 package com.moduplaylist.api.recommendation.service.impl;
 
+import com.github.f4b6a3.uuid.UuidCreator;
 import com.moduplaylist.api.recommendation.dto.UserPreferenceCreateRequest;
 import com.moduplaylist.api.recommendation.dto.UserPreferenceResponse;
 import com.moduplaylist.api.recommendation.service.UserContentGenrePreferenceService;
@@ -10,10 +11,12 @@ import com.moduplaylist.api.recommendation.service.UserPreferenceService;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.exception.ContentNotFoundException;
 import com.moduplaylist.core.content.repository.ContentRepository;
+import com.moduplaylist.core.recommendation.entity.RecommendationOutboxEvent;
 import com.moduplaylist.core.recommendation.entity.UserPreferenceContent;
 import com.moduplaylist.core.recommendation.exception.PreferenceAlreadyExistsException;
 import com.moduplaylist.core.recommendation.exception.PreferenceContentNotSelectableException;
 import com.moduplaylist.core.recommendation.exception.PreferenceNotFoundException;
+import com.moduplaylist.core.recommendation.repository.RecommendationOutboxEventRepository;
 import com.moduplaylist.core.recommendation.repository.UserPreferenceContentRepository;
 import com.moduplaylist.core.user.entity.User;
 import com.moduplaylist.core.user.exception.UserNotFoundException;
@@ -22,17 +25,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import com.moduplaylist.infrastructure.recommendation.embedding.UserContentProfileEmbeddingService;
-import com.moduplaylist.infrastructure.recommendation.embedding.UserPlaylistProfileEmbeddingService;
-import com.moduplaylist.infrastructure.recommendation.ContentRecommendationService;
-import com.moduplaylist.infrastructure.recommendation.PlaylistRecommendationService;
-
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserPreferenceServiceImpl implements UserPreferenceService {
@@ -44,14 +40,8 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
     private final UserContentGenrePreferenceService userContentGenrePreferenceService;
     private final UserPlaylistTagPreferenceService userPlaylistTagPreferenceService;
     private final UserPlaylistGenrePreferenceService userPlaylistGenrePreferenceService;
-    private final UserContentProfileEmbeddingService userContentProfileEmbeddingService;
-    private final UserPlaylistProfileEmbeddingService userPlaylistProfileEmbeddingService;
-    private final ContentRecommendationService contentRecommendationService;
-    private final PlaylistRecommendationService playlistRecommendationService;
+    private final RecommendationOutboxEventRepository recommendationOutboxEventRepository;
 
-    // TODO: 현재는 DB 트랜잭션 안에서 OpenSearch/Redis까지 함께 호출하고 있음. -> 트러블슈팅 소스 메모..
-    // 외부 저장소 처리 이후 DB commit 실패 시 데이터 정합성 문제가 생길 수 있으므로,
-    // 추후 DB commit 이후 임베딩/추천 갱신이 실행되도록 후처리 구조로 분리 필요.
     @Override
     @Transactional
     public UserPreferenceResponse createUserPreference(
@@ -74,8 +64,7 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
                 throw new ContentNotFoundException(contentId);
             }
         }
-        //tv시리즈는 선호 콘텐츠에 추가되면 안된다?는 정책이 확인돼서 추가함.. 프론트 구현시 tvSeries는 선텍 못하도록 막아야할듯
-        //sport도 추가
+
         contents.stream()
                 .filter(content -> !content.getType().isPersonalizable())
                 .findFirst()
@@ -93,10 +82,10 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
         userPlaylistGenrePreferenceService.createFromInitialPreferences(user, contentIds);
         userPlaylistTagPreferenceService.createFromInitialPreferences(user, contentIds);
 
-        userContentProfileEmbeddingService.embedAndIndex(userId);
-        userPlaylistProfileEmbeddingService.embedAndIndex(userId);
-        contentRecommendationService.generateAndCache(userId);
-        playlistRecommendationService.generateAndCache(userId);
+        UUID eventId = UuidCreator.getTimeOrderedEpoch();
+        recommendationOutboxEventRepository.save(
+                RecommendationOutboxEvent.pendingInitialPreference(eventId, userId)
+        );
 
         return UserPreferenceResponse.builder()
                 .contentIds(contentIds)
