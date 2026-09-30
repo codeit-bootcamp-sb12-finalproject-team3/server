@@ -147,6 +147,7 @@ services:
       - mopl-network
 
   prometheus:
+    profiles: ["monitoring"]
     image: prom/prometheus:v3.5.0
     container_name: mopl-prometheus
     ports:
@@ -158,6 +159,7 @@ services:
       - mopl-network
 
   grafana:
+    profiles: ["monitoring"]
     image: grafana/grafana:12.1.0
     container_name: mopl-grafana
     ports:
