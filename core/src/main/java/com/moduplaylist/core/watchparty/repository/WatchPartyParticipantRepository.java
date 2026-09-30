@@ -17,11 +17,10 @@ public interface WatchPartyParticipantRepository extends JpaRepository<WatchPart
     boolean existsByUser_IdAndWatchParty_Id(UUID userId, UUID watchPartyId);
     Optional<WatchPartyParticipant> findByUser_IdAndWatchParty_Id(UUID userId, UUID watchPartyId);
 
-    Optional<WatchPartyParticipant> findFirstByUser_IdAndStatusAndWatchParty_IdNotAndWatchParty_StatusNot(
+    Optional<WatchPartyParticipant> findFirstByUser_IdAndStatusAndWatchParty_IdNot(
             UUID userId,
             ParticipantStatus status,
-            UUID watchPartyId,
-            WatchPartyStatus watchPartyStatus
+            UUID watchPartyId
     );
 
     @Query("select wpp.watchParty.id as watchPartyId, count(wpp) as count " +

@@ -10,8 +10,6 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 
 @SpringBootApplication(scanBasePackages = "com.moduplaylist")
-@ComponentScan(basePackages = "com.moduplaylist", excludeFilters = @ComponentScan.Filter(
-    type = FilterType.ASSIGNABLE_TYPE, classes = OpenAiPlaylistGenerator.class))
 @EntityScan(basePackages = "com.moduplaylist.core")
 @EnableJpaRepositories(basePackages = "com.moduplaylist.core")
 @EnableScheduling
