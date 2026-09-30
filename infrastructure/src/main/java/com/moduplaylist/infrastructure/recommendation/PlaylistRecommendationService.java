@@ -1,9 +1,6 @@
 package com.moduplaylist.infrastructure.recommendation;
 
-import com.moduplaylist.core.playlist.entity.Playlist;
-import com.moduplaylist.core.playlist.entity.PlaylistSubscription;
 import com.moduplaylist.core.playlist.repository.PlaylistRepository;
-import com.moduplaylist.core.playlist.repository.PlaylistSubscriptionRepository;
 import com.moduplaylist.infrastructure.opensearch.playlist.PlaylistSimilarityCandidate;
 import com.moduplaylist.infrastructure.redis.recommendation.PlaylistRecommendationRedisRepository;
 import java.util.HashSet;
@@ -21,7 +18,6 @@ public class PlaylistRecommendationService {
 
     private final PlaylistRecommendationCandidateService candidateService;
     private final PlaylistRepository playlistRepository;
-    private final PlaylistSubscriptionRepository subscriptionRepository;
     private final PlaylistRecommendationRedisRepository recommendationRedisRepository;
     private final RecommendationProperties properties;
 
@@ -46,23 +42,12 @@ public class PlaylistRecommendationService {
             return List.of();
         }
 
-        Set<UUID> existingOtherOwnerIds = new HashSet<>(
-                playlistRepository.findAllById(candidateIds).stream()
-                        .filter(playlist -> !playlist.getOwner().getId().equals(userId))
-                        .map(Playlist::getId)
-                        .toList()
-        );
-        Set<UUID> subscribedIds = new HashSet<>(
-                subscriptionRepository.findAllByUser_IdAndPlaylist_IdIn(userId, candidateIds)
-                        .stream()
-                        .map(PlaylistSubscription::getPlaylist)
-                        .map(Playlist::getId)
-                        .toList()
+        Set<UUID> currentlyRecommendableIds = new HashSet<>(
+                playlistRepository.findRecommendableIds(userId, candidateIds)
         );
 
         return candidateIds.stream()
-                .filter(existingOtherOwnerIds::contains)
-                .filter(playlistId -> !subscribedIds.contains(playlistId))
+                .filter(currentlyRecommendableIds::contains)
                 .limit(properties.getSearchLimit())
                 .toList();
     }

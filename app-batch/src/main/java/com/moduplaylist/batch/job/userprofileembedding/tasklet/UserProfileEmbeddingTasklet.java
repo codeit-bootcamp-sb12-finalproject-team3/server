@@ -31,10 +31,8 @@ public class UserProfileEmbeddingTasklet implements Tasklet {
             StepContribution contribution,
             ChunkContext chunkContext
     ) {
-// TODO 대규모 데이터 처리 최적화 -> 트러블슈팅으로 쓸 수 있을까하여 주석 달아둡니다
-// 현재 전체 임베딩 대상을 List로 메모리에 적재하고 건별로 임베딩 생성/색인을 수행한다.
-// 데이터 증가 시 메모리 사용량과 OpenAI/OpenSearch I/O 횟수가 증가할 수 있으므로,
-// Paging/Chunk 기반 조회 + 임베딩 Batch 요청 + OpenSearch Bulk 색인 방식으로 개선한다.
+        // 확장성 고려: 현재 대상 사용자를 일괄 조회해 건별로 임베딩 생성과 색인을 수행한다.
+        // 데이터 규모 증가 시 Paging/Chunk 조회와 Batch/Bulk 처리 전환을 검토한다.
         List<UUID> cleanupTargetIds = targetService.findUserIdsWithoutPositivePreference();
         List<UUID> cleanupFailedIds = new ArrayList<>();
         for (UUID userId : cleanupTargetIds) {

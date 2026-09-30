@@ -28,11 +28,10 @@ public class WatchPartyParticipantController {
 
     @PostMapping
     public ResponseEntity<Void> join(@PathVariable UUID partyId,
-                                     @RequestParam(required = false) UUID switchFrom,
                                      @AuthenticationPrincipal CustomUserDetails userDetails) {
         UUID userId = userDetails.getUserId();
 
-        watchPartyParticipantService.joinWatchParty(partyId, userId, switchFrom);
+        watchPartyParticipantService.joinWatchParty(partyId, userId);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 

@@ -46,9 +46,30 @@ mopl:
   oauth2:
     frontend-callback-url: ${OAUTH2_FRONTEND_CALLBACK_URL:http://localhost:5173/#/oauth/callback}
     frontend-login-url: ${OAUTH2_FRONTEND_LOGIN_URL:http://localhost:5173/sign-in}
+  admin:
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
+
 
 server:
   port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        hikaricp.connections.acquire: true
+        hikaricp.connections.usage: true
 
 security:
   jwt:
@@ -58,7 +79,3 @@ security:
     refresh-token-validity-seconds: 86400 # 1일
     cookie-secure: ${JWT_COOKIE_SECURE:true}
 
-mopl:
-  admin:
-    email: ${ADMIN_EMAIL:}
-    password: ${ADMIN_PASSWORD:}
