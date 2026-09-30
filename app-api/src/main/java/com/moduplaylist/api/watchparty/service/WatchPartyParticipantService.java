@@ -41,8 +41,7 @@ public class WatchPartyParticipantService {
             throw new WatchPartyKickedCannotRejoinException(partyId, userId);
         }
 
-        // Serialize JOIN requests by user, even when their destination parties differ.
-        User user = userRepository.findByIdForUpdate(userId)
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
         // The party lock keeps the capacity check and join atomic for this destination.

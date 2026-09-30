@@ -127,7 +127,7 @@ class WatchPartyParticipantServiceTest {
 
     @Test
     void endedDestinationDoesNotLeaveCurrentParty() {
-        given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
         given(watchPartyRepository.findByIdForUpdate(partyId)).willReturn(Optional.of(party));
         given(party.getStatus()).willReturn(WatchPartyStatus.ENDED);
 
@@ -201,17 +201,6 @@ class WatchPartyParticipantServiceTest {
     }
 
     @Test
-    void userLockIsAcquiredBeforeDestinationLock() {
-        givenJoinableParty(10, Optional.empty());
-
-        service.joinWatchParty(partyId, userId);
-
-        InOrder order = inOrder(userRepository, watchPartyRepository);
-        order.verify(userRepository).findByIdForUpdate(userId);
-        order.verify(watchPartyRepository).findByIdForUpdate(partyId);
-    }
-
-    @Test
     void getParticipantsReturnsJoinedParticipants() {
         given(watchPartyRepository.existsById(partyId)).willReturn(true);
         WatchPartyParticipant participant = new WatchPartyParticipant(user, party);
@@ -219,12 +208,13 @@ class WatchPartyParticipantServiceTest {
                 .willReturn(List.of(participant));
 
         assertThat(service.getParticipants(partyId)).hasSize(1);
+
     }
 
     private void givenJoinableParty(int maxParticipants, Optional<WatchPartyParticipant> existing) {
         User host = User.create("host@test.com", "encodedPw", "host");
         ReflectionTestUtils.setField(host, "id", UUID.randomUUID());
-        given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
         given(watchPartyRepository.findByIdForUpdate(partyId)).willReturn(Optional.of(party));
         lenient().when(party.getId()).thenReturn(partyId);
         given(party.getStatus()).willReturn(WatchPartyStatus.LIVE);
