@@ -25,7 +25,7 @@ env:
   ECR_REGISTRY: 481048606068.dkr.ecr.ap-northeast-2.amazonaws.com
   ECR_REPOSITORY: mopl-batch
   ECS_CLUSTER: mopl-cluster
-  ECS_SERVICE: mopl-batch-service
+  ECS_SERVICE: mopl-batch-service-nd9hquyt
   TASK_FAMILY: mopl-batch
   CONTAINER_NAME: mopl-batch
 
