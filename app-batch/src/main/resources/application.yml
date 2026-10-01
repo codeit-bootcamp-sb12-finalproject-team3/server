@@ -28,12 +28,21 @@ mopl:
       # Enable on one batch instance only. Existing completed/failed rows are never retagged.
       enabled: ${CONTENT_TAGGING_ENABLED:false}
       cron: ${CONTENT_TAGGING_CRON:0 * * * * *}
-      model: ${CONTENT_TAGGING_MODEL:gpt-4o-mini}
+      model: ${CONTENT_TAGGING_MODEL:gpt-6-luna}
       timeout-seconds: 20
       max-tokens: 1024
       max-items: 500
+      research:
+        enabled: ${CONTENT_TAGGING_RESEARCH_ENABLED:true}
+        model: ${CONTENT_TAGGING_RESEARCH_MODEL:gpt-6-luna}
+        timeout-seconds: ${CONTENT_TAGGING_RESEARCH_TIMEOUT_SECONDS:30}
+        max-tokens: ${CONTENT_TAGGING_RESEARCH_MAX_TOKENS:3000}
+        max-facts: ${CONTENT_TAGGING_RESEARCH_MAX_FACTS:6}
+        max-sources: ${CONTENT_TAGGING_RESEARCH_MAX_SOURCES:5}
+        cache-days: ${CONTENT_TAGGING_RESEARCH_CACHE_DAYS:90}
       synonyms:
         "[시간여행]": "시간 여행"
+        "[실제 범죄 다큐멘터리]": "실화 범죄 다큐멘터리"
   sports-import:
     leagues:
       - sport-code: SOCCER

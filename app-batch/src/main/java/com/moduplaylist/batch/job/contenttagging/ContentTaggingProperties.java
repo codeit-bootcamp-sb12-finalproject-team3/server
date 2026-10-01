@@ -12,9 +12,23 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "mopl.batch.content-tagging")
 public class ContentTaggingProperties {
-    private String model = "gpt-4o-mini";
+    private String model = "gpt-6-luna";
     private int timeoutSeconds = 20;
     private int maxTokens = 1024;
     private int maxItems = 500;
-    private Map<String, String> synonyms = new LinkedHashMap<>(Map.of("시간여행", "시간 여행"));
+    private Map<String, String> synonyms = new LinkedHashMap<>(Map.of(
+        "시간여행", "시간 여행", "실제 범죄 다큐멘터리", "실화 범죄 다큐멘터리"));
+    private Research research = new Research();
+
+    @Getter
+    @Setter
+    public static class Research {
+        private boolean enabled = true;
+        private String model = "gpt-6-luna";
+        private int timeoutSeconds = 30;
+        private int maxTokens = 3000;
+        private int maxFacts = 6;
+        private int maxSources = 5;
+        private int cacheDays = 90;
+    }
 }
