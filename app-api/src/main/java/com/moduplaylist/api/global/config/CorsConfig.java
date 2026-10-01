@@ -22,8 +22,8 @@ public class CorsConfig {
 
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:3000",
-                "http://localhost:5173"
-                // "https://www.moduplaylist.com"
+                "http://localhost:5173",
+                "https://db12plwo4froe.cloudfront.net"
         ));
 
         configuration.setAllowedMethods(List.of(

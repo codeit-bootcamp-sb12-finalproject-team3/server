@@ -10,8 +10,7 @@ spring:
       max-file-size: 5MB
       max-request-size: 55MB
 
-  profiles:
-    active: dev
+
 
   security:
     oauth2:
