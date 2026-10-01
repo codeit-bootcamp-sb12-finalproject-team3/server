@@ -128,3 +128,6 @@ mopl:
     content-index: content-index
     content-autocomplete-index: content-autocomplete-index
     playlist-index: playlist-index
+
+server:
+  forward-headers-strategy: framework
