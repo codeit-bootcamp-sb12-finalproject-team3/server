@@ -77,13 +77,10 @@ mopl:
     embedding:
       scheduler:
         enabled: ${EMBEDDING_SCHEDULER_ENABLED:false}
-        content-cron: ${CONTENT_EMBEDDING_CRON:0 0 2 * * *} #실제 배치 실행 시간
-#        content-cron: "0 * * * * *" #테스트
-        content-reconcile-cron: ${CONTENT_EMBEDDING_RECONCILE_CRON:0 0 1 * * SUN} #콘텐츠 배치 누락을 고려한 주배치
+        content-cron: ${CONTENT_EMBEDDING_CRON:0 0 2 * * *}
+        content-reconcile-cron: ${CONTENT_EMBEDDING_RECONCILE_CRON:0 0 1 * * SUN}
         playlist-cron: ${PLAYLIST_EMBEDDING_CRON:0 30 2 * * *}
-#        playlist-cron: "0 * * * * *" #테스트
-        user-profile-cron: ${USER_PROFILE_EMBEDDING_CRON:0 0 3 * * *} #실제 배치 실행 시간
-#        user-profile-cron: "0 * * * * *" #테스트
+        user-profile-cron: ${USER_PROFILE_EMBEDDING_CRON:0 0 3 * * *}
         user-playlist-profile-cron: ${USER_PLAYLIST_PROFILE_EMBEDDING_CRON:0 30 3 * * *}
         zone: ${EMBEDDING_SCHEDULER_ZONE:Asia/Seoul}
     recommendation:
@@ -91,7 +88,6 @@ mopl:
       scheduler:
         enabled: ${RECOMMENDATION_SCHEDULER_ENABLED:false}
         cron: ${RECOMMENDATION_CRON:0 0 4 * * *}
-#        cron: "0 * * * * *" #테스트
         playlist-cron: ${PLAYLIST_RECOMMENDATION_CRON:0 30 4 * * *}
         zone: ${RECOMMENDATION_SCHEDULER_ZONE:Asia/Seoul}
     playlist-popularity:
@@ -107,6 +103,12 @@ mopl:
         enabled: ${AI_PLAYLIST_SCHEDULER_ENABLED:false}
         cron: ${AI_PLAYLIST_CRON:0 0 5 * * MON}
         zone: ${AI_PLAYLIST_SCHEDULER_ZONE:Asia/Seoul}
+    watch-party-cleanup:
+      retention-days: ${WATCH_PARTY_CLEANUP_RETENTION_DAYS:14}
+      scheduler:
+        enabled: ${WATCH_PARTY_CLEANUP_SCHEDULER_ENABLED:true}
+        cron: ${WATCH_PARTY_CLEANUP_CRON:0 0 6 * * *}
+        zone: ${WATCH_PARTY_CLEANUP_SCHEDULER_ZONE:Asia/Seoul}
   recommendation:
     search-limit: ${RECOMMENDATION_SEARCH_LIMIT:100}
     cache-ttl: ${RECOMMENDATION_CACHE_TTL:48h}

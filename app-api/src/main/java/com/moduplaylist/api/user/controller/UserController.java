@@ -7,6 +7,10 @@ import com.moduplaylist.api.user.dto.UserCreateRequest;
 import com.moduplaylist.api.user.dto.UserProfileResponse;
 import com.moduplaylist.api.user.dto.UserProfileUpdateRequest;
 import com.moduplaylist.api.user.dto.UserResponse;
+import com.moduplaylist.api.global.dto.CursorPageResponse;
+import com.moduplaylist.api.global.dto.SortDirection;
+import com.moduplaylist.core.user.entity.UserRole;
+import org.springframework.web.bind.annotation.RequestParam;
 import com.moduplaylist.api.user.dto.UserRoleUpdateRequest;
 import com.moduplaylist.api.user.dto.UserLockUpdateRequest;
 import com.moduplaylist.api.global.security.CustomUserDetails;
@@ -34,6 +38,21 @@ public class UserController {
 
     private final UserService userService;
     private final UserPreferenceService userPreferenceService;
+
+  @GetMapping
+  public ResponseEntity<CursorPageResponse<UserResponse>> findAll(
+      @RequestParam(required = false) String emailLike,
+      @RequestParam(required = false) UserRole roleEqual,
+      @RequestParam(required = false) Boolean isLocked,
+      @RequestParam(required = false) String cursor,
+      @RequestParam(required = false) UUID idAfter,
+      @RequestParam(defaultValue = "20") int limit,
+      @RequestParam(defaultValue = "name") String sortBy,
+      @RequestParam(defaultValue = "ASCENDING") SortDirection sortDirection
+  ) {
+    return ResponseEntity.ok(userService.findAll(
+        emailLike, roleEqual, isLocked, cursor, idAfter, limit, sortBy, sortDirection));
+  }
 
   @PostMapping
   public ResponseEntity<UserResponse> create(

@@ -490,6 +490,48 @@ ALTER TABLE recommendation_processed_events
 
 
 -- =================================================================
+-- 추천 후처리 Outbox
+CREATE TABLE recommendation_outbox_events (
+                                               id                      BINARY(16) NOT NULL,
+                                               event_id                BINARY(16) NOT NULL,
+                                               event_type              ENUM('INITIAL_PREFERENCE_CREATED') NOT NULL,
+                                               user_id                 BINARY(16) NOT NULL,
+                                               status                  ENUM('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED') NOT NULL,
+                                               retry_count             INT NOT NULL DEFAULT 0,
+                                               next_retry_at           DATETIME(6) NULL,
+                                               processing_started_at   DATETIME(6) NULL,
+                                               claim_token             BINARY(16) NULL,
+                                               last_error              TEXT NULL,
+                                               created_at              DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                                               updated_at              DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+);
+
+ALTER TABLE recommendation_outbox_events
+    ADD CONSTRAINT pk_recommendation_outbox_events
+        PRIMARY KEY (id);
+
+ALTER TABLE recommendation_outbox_events
+    ADD CONSTRAINT uq_recommendation_outbox_events_event_id
+        UNIQUE (event_id);
+
+ALTER TABLE recommendation_outbox_events
+    ADD CONSTRAINT fk_recommendation_outbox_events_user
+        FOREIGN KEY (user_id)
+            REFERENCES users (id)
+            ON DELETE CASCADE;
+
+ALTER TABLE recommendation_outbox_events
+    ADD CONSTRAINT chk_recommendation_outbox_events_retry_count
+        CHECK (retry_count >= 0);
+
+CREATE INDEX idx_recommendation_outbox_events_due
+    ON recommendation_outbox_events (status, next_retry_at, created_at);
+
+CREATE INDEX idx_recommendation_outbox_events_stale
+    ON recommendation_outbox_events (status, processing_started_at);
+
+
+-- =================================================================
 -- 출연진
 
 CREATE TABLE content_casts (

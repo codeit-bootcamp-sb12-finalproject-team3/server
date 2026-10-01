@@ -143,6 +143,12 @@ public class SecurityConfig {
                 "/v3/api-docs/**"
             ).permitAll()
 
+            // Local monitoring
+            .requestMatchers(
+                "/actuator/health",
+                "/actuator/prometheus"
+            ).permitAll()
+
             // Spring 기본 오류 처리
             .requestMatchers("/error").permitAll()
 
