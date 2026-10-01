@@ -1,20 +1,20 @@
-name: Deploy API
+name: Deploy Batch
 
 on:
   push:
     branches:
       - main
     paths:
-      - "app-api/**"
+      - "app-batch/**"
       - "core/**"
       - "infrastructure/**"
-      - "docker/api/**"
+      - "docker/batch/**"
       - "build.gradle"
       - "settings.gradle"
       - "gradle/**"
       - "gradlew"
       - "gradlew.bat"
-      - ".github/workflows/deploy-api.yml"
+      - ".github/workflows/deploy-batch.yml"
 
 permissions:
   id-token: write
@@ -23,11 +23,11 @@ permissions:
 env:
   AWS_REGION: ap-northeast-2
   ECR_REGISTRY: 481048606068.dkr.ecr.ap-northeast-2.amazonaws.com
-  ECR_REPOSITORY: mopl-api
+  ECR_REPOSITORY: mopl-batch
   ECS_CLUSTER: mopl-cluster
-  ECS_SERVICE: mopl-api-service-jyw4nj9d
-  TASK_FAMILY: mopl-api
-  CONTAINER_NAME: mopl-api
+  ECS_SERVICE: mopl-batch-service
+  TASK_FAMILY: mopl-batch
+  CONTAINER_NAME: mopl-batch
 
 jobs:
   deploy:
@@ -52,7 +52,7 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build \
-            -f docker/api/Dockerfile \
+            -f docker/batch/Dockerfile \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
             .
