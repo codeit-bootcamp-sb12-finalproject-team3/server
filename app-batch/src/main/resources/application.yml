@@ -27,7 +27,7 @@ mopl:
     content-tagging:
       # Enable on one batch instance only. Existing completed/failed rows are never retagged.
       enabled: ${CONTENT_TAGGING_ENABLED:false}
-      cron: ${CONTENT_TAGGING_CRON:0 * * * * *}
+      cron: ${CONTENT_TAGGING_CRON:0 * 0-2 * * *}
       model: ${CONTENT_TAGGING_MODEL:gpt-6-luna}
       timeout-seconds: 20
       max-tokens: 1024

@@ -18,7 +18,7 @@ public class ContentTaggingOpenAiCircuitBreaker {
     private static final String CIRCUIT_KEY = "mopl:content-tagging:openai-circuit";
     private static final String PROBE_KEY = CIRCUIT_KEY + ":probe";
     private static final Duration INITIAL_OPEN = Duration.ofMinutes(10);
-    private static final Duration SECOND_OPEN = Duration.ofMinutes(30);
+    private static final Duration SECOND_OPEN = Duration.ofMinutes(10);
     private static final Duration THIRD_OPEN = Duration.ofHours(12);
     private static final Duration PROBE_LEASE = Duration.ofMinutes(5);
 
@@ -28,19 +28,13 @@ public class ContentTaggingOpenAiCircuitBreaker {
         if state == 'CLOSED' then
             return 'NORMAL'
         end
-        if state == 'LONG_OPEN' and ARGV[1] ~= 'content-import' then
+        if state == 'LONG_OPEN' or state == 'OPEN' then
             local openUntil = tonumber(redis.call('HGET', KEYS[1], 'openUntil') or '0')
-            if tonumber(ARGV[2]) < openUntil then
+            if tonumber(ARGV[1]) < openUntil then
                 return 'DENIED'
             end
         end
-        if state == 'OPEN' then
-            local openUntil = tonumber(redis.call('HGET', KEYS[1], 'openUntil') or '0')
-            if tonumber(ARGV[2]) < openUntil then
-                return 'DENIED'
-            end
-        end
-        local claimed = redis.call('SET', KEYS[2], ARGV[3], 'NX', 'PX', ARGV[4])
+        local claimed = redis.call('SET', KEYS[2], ARGV[2], 'NX', 'PX', ARGV[3])
         if not claimed then
             return 'DENIED'
         end
@@ -106,12 +100,11 @@ public class ContentTaggingOpenAiCircuitBreaker {
 
     private final StringRedisTemplate redisTemplate;
 
-    public Permit acquire(String trigger) {
+    public Permit acquire() {
         String token = UUID.randomUUID().toString();
         String result = redisTemplate.execute(
                 ACQUIRE_SCRIPT,
                 List.of(CIRCUIT_KEY, PROBE_KEY),
-                trigger,
                 Long.toString(Instant.now().toEpochMilli()),
                 token,
                 Long.toString(PROBE_LEASE.toMillis())
