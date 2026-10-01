@@ -103,6 +103,12 @@ mopl:
         enabled: ${AI_PLAYLIST_SCHEDULER_ENABLED:false}
         cron: ${AI_PLAYLIST_CRON:0 0 5 * * MON}
         zone: ${AI_PLAYLIST_SCHEDULER_ZONE:Asia/Seoul}
+    watch-party-cleanup:
+      retention-days: ${WATCH_PARTY_CLEANUP_RETENTION_DAYS:14}
+      scheduler:
+        enabled: ${WATCH_PARTY_CLEANUP_SCHEDULER_ENABLED:true}
+        cron: ${WATCH_PARTY_CLEANUP_CRON:0 0 6 * * *}
+        zone: ${WATCH_PARTY_CLEANUP_SCHEDULER_ZONE:Asia/Seoul}
   recommendation:
     search-limit: ${RECOMMENDATION_SEARCH_LIMIT:100}
     cache-ttl: ${RECOMMENDATION_CACHE_TTL:48h}
