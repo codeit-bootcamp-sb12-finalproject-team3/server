@@ -3,6 +3,8 @@ package com.moduplaylist.batch.scheduler;
 import com.moduplaylist.batch.config.ContentTaggingExecutorConfig;
 import com.moduplaylist.batch.job.contenttagging.ContentTaggingOpenAiCircuitBreaker;
 import com.moduplaylist.batch.job.contenttagging.ContentTaggingJobConfig;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
@@ -21,6 +23,8 @@ import org.springframework.stereotype.Component;
 @Component
 @ConditionalOnProperty(prefix = "mopl.batch.content-tagging", name = "enabled", havingValue = "true")
 public class ContentTaggingJobScheduler {
+    private static final ZoneId TAGGING_ZONE = ZoneId.of("Asia/Seoul");
+    private static final LocalTime TAGGING_WINDOW_END = LocalTime.of(3, 0);
     private final JobLauncher launcher;
     private final JobExplorer explorer;
     private final Job job;
@@ -45,7 +49,16 @@ public class ContentTaggingJobScheduler {
     }
 
     public void runAfterContentImport(long contentImportExecutionId) {
+        if (!withinTaggingWindow(LocalTime.now(TAGGING_ZONE))) {
+            log.info("콘텐츠 태깅 운영 시간 밖이므로 수집 후 실행을 건너뜁니다. executionId={}",
+                contentImportExecutionId);
+            return;
+        }
         submit("content-import", contentImportExecutionId);
+    }
+
+    static boolean withinTaggingWindow(LocalTime time) {
+        return time.isBefore(TAGGING_WINDOW_END);
     }
 
     private void submit(String trigger, Long contentImportExecutionId) {
@@ -55,7 +68,7 @@ public class ContentTaggingJobScheduler {
         }
         ContentTaggingOpenAiCircuitBreaker.Permit permit;
         try {
-            permit = circuitBreaker.acquire(trigger);
+            permit = circuitBreaker.acquire();
         } catch (RuntimeException exception) {
             requested.set(false);
             log.warn("OpenAI 태깅 circuit 상태를 확인하지 못해 요청을 건너뜁니다. trigger={}", trigger,

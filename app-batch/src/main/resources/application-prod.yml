@@ -1,9 +1,8 @@
 spring:
   datasource:
-    # example address
-    url: "${DB_URL:jdbc:mysql://localhost:3306/moduplaylist?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}"
-    username: ${DB_USERNAME:mopl}
-    password: ${DB_PASSWORD:mopl}
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   jpa:
     hibernate:
@@ -17,7 +16,6 @@ spring:
   batch:
     job:
       enabled: false
-      #name: contentEmbeddingJob
     jdbc:
       initialize-schema: never
 
@@ -33,11 +31,13 @@ spring:
 
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
+      host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
+      ssl:
+        enabled: true
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -53,8 +53,8 @@ aws:
   access-key: ${AWS_ACCESS_KEY}
   secret-key: ${AWS_SECRET_KEY}
   s3:
-   region: ${AWS_REGION:ap-northeast-2}
-   bucket: ${AWS_S3_BUCKET:}
+    region: ${AWS_REGION:ap-northeast-2}
+    bucket: ${AWS_S3_BUCKET:}
 
 mopl:
   tmdb:
@@ -62,11 +62,13 @@ mopl:
     image-base-url: ${TMDB_IMAGE_BASE_URL:https://image.tmdb.org/t/p/original}
     access-token: ${TMDB_ACCESS_TOKEN:}
     timeout-seconds: ${TMDB_TIMEOUT_SECONDS:10}
+
   sports-db:
     api-base-url: ${SPORTS_DB_API_BASE_URL:https://www.thesportsdb.com/api/v1/json}
     api-key: ${SPORTS_DB_API_KEY:123}
     timeout-seconds: ${SPORTS_DB_TIMEOUT_SECONDS:10}
     request-interval-millis: ${SPORTS_DB_REQUEST_INTERVAL_MILLIS:2100}
+
   batch:
     content-import:
       scheduler:
@@ -74,6 +76,7 @@ mopl:
         cron: ${CONTENT_IMPORT_CRON:0 0 0 * * *}
         retry-cron: ${CONTENT_IMPORT_RETRY_CRON:0 30 * * * *}
         zone: Asia/Seoul
+
     embedding:
       scheduler:
         enabled: ${EMBEDDING_SCHEDULER_ENABLED:false}
@@ -83,6 +86,7 @@ mopl:
         user-profile-cron: ${USER_PROFILE_EMBEDDING_CRON:0 0 3 * * *}
         user-playlist-profile-cron: ${USER_PLAYLIST_PROFILE_EMBEDDING_CRON:0 30 3 * * *}
         zone: ${EMBEDDING_SCHEDULER_ZONE:Asia/Seoul}
+
     recommendation:
       activity-batch-size: ${RECOMMENDATION_ACTIVITY_BATCH_SIZE:500}
       scheduler:
@@ -90,6 +94,7 @@ mopl:
         cron: ${RECOMMENDATION_CRON:0 0 4 * * *}
         playlist-cron: ${PLAYLIST_RECOMMENDATION_CRON:0 30 4 * * *}
         zone: ${RECOMMENDATION_SCHEDULER_ZONE:Asia/Seoul}
+
     playlist-popularity:
       total-subscriber-weight: ${PLAYLIST_POPULARITY_TOTAL_SUBSCRIBER_WEIGHT:0.3}
       weekly-new-subscriber-weight: ${PLAYLIST_POPULARITY_WEEKLY_NEW_SUBSCRIBER_WEIGHT:0.7}
@@ -97,28 +102,26 @@ mopl:
         enabled: ${PLAYLIST_POPULARITY_SCHEDULER_ENABLED:false}
         cron: ${PLAYLIST_POPULARITY_CRON:0 10 0 * * *}
         zone: ${PLAYLIST_POPULARITY_SCHEDULER_ZONE:UTC}
+
     ai-playlist:
       owner-email: ${AI_PLAYLIST_OWNER_EMAIL:}
       scheduler:
         enabled: ${AI_PLAYLIST_SCHEDULER_ENABLED:false}
         cron: ${AI_PLAYLIST_CRON:0 0 5 * * MON}
         zone: ${AI_PLAYLIST_SCHEDULER_ZONE:Asia/Seoul}
-    watch-party-cleanup:
-      retention-days: ${WATCH_PARTY_CLEANUP_RETENTION_DAYS:14}
-      scheduler:
-        enabled: ${WATCH_PARTY_CLEANUP_SCHEDULER_ENABLED:true}
-        cron: ${WATCH_PARTY_CLEANUP_CRON:0 0 6 * * *}
-        zone: ${WATCH_PARTY_CLEANUP_SCHEDULER_ZONE:Asia/Seoul}
+
   recommendation:
     search-limit: ${RECOMMENDATION_SEARCH_LIMIT:100}
     cache-ttl: ${RECOMMENDATION_CACHE_TTL:48h}
+
   embedding:
     enabled: ${EMBEDDING_ENABLED:true}
     model: text-embedding-3-small
     dimensions: 1536
+
   opensearch:
     enabled: ${OPENSEARCH_ENABLED:true}
-    uris: ${OPENSEARCH_URIS:http://localhost:9200}
+    uris: ${OPENSEARCH_URIS}
     username: ${OPENSEARCH_USERNAME:}
     password: ${OPENSEARCH_PASSWORD:}
     user-content-preference-index: user-content-preference-index
