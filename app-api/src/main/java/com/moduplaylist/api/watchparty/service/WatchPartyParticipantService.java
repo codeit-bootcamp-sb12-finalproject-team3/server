@@ -11,11 +11,14 @@ import com.moduplaylist.core.watchparty.entity.WatchPartyParticipant;
 import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import com.moduplaylist.core.watchparty.exception.*;
 import com.moduplaylist.core.watchparty.repository.*;
+
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +38,10 @@ public class WatchPartyParticipantService {
     private final WatchPartyActivePartyRegistry watchPartyActivePartyRegistry;
     private final ApplicationEventPublisher eventPublisher;
     private final WatchPartyGhostCleaner watchPartyGhostCleaner;
+    // 시작 몇 분 전부터 참가(입장)할 수 있는지 (기본 30분).
+    // 바꾸려면 아래 기본값을 수정하거나 환경변수 MOPL_WATCH_PARTY_LOBBY_OPEN_MINUTES 설정
+    @Value("${mopl.watch-party.lobby-open-minutes:30}")
+    private long lobbyOpenMinutes;
 
     public void joinWatchParty(UUID partyId, UUID userId) {
         if (watchPartyKickedRegistry.isKicked(partyId, userId)) {
@@ -53,6 +60,13 @@ public class WatchPartyParticipantService {
         }
         if (party.getHost().getId().equals(userId)) {
             throw new WatchPartyHostCannotJoinException(partyId, userId);
+        }
+
+        if (party.getStatus() == WatchPartyStatus.SCHEDULED) {
+            Instant opensAt = party.getScheduledAt().minus(Duration.ofMinutes(lobbyOpenMinutes));
+            if (Instant.now().isBefore(opensAt)) {
+                throw new WatchPartyLobbyNotOpenException(partyId, opensAt);
+            }
         }
 
         Optional<WatchPartyParticipant> existing =
