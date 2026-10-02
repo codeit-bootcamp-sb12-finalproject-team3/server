@@ -23,7 +23,8 @@ public class CorsConfig {
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:3000",
                 "http://localhost:5173",
-                "https://db12plwo4froe.cloudfront.net"
+                "https://db12plwo4froe.cloudfront.net",
+                "https://mopl.click"
         ));
 
         configuration.setAllowedMethods(List.of(

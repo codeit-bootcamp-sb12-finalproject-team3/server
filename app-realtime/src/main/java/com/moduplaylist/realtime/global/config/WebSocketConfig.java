@@ -43,7 +43,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .setAllowedOriginPatterns(
                         "http://localhost:3000",
                         "http://localhost:5173",
-                        "https://db12plwo4froe.cloudfront.net"
+                        "https://db12plwo4froe.cloudfront.net",
+                        "https://mopl.click"
                 )
                 .withSockJS();
     }
