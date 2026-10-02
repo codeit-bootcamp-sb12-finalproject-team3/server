@@ -607,7 +607,11 @@ public class TmdbContentImportService {
         String resolvedSeasonName = seasonName != null
             ? seasonName
             : number == 0 ? "스페셜" : "시즌 " + number;
-        String title = limit(series.getTitle() + " " + resolvedSeasonName, 255);
+        boolean isDefaultFirstSeasonName = number == 1
+            && (resolvedSeasonName.equals("시즌 1")
+                || resolvedSeasonName.equalsIgnoreCase("Season 1"));
+        String title = limit(series.getTitle()
+            + (isDefaultFirstSeasonName ? "" : " " + resolvedSeasonName), 255);
         String description = firstText(ko, en, "overview");
         String originalTitle = limit(
             text(seriesKo, "original_name", series.getTitle()), 255);
