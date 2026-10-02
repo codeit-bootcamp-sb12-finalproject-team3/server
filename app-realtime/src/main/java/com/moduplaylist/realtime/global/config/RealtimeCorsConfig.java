@@ -12,7 +12,8 @@ public class RealtimeCorsConfig implements WebMvcConfigurer {
         registry.addMapping("/api/sse")
                 .allowedOrigins(
                         "http://localhost:3000",
-                        "http://localhost:5173"
+                        "http://localhost:5173",
+                        "https://db12plwo4froe.cloudfront.net"
                 )
                 .allowedMethods("GET", "OPTIONS")
                 .allowedHeaders("*")

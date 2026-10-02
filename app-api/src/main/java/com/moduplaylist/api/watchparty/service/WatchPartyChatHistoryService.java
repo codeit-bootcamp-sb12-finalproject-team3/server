@@ -1,6 +1,7 @@
 package com.moduplaylist.api.watchparty.service;
 
 import com.moduplaylist.api.watchparty.dto.WatchPartyChatMessageResponse;
+import com.moduplaylist.api.user.dto.UserSummary;
 import com.moduplaylist.core.common.exception.BaseException;
 import com.moduplaylist.core.common.exception.ErrorCode;
 import com.moduplaylist.core.watchparty.entity.ParticipantStatus;
@@ -9,11 +10,15 @@ import com.moduplaylist.core.watchparty.exception.WatchPartyNotFoundException;
 import com.moduplaylist.core.watchparty.repository.WatchPartyChatLogRegistry;
 import com.moduplaylist.core.watchparty.repository.WatchPartyParticipantRepository;
 import com.moduplaylist.core.watchparty.repository.WatchPartyRepository;
+import com.moduplaylist.core.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +29,7 @@ public class WatchPartyChatHistoryService {
     private final WatchPartyRepository watchPartyRepository;
     private final WatchPartyParticipantRepository watchPartyParticipantRepository;
     private final WatchPartyChatLogRegistry watchPartyChatLogRegistry;
+    private final UserRepository userRepository;
 
     public List<WatchPartyChatMessageResponse> getRecentMessages(UUID partyId, UUID userId, int limit) {
         validateLimit(limit);
@@ -36,8 +42,19 @@ public class WatchPartyChatHistoryService {
             throw new WatchPartyChatAccessDeniedException(partyId, userId);
         }
 
-        return watchPartyChatLogRegistry.findRecent(partyId, limit).stream()
-                .map(WatchPartyChatMessageResponse::from)
+        var messages = watchPartyChatLogRegistry.findRecent(partyId, limit);
+        var senderIds = messages.stream()
+                .map(message -> message.getSenderId())
+                .distinct()
+                .toList();
+        Map<UUID, UserSummary> sendersById = userRepository.findAllById(senderIds).stream()
+                .map(UserSummary::from)
+                .collect(Collectors.toMap(UserSummary::getUserId, Function.identity()));
+
+        return messages.stream()
+                .map(message -> WatchPartyChatMessageResponse.from(
+                        message,
+                        sendersById.get(message.getSenderId())))
                 .toList();
     }
 
