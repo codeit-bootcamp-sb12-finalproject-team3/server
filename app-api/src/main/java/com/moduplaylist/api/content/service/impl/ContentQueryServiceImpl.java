@@ -90,7 +90,7 @@ import org.springframework.data.domain.PageRequest;
 @Slf4j
 public class ContentQueryServiceImpl implements ContentQueryService {
 
-	private static final ContentSort DEFAULT_SORT = ContentSort.LATEST;
+	private static final ContentSort DEFAULT_SORT = ContentSort.RATING;
 	private static final int AUTOCOMPLETE_LIMIT = 10;
 	private static final int AUTOCOMPLETE_CANDIDATE_LIMIT = 30;
 	private static final int ADMIN_SERIES_SEARCH_LIMIT = 10;

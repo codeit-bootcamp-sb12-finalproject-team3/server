@@ -27,6 +27,7 @@ public class ContentTaggingTasklet implements Tasklet {
 
     private final ContentRepository contents;
     private final TmdbKeywordService keywords;
+    private final ContentExternalEvidenceService evidence;
     private final ContentTaggingStore store;
     private final ContentTagGenerator generator;
     private final ContentTagGuard guard;
@@ -63,6 +64,36 @@ public class ContentTaggingTasklet implements Tasklet {
                     afterId = id;
                     processed++;
                     keywords.ensureKeywords(id);
+                    long researchStarted = System.nanoTime();
+                    ResearchAttempt research = properties.getResearch().isEnabled()
+                        ? ensureEvidence(id) : new ResearchAttempt(true, null, 0);
+                    if (research.failure() != null) {
+                        ContentTaggingException failure = research.failure();
+                        boolean providerFailure = failure.getMessage().startsWith("AI_API_");
+                        consecutiveProviderFailures = providerFailure
+                            ? consecutiveProviderFailures + 1 : 0;
+                        log.warn("콘텐츠 외부 근거 조회 보류 contentId={}, reason={}, calls={}, elapsedMs={}",
+                            id, failure.getMessage(), research.calls(),
+                            (System.nanoTime() - researchStarted) / 1_000_000);
+                        if (providerFailure) {
+                            boolean permanentFailure = isPermanentProviderFailure(failure);
+                            if (probe) {
+                                circuitBreaker.probeFailed(probeToken, permanentFailure);
+                                probeResolved = true;
+                                return RepeatStatus.FINISHED;
+                            }
+                            if (failure.isAbortJob()
+                                || consecutiveProviderFailures >= PROVIDER_FAILURE_CIRCUIT_THRESHOLD) {
+                                circuitBreaker.openAfterConsecutiveFailures(permanentFailure);
+                                return RepeatStatus.FINISHED;
+                            }
+                        }
+                        continue;
+                    }
+                    if (!research.ready()) {
+                        log.info("콘텐츠 외부 근거 조회 보류 contentId={}, reason=SOURCE_CHANGED", id);
+                        continue;
+                    }
                     var snapshot = store.load(id);
                     if (snapshot == null) continue;
                     long started = System.nanoTime();
@@ -160,6 +191,22 @@ public class ContentTaggingTasklet implements Tasklet {
         }
     }
 
+    private ResearchAttempt ensureEvidence(UUID id) {
+        int calls = 0;
+        while (true) {
+            try {
+                calls++;
+                return new ResearchAttempt(evidence.ensureEvidence(id), null, calls);
+            } catch (ContentTaggingException exception) {
+                if (calls == 1 && exception.isRetryable() && !exception.isAbortJob()) {
+                    awaitRetry(exception.getRetryAfterMillis());
+                    continue;
+                }
+                return new ResearchAttempt(false, exception, calls);
+            }
+        }
+    }
+
     private static void awaitRetry(long retryAfterMillis) {
         try {
             Thread.sleep(Math.max(retryAfterMillis, 500 + ThreadLocalRandom.current().nextLong(250)));
@@ -176,4 +223,6 @@ public class ContentTaggingTasklet implements Tasklet {
             default -> false;
         };
     }
+
+    private record ResearchAttempt(boolean ready, ContentTaggingException failure, int calls) { }
 }

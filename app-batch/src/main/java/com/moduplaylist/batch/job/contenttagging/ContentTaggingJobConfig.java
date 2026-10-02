@@ -1,8 +1,10 @@
 package com.moduplaylist.batch.job.contenttagging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moduplaylist.core.content.ai.ContentEvidenceResearcher;
 import com.moduplaylist.core.content.ai.ContentTagGenerator;
 import com.moduplaylist.core.content.repository.ContentRepository;
+import com.moduplaylist.infrastructure.ai.content.OpenAiContentEvidenceResearcher;
 import com.moduplaylist.infrastructure.ai.content.SpringAiContentTagGenerator;
 import com.moduplaylist.infrastructure.opensearch.content.ContentIndexSynchronizer;
 import org.springframework.batch.core.Job;
@@ -38,11 +40,33 @@ public class ContentTaggingJobConfig {
     }
 
     @Bean
+    public ContentEvidenceResearcher contentEvidenceResearcher(ObjectMapper mapper,
+        @Value("${spring.ai.openai.api-key:}") String key,
+        @Value("${spring.ai.openai.base-url:https://api.openai.com}") String baseUrl,
+        ContentTaggingProperties properties) {
+        var research = properties.getResearch();
+        if (research.getCacheDays() <= 0) {
+            throw new IllegalStateException("Invalid content research cache duration");
+        }
+        return new OpenAiContentEvidenceResearcher(mapper, key, baseUrl, research.getModel(),
+            research.getTimeoutSeconds(), research.getMaxTokens(), research.getMaxFacts(),
+            research.getMaxSources());
+    }
+
+    @Bean
+    public ContentExternalEvidenceService contentExternalEvidenceService(ContentRepository contents,
+        ContentEvidenceResearcher researcher, ObjectMapper mapper, PlatformTransactionManager transactions,
+        ContentTaggingProperties properties) {
+        return new ContentExternalEvidenceService(contents, researcher, mapper, transactions, properties);
+    }
+
+    @Bean
     public ContentTaggingTasklet contentTaggingTasklet(ContentRepository contents, TmdbKeywordService keywords,
-        ContentTaggingStore store, ContentTagGenerator generator, ContentTagGuard guard,
+        ContentExternalEvidenceService evidence, ContentTaggingStore store, ContentTagGenerator generator,
+        ContentTagGuard guard,
         ContentTaggingProperties properties, ContentIndexSynchronizer indexSynchronizer,
         ContentTaggingOpenAiCircuitBreaker circuitBreaker) {
-        return new ContentTaggingTasklet(contents, keywords, store, generator, guard, properties,
+        return new ContentTaggingTasklet(contents, keywords, evidence, store, generator, guard, properties,
             indexSynchronizer, circuitBreaker);
     }
 

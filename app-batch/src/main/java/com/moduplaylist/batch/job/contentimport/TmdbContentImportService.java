@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.IntFunction;
+import java.util.regex.Pattern;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceContext;
@@ -50,6 +51,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class TmdbContentImportService {
     private static final String SOURCE = "TMDB";
     private static final int CAST_LIMIT = 10;
+    private static final Pattern HANGUL_SYLLABLE = Pattern.compile("[가-힣]");
 
     private final TmdbContentClient tmdbClient;
     private final TmdbKeywordService keywordService;
@@ -314,7 +316,7 @@ public class TmdbContentImportService {
         String description = firstText(ko, en, "overview");
         JsonNode genres = hasValidGenres(ko.path("genres"))
             ? ko.path("genres") : en.path("genres");
-        if (title == null || description == null || !hasValidGenres(genres)) {
+        if (!hasHangul(title) || !hasHangul(description) || !hasValidGenres(genres)) {
             metrics.missingRequired();
             log.info("TMDB 영화 필수 정보가 없어 건너뜁니다. tmdbId={}", id);
             return;
@@ -429,8 +431,12 @@ public class TmdbContentImportService {
         if (candidates.isEmpty()) return false;
 
         JsonNode en = tmdbClient.tvDetails(seriesId, "en-US");
-        if (series == null && firstText(ko, en, "name") == null
-            && text(ko, "original_name", null) == null) {
+        String seriesTitle = series == null
+            ? firstText(ko, en, "name") : series.getTitle();
+        if (seriesTitle == null && series == null) {
+            seriesTitle = text(ko, "original_name", null);
+        }
+        if (!hasHangul(seriesTitle) || !hasHangul(firstText(ko, en, "overview"))) {
             metrics.missingRequired();
             return false;
         }
@@ -528,7 +534,7 @@ public class TmdbContentImportService {
     }
 
     private static boolean missingSeasonRequired(SeasonData data, JsonNode genres) {
-        return firstText(data.ko(), data.en(), "overview") == null
+        return !hasHangul(firstText(data.ko(), data.en(), "overview"))
             || !hasValidGenres(genres);
     }
 
@@ -601,7 +607,11 @@ public class TmdbContentImportService {
         String resolvedSeasonName = seasonName != null
             ? seasonName
             : number == 0 ? "스페셜" : "시즌 " + number;
-        String title = limit(series.getTitle() + " " + resolvedSeasonName, 255);
+        boolean isDefaultFirstSeasonName = number == 1
+            && (resolvedSeasonName.equals("시즌 1")
+                || resolvedSeasonName.equalsIgnoreCase("Season 1"));
+        String title = limit(series.getTitle()
+            + (isDefaultFirstSeasonName ? "" : " " + resolvedSeasonName), 255);
         String description = firstText(ko, en, "overview");
         String originalTitle = limit(
             text(seriesKo, "original_name", series.getTitle()), 255);
@@ -1040,6 +1050,9 @@ public class TmdbContentImportService {
     private static String firstText(JsonNode primary, JsonNode fallback, String field) {
         String value = text(primary, field, null);
         return value != null ? value : text(fallback, field, null);
+    }
+    private static boolean hasHangul(String value) {
+        return value != null && HANGUL_SYLLABLE.matcher(value).find();
     }
     private static String text(JsonNode node, String field, String fallback) {
         String value = node.path(field).asText("").strip();

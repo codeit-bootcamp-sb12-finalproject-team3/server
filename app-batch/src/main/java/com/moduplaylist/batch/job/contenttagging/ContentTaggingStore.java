@@ -2,6 +2,7 @@ package com.moduplaylist.batch.job.contenttagging;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moduplaylist.core.content.ai.ContentExternalEvidence;
 import com.moduplaylist.core.content.ai.ContentTagInput;
 import com.moduplaylist.core.content.entity.Content;
 import com.moduplaylist.core.content.entity.Content.AiTaggingStatus;
@@ -14,12 +15,18 @@ import com.moduplaylist.core.content.repository.ContentTagRepository;
 import com.moduplaylist.core.content.repository.TagRepository;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,23 +34,28 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class ContentTaggingStore {
+    private static final int SIBLING_CANDIDATE_QUERY_LIMIT = 10;
+    private static final int MAX_SERIES_CANDIDATES = 3;
     private final ContentRepository contents;
     private final ContentGenreRepository genres;
     private final ContentTagRepository contentTags;
     private final TagRepository tags;
+    private final ContentTagGuard guard;
     private final ObjectMapper mapper;
+    private final ContentTaggingProperties properties;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Snapshot load(UUID id) {
         Content content = lockTarget(id);
-        return content == null ? null : snapshot(content);
+        return content == null ? null : snapshot(content, true);
     }
 
     /** LLM calls never run inside this transaction. False means the snapshot is no longer current. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean complete(UUID id, Snapshot expected, List<String> names) {
         Content content = lockTarget(id);
-        if (content == null || !snapshot(content).fingerprint().equals(expected.fingerprint())) return false;
+        Snapshot current = content == null ? null : snapshot(content, false);
+        if (current == null || !current.fingerprint().equals(expected.fingerprint())) return false;
         if (names.size() > 3 || names.stream().distinct().count() != names.size()) {
             throw new IllegalArgumentException("Invalid verified tags");
         }
@@ -71,7 +83,15 @@ public class ContentTaggingStore {
         return content;
     }
 
-    private Snapshot snapshot(Content content) {
+    private Snapshot snapshot(Content content, boolean includeCandidates) {
+        boolean researchRequired = properties.getResearch().isEnabled()
+            && ContentResearchPolicy.needsWebSearch(content.getDescription());
+        String researchIdentityHash = researchRequired ? ContentResearchCache.identityHash(content,
+            ContentResearchCache.input(content), mapper) : null;
+        ContentResearchCache.Cached research = researchRequired ? ContentResearchCache.read(
+            content, researchIdentityHash, Instant.now(), properties.getResearch().getCacheDays(),
+            properties.getResearch().getMaxFacts(), properties.getResearch().getMaxSources()) : null;
+        if (researchRequired && research == null) return null;
         Content owner = content.getType() == ContentType.TV_SEASON ? content.getParentContent() : content;
         Map<String, Object> metadata = owner.getMetadata() == null ? Map.of() : owner.getMetadata();
         List<String> keywords = metadata.get("tmdbKeywords") instanceof List<?> entries
@@ -79,19 +99,30 @@ public class ContentTaggingStore {
                 .map(item -> item.get("name")).filter(String.class::isInstance).map(String.class::cast)
                 .filter(ContentTagGuard::usableKeyword).map(ContentTagGuard::normalize).distinct().limit(30).toList()
             : List.of();
-        List<String> genreNames = genres.findAllWithGenreByContentIdIn(List.of(content.getId())).stream()
+        var genreRelations = genres.findAllWithGenreByContentIdIn(List.of(content.getId()));
+        List<String> genreNames = genreRelations.stream()
             .map(relation -> relation.getGenre().getName()).sorted()
             .map(name -> ContentTagGuard.inputText(name, 80)).distinct().limit(20).toList();
-        List<String> existing = contentTags.findAllWithTagByContentIdIn(List.of(content.getId())).stream()
+        List<String> current = contentTags.findAllWithTagByContentIdIn(List.of(content.getId())).stream()
             .map(relation -> relation.getTag().getName()).sorted().toList();
+        List<ContentExternalEvidence> evidence = researchRequired ? research.facts() : List.of();
+        List<String> seriesCandidates = includeCandidates
+            ? seriesTagCandidates(content, current, evidence) : List.of();
         ContentTagInput input = new ContentTagInput(content.getType().getValue(),
             ContentTagGuard.inputText(content.getTitle(), 255), genreNames,
             ContentTagGuard.inputText(content.getDescription(), 4000), keywords,
-            content.getType() == ContentType.TV_SEASON ? "SERIES" : "MOVIE", existing);
+            content.getType() == ContentType.TV_SEASON ? "SERIES" : "MOVIE", current,
+            seriesCandidates, evidence);
         boolean fetched = TmdbKeywordService.successful(metadata);
         try {
-            // Include identity and fetch status so a moved season or completed backfill invalidates old results.
-            byte[] bytes = mapper.writeValueAsBytes(List.of(input, owner.getId(), fetched));
+            // Candidate rankings are mutable global context, not source state for this content.
+            var fingerprintSource = new FingerprintSource(input.type(), input.title(), input.genres(),
+                input.description(), input.tmdbKeywords(), input.keywordScope(), input.currentTags(),
+                input.externalEvidence(), researchRequired ? ContentResearchCache.VERSION
+                    : properties.getResearch().isEnabled() ? "skipped-long-description" : "disabled",
+                researchIdentityHash,
+                owner.getId(), fetched);
+            byte[] bytes = mapper.writeValueAsBytes(fingerprintSource);
             String fingerprint = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
             return new Snapshot(input, fingerprint);
         } catch (JsonProcessingException | NoSuchAlgorithmException exception) {
@@ -99,5 +130,64 @@ public class ContentTaggingStore {
         }
     }
 
+    private List<String> seriesTagCandidates(Content content, List<String> currentTags,
+                                             List<ContentExternalEvidence> evidence) {
+        if (content.getType() != ContentType.TV_SEASON || content.getParentContent() == null) {
+            return List.of();
+        }
+        Map<String, String> candidates = new LinkedHashMap<>();
+        Set<String> excludedKeys = currentTags.stream().map(this::canonicalKey)
+            .collect(Collectors.toSet());
+        addSeriesCandidates(candidates, excludedKeys,
+            contentTags.findCanonicalNamesFromSiblingSeasons(content.getParentContent().getId(),
+                content.getId(), TagSource.MANUAL,
+                PageRequest.of(0, SIBLING_CANDIDATE_QUERY_LIMIT)));
+        // AI sibling tags are suggestions only: require usable series-wide evidence for this season.
+        List<String> seriesFacts = evidence.stream()
+            .filter(fact -> fact.scope() == ContentExternalEvidence.Scope.SERIES
+                && ContentTagGuard.usableExternalEvidence(fact, content.getType().getValue()))
+            .map(fact -> ContentTagGuard.normalize(fact.text()).toLowerCase(Locale.ROOT)).toList();
+        if (!seriesFacts.isEmpty()) {
+            addSeriesCandidates(candidates, excludedKeys,
+                contentTags.findCanonicalNamesFromSiblingSeasons(content.getParentContent().getId(),
+                    content.getId(), TagSource.AI,
+                    PageRequest.of(0, SIBLING_CANDIDATE_QUERY_LIMIT)).stream()
+                    .filter(name -> seriesFacts.stream().anyMatch(fact ->
+                        fact.contains(ContentTagGuard.normalize(guard.canonical(name))
+                            .toLowerCase(Locale.ROOT))))
+                    .toList());
+        }
+        return List.copyOf(candidates.values());
+    }
+
+    private void addSeriesCandidates(Map<String, String> candidates, Set<String> excludedKeys,
+                                     List<String> names) {
+        for (String name : names) {
+            String canonical = guard.canonical(name);
+            String key = canonicalKey(canonical);
+            if (!canonical.isBlank() && !excludedKeys.contains(key)) candidates.putIfAbsent(key, canonical);
+            if (candidates.size() == MAX_SERIES_CANDIDATES) return;
+        }
+    }
+
+    private String canonicalKey(String value) {
+        return guard.canonical(value).toLowerCase(Locale.ROOT);
+    }
+
     public record Snapshot(ContentTagInput input, String fingerprint) { }
+
+    private record FingerprintSource(
+        String type,
+        String title,
+        List<String> genres,
+        String description,
+        List<String> tmdbKeywords,
+        String keywordScope,
+        List<String> currentTags,
+        List<ContentExternalEvidence> externalEvidence,
+        String researchVersion,
+        String researchIdentityHash,
+        UUID ownerId,
+        boolean keywordsFetched
+    ) { }
 }
