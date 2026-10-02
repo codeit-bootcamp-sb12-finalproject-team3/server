@@ -39,6 +39,8 @@ public interface WatchPartyRepository extends JpaRepository<WatchParty, UUID> {
             Pageable pageable
     );
 
+    List<WatchParty> findAllByStatus(WatchPartyStatus status);
+
     @Modifying(clearAutomatically = true)
     @Query("delete from WatchParty w where w.id in :ids")
     int deleteAllByIdIn(@Param("ids") List<UUID> ids);

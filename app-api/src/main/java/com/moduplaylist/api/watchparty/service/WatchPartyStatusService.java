@@ -62,15 +62,26 @@ public class WatchPartyStatusService {
 
 
     public void endWatchParty(UUID partyId, UUID hostId) {
-        WatchParty party = watchPartyRepository.findById(partyId)
+        // 스케줄러 자동 종료와 동시에 실행돼도 한 번만 종료되도록 락을 잡고 읽는다
+        WatchParty party = watchPartyRepository.findByIdForUpdate(partyId)
                 .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
 
         if (!party.getHost().getId().equals(hostId)) {
             throw new WatchPartyHostOnlyException(partyId, hostId);
         }
 
-        party.end();
-        eventPublisher.publishEvent(new WatchPartyEndedEvent(UUID.randomUUID(), partyId));
+        endInternal(party);
+    }
 
+    // 스케줄러 전용: 방장 검증 없이, 아직 LIVE일 때만 종료 (이미 종료됐으면 조용히 건너뜀)
+    public void autoEndIfLive(UUID partyId) {
+        watchPartyRepository.findByIdForUpdate(partyId)
+                .filter(party -> party.getStatus() == WatchPartyStatus.LIVE)
+                .ifPresent(this::endInternal);
+    }
+
+    private void endInternal(WatchParty party) {
+        party.end();
+        eventPublisher.publishEvent(new WatchPartyEndedEvent(UUID.randomUUID(), party.getId()));
     }
 }
