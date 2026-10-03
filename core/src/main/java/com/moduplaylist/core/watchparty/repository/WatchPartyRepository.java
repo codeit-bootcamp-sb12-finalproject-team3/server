@@ -20,6 +20,13 @@ public interface WatchPartyRepository extends JpaRepository<WatchParty, UUID> {
     @Query("select w from WatchParty w where w.id = :id")
     Optional<WatchParty> findByIdForUpdate(@Param("id") UUID id);
 
+    // 자동 시작 대상: 아직 SCHEDULED인데 시작 시각이 (since, now] 구간에 있는 파티
+    @Query("select w.id from WatchParty w "
+            + "where w.status = :status and w.scheduledAt <= :now and w.scheduledAt > :since")
+    List<UUID> findIdsToAutoStart(@Param("status") WatchPartyStatus status,
+                                  @Param("now") Instant now,
+                                  @Param("since") Instant since);
+
     @Query("""
         select w.id from WatchParty w
         where w.status = :status and w.endedAt < :endedBefore
@@ -31,6 +38,8 @@ public interface WatchPartyRepository extends JpaRepository<WatchParty, UUID> {
             @Param("endedBefore") Instant endedBefore,
             Pageable pageable
     );
+
+    List<WatchParty> findAllByStatus(WatchPartyStatus status);
 
     @Modifying(clearAutomatically = true)
     @Query("delete from WatchParty w where w.id in :ids")

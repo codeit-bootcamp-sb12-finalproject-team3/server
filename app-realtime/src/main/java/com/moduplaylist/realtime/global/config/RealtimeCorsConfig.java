@@ -13,7 +13,8 @@ public class RealtimeCorsConfig implements WebMvcConfigurer {
                 .allowedOrigins(
                         "http://localhost:3000",
                         "http://localhost:5173",
-                        "https://db12plwo4froe.cloudfront.net"
+                        "https://db12plwo4froe.cloudfront.net",
+                        "https://mopl.click"
                 )
                 .allowedMethods("GET", "OPTIONS")
                 .allowedHeaders("*")

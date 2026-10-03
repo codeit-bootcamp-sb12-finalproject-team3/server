@@ -114,7 +114,8 @@ public enum ErrorCode {
     WATCHPARTY_CHAT_ACCESS_DENIED("강퇴된 방의 채팅 이력은 볼 수 없습니다."),
     WATCHPARTY_REMINDER_ALREADY_EXISTS("이미 시작 알림을 설정했습니다."),
     WATCHPARTY_REMINDER_NOT_FOUND("설정된 시작 알림이 없습니다."),
-    WATCHPARTY_HOST_CANNOT_SET_REMINDER("방장은 시작 알림 설정 대상이 아닙니다.");
+    WATCHPARTY_HOST_CANNOT_SET_REMINDER("방장은 시작 알림 설정 대상이 아닙니다."),
+    WATCHPARTY_LOBBY_NOT_OPEN("아직 입장할 수 없는 시간입니다.");
 
 
     private final String message;
