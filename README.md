@@ -107,50 +107,6 @@ MOPL(ModuPlaylist)은 영화, TV 시리즈·시즌, 스포츠 등 여러 종류�
   <img src="https://img.shields.io/badge/Gradle-02303A?style=for-the-badge&logo=gradle&logoColor=white" alt="Gradle">
 </p>
 
-## 시스템 아키텍처
-
-```mermaid
-flowchart LR
-    Client[Web Client]
-
-    subgraph Application
-        API[app-api<br/>REST API]
-        RT[app-realtime<br/>WebSocket / SSE]
-        Batch[app-batch<br/>Batch / Scheduler]
-    end
-
-    subgraph Shared Modules
-        Core[core<br/>Domain / JPA]
-        Infra[infrastructure<br/>External Adapters]
-    end
-
-    Client -->|HTTP| API
-    Client <-->|STOMP / SSE| RT
-
-    API --> Core
-    API --> Infra
-    Batch --> Core
-    Batch --> Infra
-
-    Core --> MySQL[(MySQL)]
-    Infra --> Redis[(Redis)]
-    Infra --> Kafka[(Kafka)]
-    Infra --> OpenSearch[(OpenSearch)]
-    Infra --> S3[(AWS S3)]
-    Infra --> External[TMDB / TheSportsDB / OpenAI]
-
-    RT <--> Redis
-    RT <--> Kafka
-```
-
-### 핵심 데이터 흐름
-
-- **개인화 추천:** 초기 선호와 사용자 활동을 MySQL에 누적하고, 사용자·콘텐츠 임베딩을 OpenSearch에 저장해 kNN 유사도 검색을 수행한 뒤 결과를 Redis에 캐시합니다.
-- **실시간 인기:** 콘텐츠 활동 이벤트를 Kafka로 전달하고, Redis의 시간 단위 Sorted Set에 가중치를 집계해 최근 24시간 인기 순위를 계산합니다.
-- **검색:** OpenSearch의 키워드 검색과 벡터 검색 결과를 결합해 제목·출연진 검색과 의미 기반 탐색을 함께 제공합니다.
-- **실시간 통신:** WebSocket/STOMP는 Watch Party와 DM을, SSE는 사용자 알림을 담당하며 Kafka와 Redis를 통해 인스턴스 간 상태를 공유합니다.
-- **배치 처리:** 콘텐츠 수집·태깅·임베딩·추천 계산과 데이터 정리 작업을 API 요청 처리와 분리합니다.
-
 ## 모듈 및 패키지 구조
 
 ### 멀티모듈 구성
