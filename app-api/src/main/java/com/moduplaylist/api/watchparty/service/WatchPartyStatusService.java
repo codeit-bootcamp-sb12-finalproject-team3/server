@@ -4,6 +4,7 @@ import com.moduplaylist.api.watchparty.event.WatchPartyEndedEvent;
 import com.moduplaylist.api.watchparty.event.WatchPartyStartedEvent;
 import com.moduplaylist.core.watchparty.entity.WatchParty;
 import com.moduplaylist.core.watchparty.entity.WatchPartyPlaybackStatus;
+import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import com.moduplaylist.core.watchparty.exception.WatchPartyHostOnlyException;
 import com.moduplaylist.core.watchparty.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -24,13 +25,25 @@ public class WatchPartyStatusService {
 
 
     public void startWatchParty(UUID partyId, UUID hostId) {
-        WatchParty party = watchPartyRepository.findById(partyId)
+        // 스케줄러 자동 시작과 동시에 실행돼도 한 번만 시작되도록 락을 잡고 읽는다
+        WatchParty party = watchPartyRepository.findByIdForUpdate(partyId)
                 .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
 
         if (!party.getHost().getId().equals(hostId)) {
             throw new WatchPartyHostOnlyException(partyId, hostId);
         }
 
+        startInternal(party);
+    }
+
+    // 스케줄러 전용: 방장 검증 없이, 아직 SCHEDULED일 때만 시작 (이미 시작됐으면 조용히 건너뜀)
+    public void autoStartIfScheduled(UUID partyId) {
+        watchPartyRepository.findByIdForUpdate(partyId)
+                .filter(party -> party.getStatus() == WatchPartyStatus.SCHEDULED)
+                .ifPresent(this::startInternal);
+    }
+
+    private void startInternal(WatchParty party) {
         party.start();
 
         long now = System.currentTimeMillis();
@@ -41,23 +54,34 @@ public class WatchPartyStatusService {
                 null,              // pausedAt — 시작 시점엔 일시정지 아니므로 null
                 party.getStartEpisode(),
                 party.getEndEpisode(),
-                hostId,
+                party.getHost().getId(),
                 now
         );
-        eventPublisher.publishEvent(new WatchPartyStartedEvent(UUID.randomUUID(), partyId, state));
+        eventPublisher.publishEvent(new WatchPartyStartedEvent(UUID.randomUUID(), party.getId(), state));
     }
 
 
     public void endWatchParty(UUID partyId, UUID hostId) {
-        WatchParty party = watchPartyRepository.findById(partyId)
+        // 스케줄러 자동 종료와 동시에 실행돼도 한 번만 종료되도록 락을 잡고 읽는다
+        WatchParty party = watchPartyRepository.findByIdForUpdate(partyId)
                 .orElseThrow(() -> new WatchPartyNotFoundException(partyId));
 
         if (!party.getHost().getId().equals(hostId)) {
             throw new WatchPartyHostOnlyException(partyId, hostId);
         }
 
-        party.end();
-        eventPublisher.publishEvent(new WatchPartyEndedEvent(UUID.randomUUID(), partyId));
+        endInternal(party);
+    }
 
+    // 스케줄러 전용: 방장 검증 없이, 아직 LIVE일 때만 종료 (이미 종료됐으면 조용히 건너뜀)
+    public void autoEndIfLive(UUID partyId) {
+        watchPartyRepository.findByIdForUpdate(partyId)
+                .filter(party -> party.getStatus() == WatchPartyStatus.LIVE)
+                .ifPresent(this::endInternal);
+    }
+
+    private void endInternal(WatchParty party) {
+        party.end();
+        eventPublisher.publishEvent(new WatchPartyEndedEvent(UUID.randomUUID(), party.getId()));
     }
 }

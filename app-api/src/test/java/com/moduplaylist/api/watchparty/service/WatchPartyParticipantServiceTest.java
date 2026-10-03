@@ -10,7 +10,11 @@ import com.moduplaylist.core.watchparty.entity.WatchPartyStatus;
 import com.moduplaylist.core.watchparty.exception.WatchPartyAlreadyEndedException;
 import com.moduplaylist.core.watchparty.exception.WatchPartyCapacityFullException;
 import com.moduplaylist.core.watchparty.exception.WatchPartyKickedCannotRejoinException;
+import com.moduplaylist.core.watchparty.exception.WatchPartyLobbyNotOpenException;
 import com.moduplaylist.core.watchparty.repository.*;
+
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -136,6 +140,36 @@ class WatchPartyParticipantServiceTest {
 
         verify(participantRepository, never()).markLeftIfJoined(any(), any());
         verifyNoInteractions(joinedRegistry, activePartyRegistry, eventPublisher);
+    }
+
+    @Test
+    void cannotJoinBeforeLobbyOpens() {
+        ReflectionTestUtils.setField(service, "lobbyOpenMinutes", 30L);
+        User host = User.create("host@test.com", "encodedPw", "host");
+        ReflectionTestUtils.setField(host, "id", UUID.randomUUID());
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(watchPartyRepository.findByIdForUpdate(partyId)).willReturn(Optional.of(party));
+        given(party.getStatus()).willReturn(WatchPartyStatus.SCHEDULED);
+        given(party.getHost()).willReturn(host);
+        given(party.getScheduledAt()).willReturn(Instant.now().plus(Duration.ofMinutes(31)));
+
+        assertThatThrownBy(() -> service.joinWatchParty(partyId, userId))
+                .isInstanceOf(WatchPartyLobbyNotOpenException.class);
+
+        verify(participantRepository, never()).save(any());
+        verifyNoInteractions(joinedRegistry, activePartyRegistry, eventPublisher);
+    }
+
+    @Test
+    void canJoinWithinLobbyWindow() {
+        ReflectionTestUtils.setField(service, "lobbyOpenMinutes", 30L);
+        givenJoinableParty(10, Optional.empty());
+        given(party.getStatus()).willReturn(WatchPartyStatus.SCHEDULED);
+        given(party.getScheduledAt()).willReturn(Instant.now().plus(Duration.ofMinutes(29)));
+
+        service.joinWatchParty(partyId, userId);
+
+        verify(participantRepository).save(any(WatchPartyParticipant.class));
     }
 
     @Test

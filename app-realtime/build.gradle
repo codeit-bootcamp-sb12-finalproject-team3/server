@@ -13,6 +13,7 @@ dependencies {
 
     // actuator + Spring Boot Admin Client
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 
     // JWT authentication for SSE connections
     implementation 'com.nimbusds:nimbus-jose-jwt:10.6'

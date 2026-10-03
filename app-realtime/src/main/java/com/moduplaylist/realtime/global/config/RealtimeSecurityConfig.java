@@ -34,7 +34,12 @@ public class RealtimeSecurityConfig {
                 .requestCache(cache -> cache.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/sse").authenticated()
-                        .requestMatchers("/ws/**", "/actuator/health", "/error").permitAll()
+                        .requestMatchers(
+                                "/ws/**",
+                                "/actuator/health",
+                                "/actuator/prometheus",
+                                "/error"
+                        ).permitAll()
                         .anyRequest().denyAll())
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(
                         (request, response, cause) ->
