@@ -16,6 +16,8 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
 
     private static final SearchResult EMPTY_RESULT =
             new SearchResult(List.of(), 0L, false, null);
+    private static final List<ContentType> NEW_CONTENT_EXCLUDED_TYPES =
+            List.of(ContentType.TV_SERIES, ContentType.SPORT);
     private static final List<ContentType> AI_TAGGING_TYPES =
             List.of(ContentType.MOVIE, ContentType.TV_SEASON);
     private static final List<Content.AiTaggingStatus> TERMINAL_TAGGING_STATUSES = List.of(
@@ -50,12 +52,12 @@ public class ContentQueryRepositoryImpl implements ContentQueryRepository {
     @Override
     public SearchResult searchNewContents(NewContentSearch request) {
         Map<String, Object> parameters = new HashMap<>();
-        parameters.put("excludedType", ContentType.TV_SERIES);
+        parameters.put("excludedTypes", NEW_CONTENT_EXCLUDED_TYPES);
         parameters.put("createdAtFrom", request.getCreatedAtFrom());
         addAiTaggingVisibilityParameters(parameters);
         StringBuilder filter = new StringBuilder(
                 " where content.hidden = false"
-                        + " and content.type <> :excludedType"
+                        + " and content.type not in :excludedTypes"
                         + aiTaggingVisibilityFilter("content")
                         + " and content.createdAt >= :createdAtFrom");
         Long totalCount = request.getIdAfter() == null
