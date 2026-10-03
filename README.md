@@ -94,6 +94,8 @@ MOPL(ModuPlaylist)은 영화, TV 시리즈·시즌, 스포츠 등 여러 종류�
   <img src="https://img.shields.io/badge/GitHub%20Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white" alt="GitHub Actions">
   <img src="https://img.shields.io/badge/AWS%20ECR%20%2F%20ECS-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white" alt="AWS ECR and ECS">
   <img src="https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&logo=prometheus&logoColor=white" alt="Prometheus">
+  <img src="https://img.shields.io/badge/Micrometer-00A98F?style=for-the-badge&logo=micrometer&logoColor=white" alt="Micrometer">
+  <img src="https://img.shields.io/badge/Apache%20JMeter-D22128?style=for-the-badge&logo=apachejmeter&logoColor=white" alt="Apache JMeter">
   <img src="https://img.shields.io/badge/Grafana-F46800?style=for-the-badge&logo=grafana&logoColor=white" alt="Grafana">
 </p>
 
