@@ -2,18 +2,18 @@ package com.moduplaylist.realtime.notification.consumer;
 
 import com.moduplaylist.realtime.kafka.KafkaTopics;
 import com.moduplaylist.realtime.kafka.event.NotificationCreatedKafkaEvent;
-import com.moduplaylist.realtime.notification.sse.NotificationSsePayload;
-import com.moduplaylist.realtime.notification.sse.NotificationSseService;
+import com.moduplaylist.realtime.notification.redis.NotificationRedisMessage;
+import com.moduplaylist.realtime.notification.redis.NotificationRedisPublisher;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
 public class NotificationCreatedConsumer {
 
-    private final NotificationSseService notificationSseService;
+    private final NotificationRedisPublisher notificationRedisPublisher;
 
-    public NotificationCreatedConsumer(NotificationSseService notificationSseService) {
-        this.notificationSseService = notificationSseService;
+    public NotificationCreatedConsumer(NotificationRedisPublisher notificationRedisPublisher) {
+        this.notificationRedisPublisher = notificationRedisPublisher;
     }
 
     @KafkaListener(
@@ -21,7 +21,8 @@ public class NotificationCreatedConsumer {
             groupId = "${realtime.kafka.notification-consumer-group}"
     )
     public void consume(NotificationCreatedKafkaEvent event) {
-        NotificationSsePayload payload = new NotificationSsePayload(
+        NotificationRedisMessage message = new NotificationRedisMessage(
+                event.receiverId(),
                 event.notificationId(),
                 event.title(),
                 event.content(),
@@ -29,6 +30,6 @@ public class NotificationCreatedConsumer {
                 event.createdAt()
         );
 
-        notificationSseService.send(event.receiverId(), payload);
+        notificationRedisPublisher.publish(message);
     }
 }
