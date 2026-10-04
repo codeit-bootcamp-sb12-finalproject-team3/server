@@ -3,6 +3,7 @@ package com.moduplaylist.realtime.global.config;
 import com.moduplaylist.realtime.global.security.AccessTokenSessionRegistry;
 import com.moduplaylist.realtime.global.security.JwtAccessTokenVerifier;
 import com.moduplaylist.realtime.global.security.RealtimeJwtAuthenticationFilter;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,6 +34,7 @@ public class RealtimeSecurityConfig {
                 .httpBasic(basic -> basic.disable())
                 .requestCache(cache -> cache.disable())
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/sse").authenticated()
                         .requestMatchers(
                                 "/ws/**",
